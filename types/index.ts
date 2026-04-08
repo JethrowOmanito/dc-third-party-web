@@ -32,7 +32,6 @@ export interface Job {
   Name?: string;
   Email?: string;
   Price?: number;
-  owned_by_third_party?: string;
   commission_percentage?: number;
   rebate_amount?: number;
   company_reference?: string;
