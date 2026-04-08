@@ -65,6 +65,7 @@ const TIERS = [
 // Block well-known exploit scanners and missing/suspicious user-agents.
 // Cloudflare Bot Management handles this at a deeper level — this is a code-level backup.
 const BAD_UA = [
+  // ── Exploit scanners & pentest tools ──────────────────────────────────────
   /sqlmap/i,
   /nikto/i,
   /nmap/i,
@@ -83,6 +84,35 @@ const BAD_UA = [
   /w3af/i,
   /python-requests\/[01]\./i, // old/raw python scrapers
   /curl\/[0-7]\./i,            // very old curl (commonly used in scanners)
+
+  // ── AI / LLM training crawlers ────────────────────────────────────────────
+  /GPTBot/i,             // OpenAI
+  /ChatGPT-User/i,       // OpenAI ChatGPT browsing
+  /OAI-SearchBot/i,      // OpenAI search
+  /ClaudeBot/i,          // Anthropic Claude
+  /anthropic-ai/i,       // Anthropic generic
+  /Claude-Web/i,         // Anthropic Claude browser
+  /CCBot/i,              // Common Crawl (used by many LLMs)
+  /PerplexityBot/i,      // Perplexity AI
+  /Meta-ExternalAgent/i, // Meta AI
+  /FacebookBot/i,        // Meta/Facebook
+  /Bytespider/i,         // ByteDance / TikTok
+  /ImagesiftBot/i,       // image scraper
+  /Omgili/i,             // data harvester
+  /Omgilibot/i,
+  /YouBot/i,             // You.com AI
+  /cohere-ai/i,          // Cohere
+  /AI2Bot/i,             // Allen Institute AI
+  /Diffbot/i,            // Diffbot (used for LLM training)
+
+  // ── SEO / mass scrapers (commonly abused for data harvesting) ─────────────
+  /AhrefsBot/i,
+  /SemrushBot/i,
+  /MJ12bot/i,
+  /DotBot/i,
+  /BLEXBot/i,
+  /PetalBot/i,
+  /DataForSeoBot/i,
 ];
 
 function isBadBot(ua: string | null): boolean {
