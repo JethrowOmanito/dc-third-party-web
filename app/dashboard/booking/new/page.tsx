@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { DayPicker } from 'react-day-picker';
+import { Calendar } from '@/components/ui/calendar';
 import { ChevronRight, ChevronLeft, CheckCircle2, Loader2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -179,12 +179,12 @@ export default function BookingNewPage() {
         <div className="space-y-4">
           <h2 className="text-base font-semibold text-gray-800">Pick a Date</h2>
           <div className="flex justify-center bg-white rounded-xl border border-gray-200 p-2">
-            <DayPicker
+            <Calendar
               mode="single"
               selected={selectedDate}
               onSelect={setSelectedDate}
               disabled={{ before: new Date() }}
-              classNames={{ day_selected: 'bg-emerald-600 text-white rounded-full', day_today: 'font-bold text-emerald-600' }}
+              className="rounded-md border shadow"
             />
           </div>
           {selectedDate && (
