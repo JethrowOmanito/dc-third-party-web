@@ -109,8 +109,8 @@ export default function GuestTrackPage({ params }: { params: Promise<{ reference
   if (notFound) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-slate-100 flex flex-col items-center justify-center px-4 py-12">
-        <div className="w-16 h-16 rounded-2xl bg-red-100 flex items-center justify-center mb-4">
-          <Building2 className="w-8 h-8 text-red-500" />
+        <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center mb-4 p-2 shadow-sm ring-1 ring-emerald-600/10">
+          <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
         </div>
         <h1 className="text-xl font-bold text-gray-800">Reference Not Found</h1>
         <p className="text-gray-500 text-sm mt-2 text-center max-w-xs">
@@ -142,8 +142,8 @@ export default function GuestTrackPage({ params }: { params: Promise<{ reference
       {/* Brand header */}
       <div className="flex items-center justify-between max-w-lg mx-auto mb-6">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-emerald-600 flex items-center justify-center">
-            <Building2 className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center p-1 shadow-sm ring-1 ring-emerald-600/5">
+            <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
           </div>
           <span className="font-bold text-gray-900 text-sm">Doctor Clean</span>
         </div>
@@ -218,7 +218,7 @@ export default function GuestTrackPage({ params }: { params: Promise<{ reference
 
         <div className="text-center pt-2">
           <p className="text-xs text-gray-400">
-            Doctor Clean Partner Portal · This page auto-updates in real time
+            Doctor Clean Partner App · This page auto-updates in real time
           </p>
         </div>
       </div>

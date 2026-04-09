@@ -17,13 +17,13 @@ export default function SettingsPage() {
 
   const handleContactAdmin = () => {
     const phone = '6588656751';
-    const msg = encodeURIComponent('Hello, I need assistance with the Doctor Clean Partner Portal.');
+    const msg = encodeURIComponent('Hello, I need assistance with the Doctor Clean Partner App.');
     window.open(`https://wa.me/${phone}?text=${msg}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleForgotPassword = () => {
     const phone = '6588656751';
-    const msg = encodeURIComponent('Hello, I would like to reset my password for the Doctor Clean Partner Portal.');
+    const msg = encodeURIComponent('Hello, I would like to reset my password for the Doctor Clean Partner App.');
     window.open(`https://wa.me/${phone}?text=${msg}`, '_blank', 'noopener,noreferrer');
   };
 

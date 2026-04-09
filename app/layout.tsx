@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Doctor Clean Partner Portal",
+  title: "Doctor Clean Partner App",
   description: "Doctor Clean Partner & Third-Party Company Portal",
   manifest: "/manifest.json",
 };

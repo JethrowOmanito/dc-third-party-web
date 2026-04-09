@@ -82,12 +82,12 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-slate-100 flex flex-col items-center justify-center px-4 py-8">
       {/* Brand */}
-      <div className="flex flex-col items-center mb-8">
-        <div className="w-16 h-16 rounded-2xl bg-emerald-600 flex items-center justify-center shadow-lg mb-4">
-          <Building2 className="w-8 h-8 text-white" />
+      <div className="flex flex-col items-center mb-8 text-center">
+        <div className="w-20 h-20 rounded-2xl bg-white flex items-center justify-center shadow-xl shadow-emerald-600/10 mb-6 p-2 ring-1 ring-emerald-600/5">
+          <img src="/logo.png" alt="Doctor Clean Logo" className="w-full h-full object-contain" />
         </div>
-        <h1 className="text-2xl font-bold text-gray-900">Doctor Clean</h1>
-        <p className="text-gray-500 text-sm mt-1">Partner Portal</p>
+        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Doctor Clean</h1>
+        <p className="text-emerald-600/70 text-sm font-semibold tracking-wider uppercase mt-1">Partner App</p>
       </div>
 
       {/* Card */}
@@ -215,7 +215,7 @@ export default function LoginPage() {
       </div>
 
       <p className="mt-6 text-xs text-gray-400 text-center">
-        Doctor Clean Partner Portal © {new Date().getFullYear()}
+        Doctor Clean Partner App © {new Date().getFullYear()}
       </p>
     </div>
   );
