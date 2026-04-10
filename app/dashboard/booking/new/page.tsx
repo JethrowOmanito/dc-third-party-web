@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar } from '../../../../components/ui/calendar';
+import { Calendar } from '@/components/ui/calendar';
 import { ChevronRight, ChevronLeft, CheckCircle2, Loader2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
