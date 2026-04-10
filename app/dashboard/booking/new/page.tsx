@@ -178,13 +178,13 @@ export default function BookingNewPage() {
       {step === 'datetime' && (
         <div className="space-y-4">
           <h2 className="text-base font-semibold text-gray-800">Pick a Date</h2>
-          <div className="flex justify-center bg-white rounded-xl border border-gray-200 p-2">
+          <div className="bg-white rounded-xl border border-gray-200 p-3">
             <Calendar
               mode="single"
               selected={selectedDate}
               onSelect={setSelectedDate}
               disabled={{ before: new Date() }}
-              className="rounded-md border shadow"
+              className="w-full"
             />
           </div>
           {selectedDate && (
