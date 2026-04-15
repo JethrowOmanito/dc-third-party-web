@@ -14,6 +14,7 @@ export default function JobChatPage({ params }: { params: Promise<{ id: string }
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const bottomRef = useRef<HTMLDivElement>(null);
   const supabase = getSupabaseClient();
 
@@ -28,7 +29,14 @@ export default function JobChatPage({ params }: { params: Promise<{ id: string }
       .eq('event_id', jobId)
       .order('created_at', { ascending: true })
       .limit(200);
-    if (data) setMessages(data as ChatMessage[]);
+    if (data) {
+      setMessages(prev => {
+        if (prev.length === data.length && prev[prev.length - 1]?.id === data[data.length - 1]?.id) {
+          return prev;
+        }
+        return data as ChatMessage[];
+      });
+    }
     setLoading(false);
     setTimeout(scrollToBottom, 100);
   }, [jobId]);
@@ -62,9 +70,21 @@ export default function JobChatPage({ params }: { params: Promise<{ id: string }
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') setRealtimeStatus('connected');
+        if (status === 'CLOSED') setRealtimeStatus('connecting');
+        if (status === 'CHANNEL_ERROR') setRealtimeStatus('error');
+      });
 
-    return () => { supabase.removeChannel(channel); };
+    const pollInterval = setInterval(() => {
+      fetchMessages();
+      markRead();
+    }, 4000); // Relaxed polling as we have real-time
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+    };
   }, [jobId, fetchMessages, markRead]);
 
   const handleSend = async () => {
@@ -115,8 +135,30 @@ export default function JobChatPage({ params }: { params: Promise<{ id: string }
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] lg:h-[calc(100vh-6rem)] max-w-2xl mx-auto">
+      {/* Header Info */}
+      <div className="px-3 py-2 border-b border-gray-100 bg-white flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className={cn(
+            "w-2 h-2 rounded-full",
+            realtimeStatus === 'connected' ? "bg-emerald-500 animate-pulse" : 
+            realtimeStatus === 'connecting' ? "bg-amber-400" : "bg-red-500"
+          )} />
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+            {realtimeStatus === 'connected' ? 'Live Connection' : 'Restoring Connection...'}
+          </span>
+        </div>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="h-6 text-[10px] text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+          onClick={() => fetchMessages()}
+        >
+          Refresh
+        </Button>
+      </div>
+
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
+      <div className="flex-1 overflow-y-auto px-2 py-3 space-y-1 bg-gray-50/50">
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
@@ -131,7 +173,7 @@ export default function JobChatPage({ params }: { params: Promise<{ id: string }
             <div key={date}>
               <div className="flex items-center my-3">
                 <div className="flex-1 h-px bg-gray-200" />
-                <span className="mx-3 text-xs text-gray-400 whitespace-nowrap">{formatDay(date)}</span>
+                <span className="mx-3 text-[10px] text-gray-400 font-medium uppercase tracking-wider">{formatDay(date)}</span>
                 <div className="flex-1 h-px bg-gray-200" />
               </div>
               {msgs.map((msg) => {
