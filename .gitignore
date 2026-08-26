@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+package-lock.json
+
+# Dev scratch (do not commit)
+check_db.ts
+test_db*.js
