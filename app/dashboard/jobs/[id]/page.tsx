@@ -69,15 +69,15 @@ function localDateStr(d: Date) {
   ].join('-');
 }
 
-function getServiceDisplayName(serviceType: string | null): string {
+function getServiceDisplayName(serviceType: string | null, serviceSubtype?: string | null): string {
   if (!serviceType) return 'Cleaning Service';
   const key = serviceType.toLowerCase().trim();
+  if (key === 'float') return serviceSubtype || 'Deep Cleaning';
   const map: Record<string, string> = {
     aircon: 'Aircon Servicing',
     carpet: 'Carpet Cleaning',
     deep: 'Deep Cleaning',
     'end of tenancy': 'End of Tenancy',
-    float: 'Float Cleaning',
     general: 'General Cleaning',
     housekeeping: 'Housekeeping',
     mattress: 'Mattress Cleaning',
@@ -382,7 +382,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const jobStatus = getJobStatus(job, progressStep);
   const dateLabel = getDateLabel(job);
   const duration = getDuration(job.Start_Time, job.End_Time, job.Service_Type);
-  const serviceDisplay = getServiceDisplayName(job.Service_Type);
+  const serviceDisplay = getServiceDisplayName(job.Service_Type, job.service_subtype);
   const currentStepIndex = PROGRESS_STEPS.findIndex((s) => s.key === progressStep);
 
   const beforePhotos: string[] = job.upload_before || [];
@@ -569,9 +569,17 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center">
               <Banknote className="w-4 h-4 text-amber-500" />
             </div>
-            <span className="text-[10px] text-gray-400 font-medium">Price</span>
+            <span className="text-[10px] text-gray-400 font-medium">{job.tax_treatment && job.tax_treatment !== 'none' ? 'Total (incl. GST)' : 'Total'}</span>
             <span className="text-[11px] font-semibold text-center leading-tight text-indigo-600">
-              {job.Price != null ? `$${Number(job.Price).toFixed(2)}` : '$--.--'}
+              {job.Price != null ? (() => {
+                const fp = Number(job.final_price ?? job.Price);
+                const t = job.tax_treatment;
+                const hasGst = t === 'exclusive' || t === 'inclusive' || (t == null && job.gst_amount != null);
+                if (!hasGst) return `$${fp.toFixed(2)}`;
+                if (t === 'inclusive') return `$${fp.toFixed(2)}`;
+                const gst = job.gst_amount != null ? Number(job.gst_amount) : Math.round(fp * 0.09 * 100) / 100;
+                return `$${(fp + gst).toFixed(2)}`;
+              })() : '$--.--'}
             </span>
           </div>
         </div>

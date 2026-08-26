@@ -1,9 +1,13 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { LogOut, Building2, User, Shield, MessageCircle, Phone } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import {
+  LogOut,
+  Building2,
+  User,
+  Shield,
+  MessageCircle,
+  Phone,
+} from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 
 export default function SettingsPage() {
@@ -17,104 +21,156 @@ export default function SettingsPage() {
 
   const handleContactAdmin = () => {
     const phone = '6588656751';
-    const msg = encodeURIComponent('Hello, I need assistance with the Doctor Clean Partner App.');
+    const msg = encodeURIComponent(
+      'Hello, I need assistance with the Doctor Clean Partner App.'
+    );
     window.open(`https://wa.me/${phone}?text=${msg}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleForgotPassword = () => {
     const phone = '6588656751';
-    const msg = encodeURIComponent('Hello, I would like to reset my password for the Doctor Clean Partner App.');
+    const msg = encodeURIComponent(
+      'Hello, I would like to reset my password for the Doctor Clean Partner App.'
+    );
     window.open(`https://wa.me/${phone}?text=${msg}`, '_blank', 'noopener,noreferrer');
   };
 
   return (
-    <div className="max-w-lg mx-auto space-y-5">
-      {/* Profile Card */}
-      <Card>
-        <CardContent className="p-5">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
-              <Building2 className="w-7 h-7 text-emerald-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="font-bold text-gray-900 text-base truncate">{user?.company_name || user?.username}</p>
-              {user?.company_type && <p className="text-sm text-gray-500">{user.company_type}</p>}
-              {user?.company_code && (
-                <Badge variant="outline" className="mt-1 text-xs">Code: {user.company_code}</Badge>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="max-w-2xl mx-auto space-y-5 pb-12">
+      {/* Page title */}
+      <h1 className="text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight">
+        Settings
+      </h1>
 
-      {/* Account info */}
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">Account Details</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <InfoRow icon={User} label="Username" value={user?.username || '—'} />
-          <InfoRow icon={Building2} label="Company" value={user?.company_name || '—'} />
-          <InfoRow icon={Shield} label="Role" value="Partner (Third Party)" />
-        </CardContent>
-      </Card>
+      {/* Profile Card */}
+      <div className="rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm p-5">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0">
+            <Building2 className="w-7 h-7 text-emerald-600" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-lg font-bold text-slate-900 truncate">
+              {user?.company_name || user?.username}
+            </p>
+            {user?.username && (
+              <p className="text-sm text-slate-500 truncate">{user.username}</p>
+            )}
+            {user?.company_code && (
+              <span className="inline-block mt-1.5 px-2.5 py-0.5 rounded-full bg-slate-50 ring-1 ring-slate-200 text-xs font-medium text-slate-600">
+                Code: {user.company_code}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Account Details */}
+      <SectionCard title="Account Details">
+        <InfoRow icon={User} label="Username" value={user?.username || '—'} />
+        <InfoRow icon={Building2} label="Company" value={user?.company_name || '—'} />
+        <InfoRow icon={Shield} label="Role" value="Partner (Third Party)" />
+      </SectionCard>
 
       {/* Support */}
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">Support</CardTitle></CardHeader>
-        <CardContent className="space-y-2">
-          <button
-            onClick={handleForgotPassword}
-            className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-gray-50 text-left transition-colors"
-          >
-            <Phone className="w-4 h-4 text-gray-400" />
-            <div>
-              <p className="text-sm font-medium text-gray-700">Reset Password</p>
-              <p className="text-xs text-gray-400">Contact admin via WhatsApp</p>
-            </div>
-          </button>
-          <button
-            onClick={handleContactAdmin}
-            className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-gray-50 text-left transition-colors"
-          >
-            <MessageCircle className="w-4 h-4 text-green-500" />
-            <div>
-              <p className="text-sm font-medium text-gray-700">Contact Admin</p>
-              <p className="text-xs text-gray-400">+65 8865 6751 on WhatsApp</p>
-            </div>
-          </button>
-        </CardContent>
-      </Card>
+      <SectionCard title="Support">
+        <SupportRow
+          icon={Phone}
+          iconColor="text-slate-400"
+          title="Reset Password"
+          subtitle="Contact admin via WhatsApp"
+          onClick={handleForgotPassword}
+        />
+        <SupportRow
+          icon={MessageCircle}
+          iconColor="text-emerald-600"
+          title="Contact Admin"
+          subtitle="+65 8865 6751 on WhatsApp"
+          onClick={handleContactAdmin}
+        />
+      </SectionCard>
 
-      {/* App info */}
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm">App Information</CardTitle></CardHeader>
-        <CardContent className="space-y-2 text-sm text-gray-600">
-          <div className="flex justify-between"><span>Version</span><span className="font-medium">1.0.0</span></div>
-          <div className="flex justify-between"><span>Platform</span><span className="font-medium">Web</span></div>
-          <div className="flex justify-between"><span>Build</span><span className="font-medium">Production</span></div>
-        </CardContent>
-      </Card>
+      {/* App Information */}
+      <SectionCard title="App Information">
+        <KeyValueRow label="Version" value="1.0.0" />
+        <KeyValueRow label="Platform" value="Web" />
+        <KeyValueRow label="Build" value="Production" />
+      </SectionCard>
 
-      {/* Logout */}
-      <Button
-        variant="destructive"
+      {/* Log Out */}
+      <button
         onClick={handleLogout}
-        className="w-full h-12 text-base"
+        className="w-full h-12 rounded-2xl bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold text-base inline-flex items-center justify-center gap-2 transition-colors shadow-sm"
       >
-        <LogOut className="w-4 h-4" />
+        <LogOut className="w-5 h-5" />
         Log Out
-      </Button>
+      </button>
     </div>
   );
 }
 
-function InfoRow({ icon: Icon, label, value }: { icon: React.ComponentType<any>; label: string; value: string }) {
+function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3">
-      <Icon className="w-4 h-4 text-gray-400 flex-shrink-0" />
-      <div className="flex justify-between flex-1 min-w-0">
-        <span className="text-sm text-gray-500">{label}</span>
-        <span className="text-sm font-medium text-gray-700 truncate ml-2">{value}</span>
+    <div className="rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm">
+      <div className="px-5 pt-5 pb-3">
+        <h2 className="text-base font-bold text-slate-900">{title}</h2>
       </div>
+      <div className="px-5 pb-5 space-y-3">{children}</div>
+    </div>
+  );
+}
+
+function InfoRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 py-1">
+      <Icon className="w-4 h-4 text-slate-400 shrink-0" />
+      <div className="flex justify-between items-center flex-1 min-w-0">
+        <span className="text-sm text-slate-500">{label}</span>
+        <span className="text-sm font-semibold text-slate-900 truncate ml-2">{value}</span>
+      </div>
+    </div>
+  );
+}
+
+function SupportRow({
+  icon: Icon,
+  iconColor,
+  title,
+  subtitle,
+  onClick,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  iconColor: string;
+  title: string;
+  subtitle: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-3 w-full p-3 -mx-1 rounded-xl hover:bg-slate-50 text-left transition-colors"
+    >
+      <Icon className={`w-5 h-5 shrink-0 ${iconColor}`} />
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-slate-900">{title}</p>
+        <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
+      </div>
+    </button>
+  );
+}
+
+function KeyValueRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between items-center py-1">
+      <span className="text-sm text-slate-500">{label}</span>
+      <span className="text-sm font-semibold text-slate-900">{value}</span>
     </div>
   );
 }

@@ -5,6 +5,26 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** Converts "9:00 AM" / "2:00 PM" → "09:00" (24h) */
+export function convertTo24Hour(timeStr: string | undefined): string | null {
+  if (!timeStr) return null;
+  const [time, modifier] = timeStr.split(' ');
+  let [hours, minutes] = time.split(':').map(Number);
+  if (modifier === 'PM' && hours < 12) hours += 12;
+  if (modifier === 'AM' && hours === 12) hours = 0;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+export function isValidSGPostal(code: string): boolean {
+  if (!/^\d{6}$/.test(code)) return false;
+  const district = parseInt(code.slice(0, 2), 10);
+  return district >= 1 && district <= 80;
+}
+
+export function isServiceablePostal(code: string): boolean {
+  return isValidSGPostal(code);
+}
+
 // Re-export from centralised rate limiter (uses globalThis for cross-request persistence)
 export { checkRateLimit, resetRateLimit } from '@/lib/rate-limit';
 
@@ -67,8 +87,9 @@ export const SERVICE_COLORS: Record<string, string> = {
   scrubbing: '#6366F1',
 };
 
-export function getServiceDisplayName(type: string): string {
+export function getServiceDisplayName(type: string, serviceSubtype?: string | null): string {
   const key = (type || '').toLowerCase().trim();
+  if (key === 'float') return serviceSubtype || SERVICE_DISPLAY_NAMES['float'] || type;
   return SERVICE_DISPLAY_NAMES[key] || type;
 }
 

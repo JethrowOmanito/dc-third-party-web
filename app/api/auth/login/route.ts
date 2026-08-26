@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit, resetRateLimit } from '@/lib/utils';
 import bcrypt from 'bcryptjs';
+import { SignJWT } from 'jose';
+import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -77,8 +79,28 @@ export async function POST(req: NextRequest) {
     // Return user data (strip password fields)
     const { password: _p, password_hash: _ph, ...safeUser } = userData as any;
 
-    return NextResponse.json({ user: safeUser }, { status: 200 });
-  } catch {
+    // Create a secure session cookie
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'doctor-clean-partner-secret-well-change-this-soon');
+    const token = await new SignJWT({ ...safeUser })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('24h')
+      .sign(secret);
+
+    const response = NextResponse.json({ user: safeUser }, { status: 200 });
+    
+    // Set cookie
+    response.cookies.set('dc_partner_session', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24, // 24 hours
+      path: '/',
+    });
+
+    return response;
+  } catch (err) {
+    console.error('Login error:', err);
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }
 }

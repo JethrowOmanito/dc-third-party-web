@@ -16,6 +16,11 @@ const TITLES: Record<string, string> = {
   '/dashboard/settings': 'Settings',
 };
 
+const SUBTITLES: Record<string, string> = {
+  '/dashboard/booking/new': 'Follow the steps to complete your booking.',
+  '/dashboard/jobs': 'View and manage all service requests in one place.',
+};
+
 function getTitle(pathname: string): string {
   if (TITLES[pathname]) return TITLES[pathname];
   if (pathname.includes('/chat')) return 'Job Chat';
@@ -24,16 +29,16 @@ function getTitle(pathname: string): string {
   return 'Doctor Clean';
 }
 
+function getSubtitle(pathname: string): string | null {
+  return SUBTITLES[pathname] || null;
+}
+
 export function TopBar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const title = getTitle(pathname);
-
-  const canGoBack =
-    pathname !== '/dashboard' &&
-    !TITLES[pathname] === false &&
-    (pathname.includes('/jobs/') || pathname.includes('/booking/payment') || pathname.includes('/booking/new'));
+  const subtitle = getSubtitle(pathname);
 
   const handleLogout = () => {
     logout();
@@ -41,17 +46,12 @@ export function TopBar() {
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-white border-b border-gray-200 px-4 h-14 flex items-center justify-between gap-2">
-      <div className="flex items-center gap-2 min-w-0">
-        {canGoBack && (
-          <button
-            onClick={() => router.back()}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600 flex-shrink-0"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+    <header className={`sticky top-0 z-30 bg-white border-b border-gray-200 px-4 flex items-center justify-between gap-2 ${subtitle ? 'py-1.5' : 'h-14'}`}>
+      <div className="flex flex-col min-w-0 flex-1">
+        <h1 className="font-bold text-slate-900 text-lg lg:text-xl truncate leading-tight">{title}</h1>
+        {subtitle && (
+          <p className="text-xs lg:text-sm text-slate-500 truncate leading-tight mt-0.5">{subtitle}</p>
         )}
-        <h1 className="font-semibold text-gray-900 text-base truncate">{title}</h1>
       </div>
       <div className="flex items-center gap-1">
         <Link

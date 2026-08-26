@@ -3,6 +3,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { AuthGuard } from '@/components/layout/AuthGuard';
+import { FloatingChatbot } from '@/components/chat/FloatingChatbot';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -22,6 +23,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Mobile bottom navigation */}
         <MobileBottomNav />
+
+        {/* Global Assistant */}
+        <FloatingChatbot />
       </div>
     </AuthGuard>
   );

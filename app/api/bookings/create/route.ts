@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
     const addonsTotal = (addonsRes.data || []).reduce((sum, a) => sum + (a.price || 0), 0);
     const slotFee = data.slot.additionalFee || 0;
     const finalTotal = basePrice + addonsTotal + slotFee;
+    const gstAmount = Math.round(finalTotal * 0.09 * 100) / 100;
 
     // 4. Insert Booking
     const { data: event, error: insertError } = await supabase.from('events').insert({
@@ -98,6 +99,10 @@ export async function POST(req: NextRequest) {
       Email: data.contact.email,
       Note: data.contact.notes,
       Price: finalTotal,
+      final_price: finalTotal,
+      tax_treatment: 'exclusive',
+      gst_rate: 9,
+      gst_amount: gstAmount,
       owned_by_third_party: user.id,
       // Unit & Size go to specific columns, not Extra_Service
       Unit_type: data.propertyType === 'hdb' ? 'HDB' : (data.propertyType === 'condo' ? 'Condo/APT' : 'Landed'),

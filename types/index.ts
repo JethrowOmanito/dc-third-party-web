@@ -3,6 +3,8 @@ export interface User {
   username: string;
   role: string;
   privilege: number;
+  name?: string;
+  email?: string;
   service_assigned?: string[];
   company_name?: string;
   company_code?: string;
@@ -23,6 +25,7 @@ export interface Job {
   Start_Time_Display: string;
   End_Time_Display: string;
   Service_Type: string;
+  service_subtype?: string | null;
   Note?: string;
   Assign_Cleaner: string[];
   Extra_Service?: string[];
@@ -32,6 +35,9 @@ export interface Job {
   Name?: string;
   Email?: string;
   Price?: number;
+  final_price?: number;
+  gst_rate?: number;
+  gst_amount?: number;
   commission_percentage?: number;
   rebate_amount?: number;
   company_reference?: string;
@@ -121,15 +127,19 @@ export interface Service {
 export interface PricingRow {
   id: number;
   category: string;
-  subcategory: string;
+  subcategory: string | null;
+  subcategory_label: string | null;
   property_type: string | null;
   unit_label: string;
   price: number | null;
+  promo_price: number | null;
+  partner_price: number | null;
   duration_hours: number | null;
   sessions: number;
   price_note: string | null;
   sort_order: number;
   is_site_visit: boolean;
+  is_active?: boolean;
 }
 
 export interface AddonRow {
@@ -144,17 +154,61 @@ export interface AddonRow {
   is_site_visit: boolean;
 }
 
+export interface HousekeepingPricingRow {
+  hours: number;
+  price: number;
+  label: string;
+  session_type?: string;
+}
+
+export interface PromoCode {
+  id: string;
+  code: string;
+  description: string | null;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: number;
+  min_booking_amount: number;
+}
+
+export interface AdditionalService {
+  id: number;
+  name: string;
+  parent_service: string;
+  price?: number | null;
+  price_note?: string | null;
+  description?: string | null;
+  color?: string | null;
+  sort_order?: number | null;
+  allowed_job_types?: string[] | null;
+}
+
 export type ProgressStep = 'not_ready' | 'in_transit' | 'started' | 'completed';
 
-export type ServiceKey = 'deep_cleaning' | 'housekeeping' | 'upholstery' | 'curtain';
+export type ServiceKey =
+  | 'deep_cleaning'
+  | 'housekeeping'
+  | 'upholstery'
+  | 'curtain'
+  | 'scrubbing_machine'
+  | 'formaldehyde_removal'
+  | 'coating'
+  | 'disinfection'
+  | 'office'
+  | 'window_cleaning'
+  | 'blinds';
+
 export type PropertyType = 'hdb' | 'condo';
 
 export type BookingStep =
   | 'service'
-  | 'datetime'
+  | 'type_selection'
+  | 'hk_postal'
+  | 'duration'
   | 'subtype'
-  | 'property_type'
+  | 'property'
   | 'size'
+  | 'datetime'
   | 'addons'
   | 'contact'
+  | 'terms'
   | 'confirm';

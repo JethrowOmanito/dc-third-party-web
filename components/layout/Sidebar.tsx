@@ -19,7 +19,7 @@ const navItems = [
   { href: '/dashboard/jobs', label: 'All Jobs', icon: Briefcase },
   { href: '/dashboard/jobs/today', label: "Today's Jobs", icon: CalendarDays },
   { href: '/dashboard/jobs/incoming', label: 'Incoming', icon: Clock },
-  { href: '/dashboard/booking/slots', label: 'Book Service', icon: BookOpen },
+  { href: '/dashboard/booking/new', label: 'Book Service', icon: BookOpen },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -61,7 +61,12 @@ export function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const isActive = href === '/dashboard' ? pathname === href : pathname.startsWith(href);
+          // Strict matching for specific views, prefix matching for general categories
+          const isSpecificView = href.split('/').length > 2 && href !== '/dashboard';
+          const isActive = isSpecificView 
+            ? pathname === href 
+            : (href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href));
+          
           return (
             <Link
               key={href}
@@ -69,7 +74,7 @@ export function Sidebar() {
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-emerald-600 text-white'
+                  ? 'bg-emerald-600 text-white shadow-md'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
               )}
             >

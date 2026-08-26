@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const securityHeaders = [
   { key: "X-DNS-Prefetch-Control", value: "on" },
@@ -14,12 +15,12 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+      "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com https://challenges.cloudflare.com",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' blob: data: https://agyzvknaqnamaoczxgsb.supabase.co",
+      "img-src 'self' blob: data: https://agyzvknaqnamaoczxgsb.supabase.co https://*.stripe.com",
       "font-src 'self'",
-      "connect-src 'self' https://agyzvknaqnamaoczxgsb.supabase.co wss://agyzvknaqnamaoczxgsb.supabase.co",
-      "frame-src 'none'",
+      "connect-src 'self' https://agyzvknaqnamaoczxgsb.supabase.co wss://agyzvknaqnamaoczxgsb.supabase.co https://api.stripe.com https://challenges.cloudflare.com",
+      "frame-src https://js.stripe.com https://hooks.stripe.com https://challenges.cloudflare.com",
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -48,4 +49,9 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: "doctor-clean-singapore",
+  project: "react-native",
+  silent: !process.env.CI,
+  widenClientFileUpload: true,
+});

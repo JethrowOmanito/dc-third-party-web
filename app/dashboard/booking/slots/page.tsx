@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
@@ -22,34 +23,53 @@ export default function AvailableSlotsPage() {
   const router = useRouter();
   const supabase = getSupabaseClient();
   const { setDate, setSlot, setStep } = useBookingStore();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    // Safety Redirect: Always use the new Wizard flow to ensure Service Selection
+    router.replace('/dashboard/booking/new');
+  }, [router]);
 
   const [selected, setSelected] = useState<Date | undefined>(undefined);
   const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
-  const [availability, setAvailability] = useState<Record<string, number>>({});
+  const [availability, setAvailability] = useState<Record<string, { booked: number, limit: number }>>({});
   const [loading, setLoading] = useState(false);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const checkAvailability = useCallback(async (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = format(date, 'yyyy-MM-dd');
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from('events')
-        .select('id, Start_Time')
-        .eq('Start_Date', dateStr);
+      // Standalone page currently assumes 'Float' service if not otherwise specified
+      // In a real scenario, we'd pass the service key.
+      const { data: capData } = await supabase
+        .from('Capacity')
+        .select('capacity, booked_count, Start_Time')
+        .eq('date_capacity', dateStr)
+        .eq('service', 'Float');
 
-      const counts: Record<string, number> = {};
-      (data || []).forEach((ev: any) => {
-        const key = ev.Start_Time?.split(':').slice(0, 2).join(':') || '';
-        counts[key] = (counts[key] || 0) + 1;
+      const map: Record<string, { booked: number, limit: number }> = {};
+      (capData || []).forEach(c => {
+        if (c.Start_Time) {
+          const hour = parseInt(c.Start_Time.split(':')[0]);
+          let key = '';
+          if (hour === 9) key = '9:00 AM';
+          else if (hour === 14) key = '2:00 PM';
+          else if (hour === 18) key = '6:00 PM';
+          
+          if (key) {
+            map[key] = { booked: c.booked_count || 0, limit: c.capacity || 0 };
+          }
+        }
       });
-      setAvailability(counts);
+      setAvailability(map);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     if (selected) checkAvailability(selected);
@@ -57,7 +77,7 @@ export default function AvailableSlotsPage() {
 
   const handleProceed = () => {
     if (!selected || !selectedSlot) return;
-    setDate(selected.toISOString().split('T')[0]);
+    setDate(selected ? format(selected, 'yyyy-MM-dd') : '');
     setSlot(selectedSlot);
     setStep('service');
     router.push('/dashboard/booking/new');
@@ -94,32 +114,43 @@ export default function AvailableSlotsPage() {
             </div>
           ) : (
             SLOTS.map((slot) => {
+              const status = availability[slot.start];
+              const isFull = status && status.booked >= status.limit;
               const isSelected = selectedSlot?.label === slot.label;
               return (
                 <button
                   key={slot.label}
-                  onClick={() => setSelectedSlot(slot)}
+                  onClick={() => !isFull && setSelectedSlot(slot)}
+                  disabled={isFull}
                   className={cn(
                     'w-full flex items-center justify-between p-4 rounded-xl border transition-all text-left',
                     isSelected
                       ? 'border-emerald-500 bg-emerald-50'
-                      : 'border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/50'
+                      : isFull 
+                        ? 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed'
+                        : 'border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/50'
                   )}
                 >
                   <div className="flex items-center gap-3">
-                    <Clock className={cn('w-4 h-4', isSelected ? 'text-emerald-600' : 'text-gray-400')} />
+                    <Clock className={cn('w-4 h-4', isSelected ? 'text-emerald-600' : isFull ? 'text-gray-300' : 'text-gray-400')} />
                     <div>
-                      <p className={cn('text-sm font-medium', isSelected ? 'text-emerald-700' : 'text-gray-800')}>
+                      <p className={cn('text-sm font-medium', isSelected ? 'text-emerald-700' : isFull ? 'text-gray-400 line-through' : 'text-gray-800')}>
                         {slot.label}
                       </p>
-                      {(slot.additionalFee ?? 0) > 0 && (
-                        <Badge variant="warning" className="mt-1 text-xs">
+                      {isFull ? (
+                        <p className="text-[10px] text-red-500 font-bold uppercase tracking-tight mt-1">Fully Booked</p>
+                      ) : (slot.additionalFee ?? 0) > 0 ? (
+                        <Badge variant="warning" className="mt-1 text-[10px] px-1.5 py-0">
                           +${slot.additionalFee} surcharge
                         </Badge>
+                      ) : (
+                        <p className="text-[10px] text-gray-500 uppercase mt-0.5">Available</p>
                       )}
                     </div>
                   </div>
-                  {isSelected && <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0" />}
+                  {isSelected ? (
+                    <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                  ) : null}
                 </button>
               );
             })

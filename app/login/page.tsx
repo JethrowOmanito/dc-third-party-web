@@ -1,21 +1,56 @@
 'use client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { loginSchema, referenceLoginSchema, type LoginInput, type ReferenceLoginInput } from '@/lib/validations/auth.schema';
+
+import {
+  loginSchema,
+  referenceLoginSchema,
+  type LoginInput,
+  type ReferenceLoginInput,
+} from '@/lib/validations/auth.schema';
 import { useAuthStore } from '@/store/authStore';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Building2, Eye, EyeOff, Hash, Loader2, Lock, User } from 'lucide-react';
+import {
+  Calendar,
+  Eye,
+  EyeOff,
+  Hash,
+  Headphones,
+  Loader2,
+  Lock,
+  LogIn,
+  Search,
+  Shield,
+  ShieldCheck,
+  TrendingUp,
+  User,
+  Users,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 
+const LOGO_URL =
+  'https://agyzvknaqnamaoczxgsb.supabase.co/storage/v1/object/public/doctor-clean-files/uploads/doctor_clean_logo.542c4621e2b4379e4d95.png';
+const MERLION_URL =
+  'https://agyzvknaqnamaoczxgsb.supabase.co/storage/v1/object/public/doctor-clean-files/uploads/DC_merlion_login.png';
+const TEAM_URL =
+  'https://agyzvknaqnamaoczxgsb.supabase.co/storage/v1/object/public/doctor-clean-files/uploads/DC_Team.png';
+
+const FEATURES = [
+  { Icon: Calendar,    title: 'Manage Bookings',    desc: 'Track and manage all cleaning jobs in one place.' },
+  { Icon: Users,       title: 'Team Coordination',  desc: 'Assign tasks and keep your team connected.' },
+  { Icon: TrendingUp,  title: 'Real-time Insights', desc: 'Monitor performance and operations with real-time reports.' },
+  { Icon: ShieldCheck, title: 'Secure & Reliable',  desc: 'Your data is protected with enterprise grade security.' },
+];
+
 export default function LoginPage() {
-  const [activeTab, setActiveTab] = useState<'partner' | 'reference'>('partner');
-  const [showPassword, setShowPassword] = useState(false);
-  const [serverError, setServerError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { setUser, setGuestSession } = useAuthStore();
+
+  const [activeTab, setActiveTab] = useState<'partner' | 'reference'>('partner');
+  const [showPwd, setShowPwd] = useState(false);
+  const [serverError, setServerError] = useState('');
+  const [teamPhotoError, setTeamPhotoError] = useState(false);
+  const year = new Date().getFullYear();
 
   const partnerForm = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
@@ -27,9 +62,8 @@ export default function LoginPage() {
     defaultValues: { referenceNumber: '' },
   });
 
-  const handlePartnerLogin = async (data: LoginInput) => {
+  const onPartnerSubmit = async (data: LoginInput) => {
     setServerError('');
-    setIsLoading(true);
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -38,21 +72,18 @@ export default function LoginPage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        setServerError(json.error || 'Login failed');
+        setServerError(json.error ?? 'Login failed.');
         return;
       }
       setUser(json.user);
-      router.push('/dashboard');
+      router.replace('/dashboard');
     } catch {
       setServerError('Network error. Please try again.');
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const handleReferenceLogin = async (data: ReferenceLoginInput) => {
+  const onReferenceSubmit = async (data: ReferenceLoginInput) => {
     setServerError('');
-    setIsLoading(true);
     try {
       const res = await fetch('/api/auth/guest', {
         method: 'POST',
@@ -61,162 +92,772 @@ export default function LoginPage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        setServerError(json.error || 'Reference number not found');
+        setServerError(json.error ?? 'Reference number not found.');
         return;
       }
       setGuestSession(json.session);
       router.push(`/track/${data.referenceNumber.trim()}`);
     } catch {
       setServerError('Network error. Please try again.');
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const handleForgotPassword = () => {
-    const phone = '6588656751';
-    const msg = encodeURIComponent('Hello, I forgot my password for the Doctor Clean Partner portal. Can you help me reset it?');
-    window.open(`https://wa.me/${phone}?text=${msg}`, '_blank', 'noopener,noreferrer');
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-slate-100 flex flex-col items-center justify-center px-4 py-8">
-      {/* Brand */}
-      <div className="flex flex-col items-center mb-8 text-center">
-        <div className="w-20 h-20 rounded-2xl bg-white flex items-center justify-center shadow-xl shadow-emerald-600/10 mb-6 p-2 ring-1 ring-emerald-600/5">
-          <img src="/logo.png" alt="Doctor Clean Logo" className="w-full h-full object-contain" />
-        </div>
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Doctor Clean</h1>
-        <p className="text-emerald-600/70 text-sm font-semibold tracking-wider uppercase mt-1">Partner App</p>
-      </div>
+    <>
+      <style>{CSS}</style>
 
-      {/* Card */}
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden">
-        {/* Tabs */}
-        <div className="flex border-b border-gray-100">
-          <button
-            onClick={() => { setActiveTab('partner'); setServerError(''); }}
-            className={`flex-1 py-3.5 text-sm font-medium transition-colors ${
-              activeTab === 'partner'
-                ? 'text-emerald-600 border-b-2 border-emerald-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Partner Login
-          </button>
-          <button
-            onClick={() => { setActiveTab('reference'); setServerError(''); }}
-            className={`flex-1 py-3.5 text-sm font-medium transition-colors ${
-              activeTab === 'reference'
-                ? 'text-emerald-600 border-b-2 border-emerald-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Track Job
-          </button>
-        </div>
+      <div className="dc-login">
+        <svg
+          className="dc-ribbon"
+          viewBox="0 0 900 700"
+          preserveAspectRatio="none"
+          aria-hidden
+        >
+          <path d="M0,140 C260,180 520,440 900,690 L900,700 L0,700 Z" fill="#0eae8b" />
+          <path d="M0,340 C230,380 520,560 900,700 L0,700 Z" fill="#e7f8f3" />
+        </svg>
 
-        <div className="p-6">
-          {/* Server error */}
-          {serverError && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              {serverError}
+        <div className="dc-login__container">
+          {/* ── LEFT — branding + artwork ─────────────────────────── */}
+          <aside className="dc-left">
+            <div className="dc-left__content">
+              <h1 className="dc-left__heading">
+                <span className="dc-left__heading--primary">Spotless Spaces,</span>
+                <br />
+                <span className="dc-left__heading--accent">Smiling Faces</span>
+              </h1>
+
+              <p className="dc-left__desc">
+                Doctor Clean Partner Portal helps you manage jobs, track service requests
+                and grow your business with our team.
+              </p>
+
+              <div className="dc-features">
+                {FEATURES.map(({ Icon, title, desc }) => (
+                  <div key={title} className="dc-feature">
+                    <div className="dc-feature__icon">
+                      <Icon size={22} strokeWidth={2} />
+                    </div>
+                    <div>
+                      <p className="dc-feature__title">{title}</p>
+                      <p className="dc-feature__desc">{desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
 
-          {activeTab === 'partner' ? (
-            <form onSubmit={partnerForm.handleSubmit(handlePartnerLogin)} className="space-y-4">
-              {/* Username */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Username</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    {...partnerForm.register('username')}
-                    placeholder="Enter your username"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    className="pl-9"
-                  />
-                </div>
-                {partnerForm.formState.errors.username && (
-                  <p className="mt-1 text-xs text-red-600">{partnerForm.formState.errors.username.message}</p>
-                )}
+            <div className="dc-visual" aria-hidden>
+              <img src={MERLION_URL} alt="" className="dc-visual__merlion" />
+              {!teamPhotoError && (
+                <img
+                  src={TEAM_URL}
+                  alt=""
+                  className="dc-visual__team"
+                  onError={() => setTeamPhotoError(true)}
+                />
+              )}
+            </div>
+          </aside>
+
+          {/* ── RIGHT — login card + footer ───────────────────────── */}
+          <section className="dc-right">
+            <div className="dc-mobile-brand">
+              <img src={LOGO_URL} alt="Doctor Clean" />
+            </div>
+
+            <div className="dc-card">
+              <div className="dc-card__logo">
+                <img src={LOGO_URL} alt="Doctor Clean" />
               </div>
 
-              {/* Password */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    {...partnerForm.register('password')}
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Enter your password"
-                    className="pl-9 pr-10"
-                  />
+              <h2 className="dc-card__title">Partner Portal</h2>
+              <p className="dc-card__subtitle">
+                Sign in as a partner or track an existing job.
+              </p>
+
+              {/* Tabs */}
+              <div className="dc-tabs" role="tablist" aria-label="Login mode">
+                <button
+                  role="tab"
+                  type="button"
+                  aria-selected={activeTab === 'partner'}
+                  className={`dc-tab${activeTab === 'partner' ? ' dc-tab--active' : ''}`}
+                  onClick={() => {
+                    setActiveTab('partner');
+                    setServerError('');
+                  }}
+                >
+                  Partner Login
+                </button>
+                <button
+                  role="tab"
+                  type="button"
+                  aria-selected={activeTab === 'reference'}
+                  className={`dc-tab${activeTab === 'reference' ? ' dc-tab--active' : ''}`}
+                  onClick={() => {
+                    setActiveTab('reference');
+                    setServerError('');
+                  }}
+                >
+                  Track Job
+                </button>
+              </div>
+
+              {serverError && <div className="dc-error">{serverError}</div>}
+
+              {activeTab === 'partner' ? (
+                <form onSubmit={partnerForm.handleSubmit(onPartnerSubmit)} className="dc-form">
+                  {/* Username */}
+                  <div className="dc-field">
+                    <label htmlFor="tp-username" className="dc-label">Username</label>
+                    <div className="dc-input-wrap">
+                      <User className="dc-input-icon" size={18} />
+                      <input
+                        id="tp-username"
+                        {...partnerForm.register('username')}
+                        type="text"
+                        placeholder="Enter your username"
+                        autoComplete="username"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        className={`dc-input${partnerForm.formState.errors.username ? ' dc-input--error' : ''}`}
+                      />
+                    </div>
+                    {partnerForm.formState.errors.username && (
+                      <p className="dc-field__error">
+                        {partnerForm.formState.errors.username.message}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Password */}
+                  <div className="dc-field">
+                    <label htmlFor="tp-password" className="dc-label">Password</label>
+                    <div className="dc-input-wrap">
+                      <Lock className="dc-input-icon" size={18} />
+                      <input
+                        id="tp-password"
+                        {...partnerForm.register('password')}
+                        type={showPwd ? 'text' : 'password'}
+                        placeholder="Enter your password"
+                        autoComplete="current-password"
+                        className={`dc-input dc-input--password${partnerForm.formState.errors.password ? ' dc-input--error' : ''}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPwd((v) => !v)}
+                        className="dc-eye"
+                        aria-label={showPwd ? 'Hide password' : 'Show password'}
+                      >
+                        {showPwd ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                    {partnerForm.formState.errors.password && (
+                      <p className="dc-field__error">
+                        {partnerForm.formState.errors.password.message}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Forgot link */}
+                  <div className="dc-form__row dc-form__row--end">
+                    <a
+                      href="https://wa.me/6588656751?text=Hello%2C%20I%20forgot%20my%20Doctor%20Clean%20Partner%20password.%20Please%20help%20me%20reset%20it."
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="dc-link"
+                    >
+                      Forgot password?
+                    </a>
+                  </div>
+
+                  {/* Sign in */}
                   <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    tabIndex={-1}
+                    type="submit"
+                    disabled={partnerForm.formState.isSubmitting}
+                    className="dc-btn-primary"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {partnerForm.formState.isSubmitting ? (
+                      <>
+                        <Loader2 size={16} className="dc-spin" />
+                        Signing In…
+                      </>
+                    ) : (
+                      <>
+                        <LogIn size={18} />
+                        SIGN IN
+                      </>
+                    )}
                   </button>
-                </div>
-                {partnerForm.formState.errors.password && (
-                  <p className="mt-1 text-xs text-red-600">{partnerForm.formState.errors.password.message}</p>
-                )}
-              </div>
+                </form>
+              ) : (
+                <form
+                  onSubmit={referenceForm.handleSubmit(onReferenceSubmit)}
+                  className="dc-form"
+                >
+                  <div className="dc-field">
+                    <label htmlFor="tp-ref" className="dc-label">
+                      Job Reference Number
+                    </label>
+                    <p className="dc-field__hint">
+                      Enter your booking reference from your confirmation email.
+                    </p>
+                    <div className="dc-input-wrap">
+                      <Hash className="dc-input-icon" size={18} />
+                      <input
+                        id="tp-ref"
+                        {...referenceForm.register('referenceNumber')}
+                        type="text"
+                        placeholder="e.g. 1042"
+                        autoCapitalize="characters"
+                        className={`dc-input${referenceForm.formState.errors.referenceNumber ? ' dc-input--error' : ''}`}
+                      />
+                    </div>
+                    {referenceForm.formState.errors.referenceNumber && (
+                      <p className="dc-field__error">
+                        {referenceForm.formState.errors.referenceNumber.message}
+                      </p>
+                    )}
+                  </div>
 
-              <Button type="submit" className="w-full h-11" disabled={isLoading}>
-                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sign In'}
-              </Button>
+                  <button
+                    type="submit"
+                    disabled={referenceForm.formState.isSubmitting}
+                    className="dc-btn-primary"
+                  >
+                    {referenceForm.formState.isSubmitting ? (
+                      <>
+                        <Loader2 size={16} className="dc-spin" />
+                        Tracking…
+                      </>
+                    ) : (
+                      <>
+                        <Search size={18} />
+                        TRACK MY JOB
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
 
-              <button
-                type="button"
-                onClick={handleForgotPassword}
-                className="w-full text-center text-sm text-emerald-600 hover:underline py-1"
+              {/* Divider */}
+              <div className="dc-divider"><span>or</span></div>
+
+              {/* Contact admin — opens WhatsApp */}
+              <a
+                href="https://wa.me/6588656751"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="dc-btn-secondary"
               >
-                Forgot password? Contact admin via WhatsApp
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={referenceForm.handleSubmit(handleReferenceLogin)} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Job Reference Number
-                </label>
-                <p className="text-xs text-gray-500 mb-3">
-                  Enter your booking reference number from your confirmation email to track your job.
-                </p>
-                <div className="relative">
-                  <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    {...referenceForm.register('referenceNumber')}
-                    placeholder="e.g. 1042"
-                    autoCapitalize="characters"
-                    className="pl-9"
-                  />
-                </div>
-                {referenceForm.formState.errors.referenceNumber && (
-                  <p className="mt-1 text-xs text-red-600">
-                    {referenceForm.formState.errors.referenceNumber.message}
-                  </p>
-                )}
-              </div>
+                <Headphones size={18} />
+                Contact Admin
+              </a>
 
-              <Button type="submit" className="w-full h-11" disabled={isLoading}>
-                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Track My Job'}
-              </Button>
-            </form>
-          )}
+              <p className="dc-help">
+                Need help logging in? Contact administrator.
+              </p>
+            </div>
+
+            <div className="dc-footer">
+              <span>© {year} · All rights reserved.</span>
+              <span className="dc-footer__pipe">|</span>
+              <Shield size={13} />
+              <span>Secure</span>
+              <span className="dc-footer__dot">•</span>
+              <span>Reliable</span>
+            </div>
+          </section>
         </div>
       </div>
-
-      <p className="mt-6 text-xs text-gray-400 text-center">
-        Doctor Clean Partner App © {new Date().getFullYear()}
-      </p>
-    </div>
+    </>
   );
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+   Styles — ported from main-web/app/login/page.tsx (do not touch main-web).
+   Added: tab bar, hint text, spinner variant.
+   ───────────────────────────────────────────────────────────────────── */
+const CSS = `
+:root {
+  --dc-green: #0eae8b;
+  --dc-green-dark: #079c7c;
+  --dc-green-soft: rgba(20,174,143,0.10);
+  --dc-teal: #159eaa;
+  --dc-navy: #13233f;
+  --dc-text: #334155;
+  --dc-muted: #718096;
+  --dc-border: #dce2e9;
+  --dc-white: #ffffff;
+}
+
+.dc-login {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100svh;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 25% 40%, rgba(22,180,145,0.08), transparent 45%),
+    linear-gradient(135deg, #f4fff9 0%, #ffffff 48%, #ffffff 100%);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--dc-text);
+}
+.dc-login * { box-sizing: border-box; }
+/* Desktop keeps full-viewport lock; mobile/tablet allows content scroll. */
+@media (min-width: 901px) {
+  .dc-login {
+    height: 100vh;
+    height: 100svh;
+    min-height: 0;
+    overflow: hidden;
+  }
+}
+
+.dc-login__container {
+  position: relative;
+  z-index: 5;
+  max-width: 1500px;
+  margin: 0 auto;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(480px, 0.85fr);
+  padding: 24px 56px;
+  gap: 32px;
+}
+@media (min-width: 1600px) {
+  .dc-login__container { padding: 32px 80px; }
+}
+
+/* ── LEFT ─────────────────────────────────────────────────────── */
+.dc-left { position: relative; overflow: visible; height: 100%; }
+.dc-left__content { position: relative; z-index: 20; max-width: 560px; }
+.dc-left__heading {
+  margin: 0;
+  font-size: clamp(38px, 3.4vw, 56px);
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+.dc-left__heading--primary { color: var(--dc-navy); }
+.dc-left__heading--accent  { color: var(--dc-green); }
+
+.dc-left__desc {
+  max-width: 500px;
+  margin: 22px 0 34px;
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--dc-muted);
+}
+
+.dc-features { display: flex; flex-direction: column; gap: 18px; max-width: 460px; }
+.dc-feature { display: flex; align-items: flex-start; gap: 16px; }
+.dc-feature__icon {
+  flex: 0 0 auto;
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  background: var(--dc-green-soft);
+  color: var(--dc-green-dark);
+  display: flex; align-items: center; justify-content: center;
+}
+.dc-feature__title { margin: 0; font-size: 15px; font-weight: 700; color: var(--dc-navy); }
+.dc-feature__desc {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--dc-muted);
+  max-width: 300px;
+}
+
+.dc-visual { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.dc-visual__merlion {
+  position: absolute;
+  top: -140px; right: -30px;
+  width: min(520px, 52vw);
+  opacity: 0.42;
+  object-fit: contain;
+  pointer-events: none;
+  z-index: 3;
+  user-select: none;
+}
+.dc-visual__team {
+  position: absolute;
+  bottom: -2%;
+  right: -17%;
+  left: auto;
+  width: min(484px, 37vw);
+  height: auto;
+  object-fit: contain;
+  object-position: right bottom;
+  z-index: 10;
+  pointer-events: none;
+  user-select: none;
+  animation: dc-team-in 700ms ease-out both;
+}
+
+.dc-ribbon {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 60%;
+  height: 22vh;
+  pointer-events: none;
+  z-index: 4;
+  display: block;
+}
+
+/* ── RIGHT ────────────────────────────────────────────────────── */
+.dc-right {
+  position: relative;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0 64px;
+  min-height: 0;
+}
+.dc-mobile-brand { display: none; margin-bottom: 22px; text-align: center; }
+.dc-mobile-brand img { width: 125px; height: auto; }
+
+.dc-card {
+  position: relative;
+  z-index: 50;
+  width: 100%;
+  max-width: 500px;
+  padding: 28px 36px;
+  background: rgba(255,255,255,0.94);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(226,232,240,0.8);
+  border-radius: 22px;
+  box-shadow:
+    0 25px 60px rgba(15,23,42,0.08),
+    0 5px 15px rgba(15,23,42,0.04);
+  animation: dc-card-in 500ms ease-out both;
+}
+
+.dc-card__logo { margin: 0 auto; display: flex; align-items: center; justify-content: center; }
+.dc-card__logo img { height: 76px; width: auto; max-width: 100%; user-select: none; }
+.dc-card__title {
+  margin: 14px 0 0;
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--dc-navy);
+  text-align: center;
+}
+.dc-card__subtitle {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--dc-muted);
+  text-align: center;
+}
+
+/* Tabs */
+.dc-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: 20px 0 4px;
+  padding: 4px;
+  background: #f1f5f9;
+  border-radius: 12px;
+}
+.dc-tab {
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 9px;
+  transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+.dc-tab:hover:not(.dc-tab--active) { color: #334155; }
+.dc-tab--active {
+  background: #ffffff;
+  color: var(--dc-navy);
+  box-shadow: 0 1px 3px rgba(15,23,42,0.08);
+}
+
+.dc-error {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fff5f5;
+  color: #c53030;
+  border: 1px solid #fecaca;
+  font-size: 13px;
+}
+
+.dc-form { margin-top: 16px; display: flex; flex-direction: column; gap: 14px; }
+.dc-field { display: flex; flex-direction: column; gap: 6px; }
+.dc-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #008d72;
+}
+.dc-field__hint {
+  margin: 0 0 4px;
+  font-size: 12.5px;
+  color: var(--dc-muted);
+  line-height: 1.45;
+}
+.dc-input-wrap { position: relative; }
+.dc-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 18px 0 46px;
+  border: 1.5px solid var(--dc-border);
+  border-radius: 14px;
+  background: #ffffff;
+  color: var(--dc-navy);
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.dc-input--password { padding-right: 48px; }
+.dc-input::placeholder { color: #a0aec0; }
+.dc-input:focus {
+  border-color: var(--dc-green);
+  box-shadow: 0 0 0 4px rgba(19,170,137,0.10);
+}
+.dc-input--error { border-color: #ef4444; }
+.dc-input-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+}
+.dc-eye {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 6px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  transition: color 150ms ease, background 150ms ease;
+}
+.dc-eye:hover { color: #64748b; background: #f1f5f9; }
+.dc-field__error { margin: 2px 0 0 4px; font-size: 12px; color: #ef4444; }
+
+.dc-form__row { display: flex; justify-content: space-between; align-items: center; }
+.dc-form__row--end { justify-content: flex-end; }
+.dc-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--dc-green);
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  font-family: inherit;
+  transition: color 150ms ease;
+}
+.dc-link:hover { color: var(--dc-green-dark); }
+
+.dc-btn-primary {
+  width: 100%;
+  height: 48px;
+  margin-top: 4px;
+  border: none;
+  border-radius: 14px;
+  background: var(--dc-green);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 10px 20px rgba(14,174,139,0.22);
+  transition: background 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+.dc-btn-primary:hover:not(:disabled) {
+  background: var(--dc-green-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 25px rgba(14,174,139,0.28);
+}
+.dc-btn-primary:active { transform: translateY(0); }
+.dc-btn-primary:disabled { opacity: 0.75; cursor: not-allowed; }
+
+.dc-divider { display: flex; align-items: center; gap: 14px; color: #7c8799; font-size: 13px; margin-top: 6px; }
+.dc-divider::before,
+.dc-divider::after { content: ""; flex: 1; height: 1px; background: #e5e9ef; }
+
+.dc-btn-secondary {
+  width: 100%;
+  height: 48px;
+  border-radius: 14px;
+  border: 1px solid var(--dc-border);
+  background: #ffffff;
+  color: #43526a;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.dc-btn-secondary:hover { background: #f8fafc; border-color: #b8c4d3; }
+.dc-btn-secondary svg { color: var(--dc-green); }
+
+.dc-spin { animation: dc-spin 700ms linear infinite; }
+
+.dc-help { margin: 12px 0 0; text-align: center; font-size: 13px; color: var(--dc-muted); }
+
+.dc-footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 18px;
+  z-index: 41;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #64748b;
+  padding: 0 20px;
+}
+.dc-footer svg { color: var(--dc-green); }
+.dc-footer__dot  { color: #cbd5e1; }
+.dc-footer__pipe { color: #cbd5e1; margin: 0 2px; }
+
+/* Animations */
+@keyframes dc-card-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes dc-team-in { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes dc-spin    { to { transform: rotate(360deg); } }
+
+/* Medium desktop */
+@media (max-width: 1439px) {
+  .dc-login__container { padding: 36px 44px; gap: 32px; }
+  .dc-card { max-width: 480px; padding: 36px 38px; }
+}
+@media (max-width: 1200px) {
+  .dc-login__container { grid-template-columns: minmax(0, 1fr) minmax(430px, 0.9fr); }
+  .dc-visual__team    { width: 42vw; right: -17%; }
+  .dc-visual__merlion { width: 38vw; }
+}
+
+/* Tablet: single-column, form first */
+@media (max-width: 900px) {
+  .dc-login__container {
+    display: flex;
+    flex-direction: column;
+    max-width: 640px;
+    padding: 24px 24px 40px;
+    gap: 28px;
+    min-height: auto;
+    height: auto;
+  }
+  .dc-left { order: 2; min-height: 0; text-align: center; }
+  .dc-left__content { max-width: 100%; margin: 0 auto; }
+  .dc-features      { max-width: 100%; align-items: center; }
+  .dc-feature       { max-width: 380px; text-align: left; width: 100%; }
+  .dc-visual        { position: relative; height: 260px; }
+  .dc-visual__team {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 10px;
+    width: 82%;
+    max-width: 460px;
+  }
+  .dc-visual__merlion { display: none; }
+  .dc-ribbon          { display: none; }
+  .dc-right           { order: 1; padding: 0; }
+  .dc-mobile-brand    { display: block; }
+  /* Footer becomes inline (not fixed) so it doesn't overlap the scrolling card. */
+  .dc-footer {
+    position: static;
+    margin-top: 8px;
+    order: 3;
+  }
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .dc-login__container { padding: 20px 14px 28px; gap: 22px; }
+  .dc-card {
+    padding: 24px 20px;
+    border-radius: 20px;
+    box-shadow: 0 8px 24px rgba(15,23,42,0.05);
+    border: 1px solid rgba(226,232,240,0.9);
+    background: #ffffff;
+  }
+  .dc-card__title      { font-size: 24px; margin-top: 12px; }
+  .dc-card__subtitle   { font-size: 13.5px; margin-top: 4px; }
+  .dc-card__logo img   { height: 60px; }
+  .dc-tabs             { margin: 18px 0 2px; }
+  .dc-tab              { height: 42px; font-size: 13.5px; }
+  .dc-form             { margin-top: 14px; gap: 12px; }
+  .dc-input            { height: 48px; padding-left: 44px; font-size: 15px; }
+  .dc-input-icon       { left: 14px; }
+  .dc-eye              { right: 8px; padding: 8px; }
+  .dc-btn-primary,
+  .dc-btn-secondary    { height: 48px; font-size: 14px; }
+  .dc-left__heading    { font-size: 30px; }
+  .dc-left__desc       { font-size: 14px; margin: 16px 0 24px; }
+  .dc-features         { gap: 14px; }
+  .dc-feature__icon    { width: 42px; height: 42px; }
+  .dc-visual           { height: 200px; }
+  .dc-visual__team     { width: 92%; bottom: 6px; }
+  .dc-mobile-brand img { width: 105px; }
+  .dc-footer           { font-size: 12px; }
+}
+
+/* Very small phones (iPhone SE, 360-wide Androids) */
+@media (max-width: 380px) {
+  .dc-login__container { padding: 16px 12px 24px; gap: 18px; }
+  .dc-card             { padding: 22px 16px; border-radius: 18px; }
+  .dc-card__title      { font-size: 22px; }
+  .dc-card__logo img   { height: 54px; }
+  .dc-tabs             { padding: 3px; }
+  .dc-tab              { height: 40px; font-size: 13px; }
+  .dc-input            { height: 46px; padding-left: 42px; font-size: 14.5px; }
+  .dc-input-icon       { left: 12px; }
+  .dc-btn-primary,
+  .dc-btn-secondary    { height: 46px; letter-spacing: 0.05em; }
+  .dc-left__heading    { font-size: 26px; }
+  .dc-left__desc       { margin: 14px 0 20px; }
+  .dc-visual           { height: 170px; }
+  .dc-form__row        { flex-wrap: wrap; gap: 8px; }
+  .dc-link             { font-size: 13.5px; }
+}
+
+/* Landscape phones (short height) — keep card compact so form stays visible above the fold */
+@media (max-width: 900px) and (max-height: 500px) and (orientation: landscape) {
+  .dc-visual           { display: none; }
+  .dc-left__desc       { margin: 12px 0 18px; }
+  .dc-features         { gap: 10px; }
+  .dc-feature__desc    { display: none; }
+}
+`;

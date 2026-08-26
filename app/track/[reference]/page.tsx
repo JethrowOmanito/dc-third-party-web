@@ -21,6 +21,7 @@ interface GuestEvent {
   Start_Time_Display?: string;
   End_Time_Display?: string;
   Service_Type: string;
+  service_subtype?: string | null;
   Name?: string;
   Assign_Cleaner?: string[];
   lifecycle_state?: string;
@@ -69,7 +70,7 @@ export default function GuestTrackPage({ params }: { params: Promise<{ reference
       // UUID or company_reference text fallback
       const res = await supabase
         .from('events')
-        .select('id, "Ref_ID", Title, Start_Date, Start_Time_Display, End_Time_Display, Service_Type, Name, Assign_Cleaner, lifecycle_state, Note, on_my_way_eta, on_my_way_sent_by_name')
+        .select('id, "Ref_ID", Title, Start_Date, Start_Time_Display, End_Time_Display, Service_Type, service_subtype, Name, Assign_Cleaner, lifecycle_state, Note, on_my_way_eta, on_my_way_sent_by_name')
         .or(`company_reference.eq.${reference},id.eq.${UUID_RE.test(reference) ? reference : '00000000-0000-0000-0000-000000000000'}`)
         .maybeSingle();
       data  = res.data;
@@ -126,7 +127,7 @@ export default function GuestTrackPage({ params }: { params: Promise<{ reference
   }
 
   const serviceColor = getServiceColor(event!.Service_Type);
-  const serviceDisplay = getServiceDisplayName(event!.Service_Type);
+  const serviceDisplay = getServiceDisplayName(event!.Service_Type, event!.service_subtype);
 
   const lifecycleStatus = (() => {
     switch (event?.lifecycle_state) {

@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { jwtVerify } from 'jose';
 
 // ─── Edge-compatible rate limit store ────────────────────────────────────────
 type RLEntry = { count: number; resetAt: number };
@@ -110,6 +111,38 @@ export async function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
     const ip = getClientIp(request);
     const ua = request.headers.get('user-agent');
+
+    // ─── AUTHENTICATION SOLIDIFICATION ───
+    const PROTECTED_ROUTES = ['/dashboard'];
+    const GUEST_PROTECTED_ROUTES = ['/track'];
+    
+    const isPartnerRoute = PROTECTED_ROUTES.some(route => pathname.startsWith(route));
+    const isGuestRoute = GUEST_PROTECTED_ROUTES.some(route => pathname.startsWith(route));
+
+    if (isPartnerRoute || isGuestRoute) {
+      const partnerToken = request.cookies.get('dc_partner_session')?.value;
+      const guestToken = request.cookies.get('dc_guest_session')?.value;
+      const secret = new TextEncoder().encode(
+        process.env.JWT_SECRET || 'doctor-clean-partner-secret-well-change-this-soon'
+      );
+
+      try {
+        if (isPartnerRoute) {
+          if (!partnerToken) return NextResponse.redirect(new URL('/login', request.url));
+          await jwtVerify(partnerToken, secret);
+        }
+        if (isGuestRoute) {
+          if (!guestToken) return NextResponse.redirect(new URL('/login', request.url));
+          await jwtVerify(guestToken, secret);
+        }
+      } catch (error) {
+        console.error('[Proxy] Auth Verification failed:', error);
+        const redirectRes = NextResponse.redirect(new URL('/login', request.url));
+        if (isPartnerRoute) redirectRes.cookies.delete('dc_partner_session');
+        if (isGuestRoute) redirectRes.cookies.delete('dc_guest_session');
+        return redirectRes;
+      }
+    }
 
     // 1. Bot prevention
     const isSensitive = pathname.startsWith('/api/') || pathname.startsWith('/login');

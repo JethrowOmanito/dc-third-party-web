@@ -9,11 +9,15 @@ const tabs = [
   { href: '/dashboard/jobs', label: 'Jobs', icon: Briefcase },
   { href: '/dashboard/jobs/today', label: 'Today', icon: CalendarDays },
   { href: '/dashboard/jobs/incoming', label: 'Incoming', icon: Clock },
-  { href: '/dashboard/booking/slots', label: 'Book', icon: BookOpen },
+  { href: '/dashboard/booking/new', label: 'Book', icon: BookOpen },
 ];
+
+// Routes where the wizard/flow has its own bottom action tray — hide this nav to avoid stacking.
+const HIDE_NAV_ROUTES = ['/dashboard/booking/new', '/dashboard/booking/payment', '/dashboard/booking/success'];
 
 export function MobileBottomNav() {
   const pathname = usePathname();
+  if (HIDE_NAV_ROUTES.some((r) => pathname.startsWith(r))) return null;
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 safe-area-bottom">
