@@ -677,7 +677,7 @@ const CSS = `
 .dc-ribbon {
   position: absolute;
   left: 0;
-  bottom: 10%;
+  bottom: 0;
   width: 60%;
   height: 22vh;
   pointer-events: none;
