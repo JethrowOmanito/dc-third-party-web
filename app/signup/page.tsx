@@ -28,11 +28,21 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+interface GoogleAccountsId {
+  initialize: (config: { client_id: string; callback: (r: { credential: string }) => void }) => void;
+  renderButton: (parent: HTMLElement, opts: Record<string, unknown>) => void;
+}
+interface AppleIDAuth {
+  init: (config: { clientId: string; scope: string; redirectURI: string; usePopup: boolean }) => void;
+  signIn: () => Promise<{
+    authorization: { id_token: string };
+    user?: { name?: { firstName?: string; lastName?: string }; email?: string };
+  }>;
+}
 declare global {
   interface Window {
-    google?: any;
-    AppleID?: any;
+    google?: { accounts: { id: GoogleAccountsId } };
+    AppleID?: { auth: AppleIDAuth };
     handleGoogleCredential?: (response: { credential: string }) => void;
   }
 }
