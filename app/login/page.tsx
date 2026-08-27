@@ -13,7 +13,6 @@ import {
   Eye,
   EyeOff,
   Hash,
-  Headphones,
   Loader2,
   Lock,
   LogIn,
@@ -531,33 +530,19 @@ export default function LoginPage() {
                 </>
               )}
 
-              {/* Divider */}
-              <div className="dc-divider"><span>or</span></div>
-
-              {/* Contact admin — opens WhatsApp */}
-              <a
-                href="https://wa.me/6588656751"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="dc-btn-secondary"
-              >
-                <Headphones size={18} />
-                Contact Admin
-              </a>
-
               <p className="dc-help">
                 New partner?{' '}
                 <a href="/signup" className="dc-link">Create an account</a>
               </p>
-            </div>
 
-            <div className="dc-footer">
-              <span>© {year} · All rights reserved.</span>
-              <span className="dc-footer__pipe">|</span>
-              <Shield size={13} />
-              <span>Secure</span>
-              <span className="dc-footer__dot">•</span>
-              <span>Reliable</span>
+              <div className="dc-footer dc-footer--inside">
+                <span>© {year} · All rights reserved.</span>
+                <span className="dc-footer__pipe">|</span>
+                <Shield size={13} />
+                <span>Secure</span>
+                <span className="dc-footer__dot">•</span>
+                <span>Reliable</span>
+              </div>
             </div>
           </section>
         </div>
@@ -957,6 +942,16 @@ const CSS = `
 .dc-footer svg { color: var(--dc-green); }
 .dc-footer__dot  { color: #cbd5e1; }
 .dc-footer__pipe { color: #cbd5e1; margin: 0 2px; }
+
+/* Footer variant — sits inside the login card, not absolute at page bottom. */
+.dc-footer--inside {
+  position: static;
+  margin-top: 16px;
+  padding: 12px 0 0;
+  border-top: 1px solid #eef2f7;
+  font-size: 11.5px;
+  color: #94a3b8;
+}
 
 /* Animations */
 @keyframes dc-card-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
