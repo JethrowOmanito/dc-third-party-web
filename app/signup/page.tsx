@@ -93,6 +93,9 @@ export default function SignupPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpVerifying, setOtpVerifying] = useState(false);
+  // When BYPASS is on, we skip the OTP step entirely (no send/verify UI, no gate),
+  // but the phone input must still be editable — set otpVerified only for the gate
+  // logic, not for the field's `disabled` attribute (see below).
   const [otpVerified, setOtpVerified] = useState(BYPASS_OTP);
   const [otpError, setOtpError] = useState('');
   const [signupToken, setSignupToken] = useState('');
@@ -332,20 +335,25 @@ export default function SignupPage() {
   }, [form, router, setUser]);
 
   const handleAppleClick = useCallback(() => {
-    if (!APPLE_SERVICES_ID || !window.AppleID) return;
+    if (!APPLE_SERVICES_ID) return;
+    if (!window.AppleID) {
+      setServerError('Apple sign-in is still loading. Please wait a moment and try again.');
+      return;
+    }
     window.AppleID.auth.init({
       clientId: APPLE_SERVICES_ID,
       scope: 'name email',
       redirectURI: `${window.location.origin}/api/auth/apple/callback`,
       usePopup: true,
     });
-    window.AppleID.auth.signIn().then((res: {
-      authorization: { id_token: string };
-      user?: { name?: { firstName?: string; lastName?: string }; email?: string };
-    }) => {
+    window.AppleID.auth.signIn().then((res) => {
       handleAppleResponse(res.authorization.id_token, res.user);
     }).catch((err: unknown) => {
       console.warn('[apple signin]', err);
+      const errObj = err as { error?: string } | undefined;
+      if (errObj?.error && errObj.error !== 'popup_closed_by_user') {
+        setServerError(`Apple sign-in error: ${errObj.error}`);
+      }
     });
   }, [handleAppleResponse]);
 
@@ -535,10 +543,10 @@ export default function SignupPage() {
                           type="tel"
                           placeholder="+65 8888 8888"
                           autoComplete="tel"
-                          disabled={otpVerified}
-                          className={`dc-input${form.formState.errors.whatsapp_phone ? ' dc-input--error' : ''}${otpVerified ? ' dc-input--verified' : ''}`}
+                          disabled={otpVerified && !BYPASS_OTP}
+                          className={`dc-input${form.formState.errors.whatsapp_phone ? ' dc-input--error' : ''}${otpVerified && !BYPASS_OTP ? ' dc-input--verified' : ''}`}
                         />
-                        {otpVerified && (
+                        {otpVerified && !BYPASS_OTP && (
                           <CheckCircle2 size={18} className="dc-input-check" />
                         )}
                       </div>

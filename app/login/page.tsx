@@ -189,7 +189,11 @@ export default function LoginPage() {
 
   // ── OAuth: Apple ─────────────────────────────
   const handleAppleClick = useCallback(() => {
-    if (!APPLE_SERVICES_ID || !window.AppleID) return;
+    if (!APPLE_SERVICES_ID) return;
+    if (!window.AppleID) {
+      setServerError('Apple sign-in is still loading. Please wait a moment and try again.');
+      return;
+    }
     window.AppleID.auth.init({
       clientId: APPLE_SERVICES_ID,
       scope: 'name email',
