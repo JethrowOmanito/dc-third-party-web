@@ -43,6 +43,20 @@ export async function POST(req: NextRequest) {
     );
     const { payload: user } = await jwtVerify(token, secret);
 
+    // 1b. Approval gate — pending or rejected partners cannot book
+    if (user.approval_status && user.approval_status !== 'approved') {
+      return NextResponse.json(
+        {
+          error:
+            user.approval_status === 'pending'
+              ? 'Your account is pending admin approval. Bookings are disabled until approved.'
+              : 'Your account is not approved. Please contact administrator.',
+          errorCode: 'partner_not_approved',
+        },
+        { status: 403 }
+      );
+    }
+
     // 2. Parse body
     const body = await req.json();
     const parsed = bookingSchema.safeParse(body);
@@ -84,7 +98,29 @@ export async function POST(req: NextRequest) {
     const basePrice = pricingRes.data.price || 0;
     const addonsTotal = (addonsRes.data || []).reduce((sum, a) => sum + (a.price || 0), 0);
     const slotFee = data.slot.additionalFee || 0;
-    const finalTotal = basePrice + addonsTotal + slotFee;
+    const subtotal = basePrice + addonsTotal + slotFee;
+
+    // Server-side company discount lookup (never trust client for pricing).
+    const partnerUserId = user.id as string;
+    const { data: partnerRow } = await supabase
+      .from('partner_user')
+      .select('company_id, partner_companies!company_id(id, discount_type, discount_value)')
+      .eq('id', partnerUserId)
+      .maybeSingle();
+
+    const partnerCompany = partnerRow?.partner_companies as
+      | { id: string; discount_type: 'percent' | 'flat' | null; discount_value: number | string | null }
+      | { id: string; discount_type: 'percent' | 'flat' | null; discount_value: number | string | null }[]
+      | undefined;
+    const co = Array.isArray(partnerCompany) ? partnerCompany[0] : partnerCompany;
+
+    let companyDiscount = 0;
+    if (co?.discount_type && Number(co.discount_value) > 0) {
+      companyDiscount = co.discount_type === 'percent'
+        ? (subtotal * Number(co.discount_value)) / 100
+        : Math.min(Number(co.discount_value), subtotal);
+    }
+    const finalTotal = Math.max(0, subtotal - companyDiscount);
     const gstAmount = Math.round(finalTotal * 0.09 * 100) / 100;
 
     // 4. Insert Booking
@@ -103,7 +139,8 @@ export async function POST(req: NextRequest) {
       tax_treatment: 'exclusive',
       gst_rate: 9,
       gst_amount: gstAmount,
-      owned_by_third_party: user.id,
+      owned_by_third_party: partnerUserId,
+      partner_company_id: partnerRow?.company_id ?? null,
       // Unit & Size go to specific columns, not Extra_Service
       Unit_type: data.propertyType === 'hdb' ? 'HDB' : (data.propertyType === 'condo' ? 'Condo/APT' : 'Landed'),
       Unit_sub_type: data.subtype || null,

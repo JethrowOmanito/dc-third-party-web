@@ -28,6 +28,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Session expired. Please log in again.' }, { status: 401 });
     }
 
+    // 1b. Approval gate — pending or rejected partners cannot pay
+    if (user.approval_status && user.approval_status !== 'approved') {
+      return NextResponse.json(
+        {
+          error:
+            user.approval_status === 'pending'
+              ? 'Your account is pending admin approval. Bookings are disabled until approved.'
+              : 'Your account is not approved. Please contact administrator.',
+          errorCode: 'partner_not_approved',
+        },
+        { status: 403 }
+      );
+    }
+
     const { bookingId, customerEmail } = await req.json();
 
     if (!bookingId) {

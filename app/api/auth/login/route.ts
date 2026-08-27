@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit, resetRateLimit } from '@/lib/utils';
 import bcrypt from 'bcryptjs';
 import { SignJWT } from 'jose';
-import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -33,54 +32,69 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createClient();
 
-    const { data: userData, error } = await supabase
-      .from('user')
+    const { data: partner, error } = await supabase
+      .from('partner_user')
       .select(
-        'id, username, password, password_hash, role, service_assigned, privilege, color_label, house_assigned, whatsapp_phone, company_name, company_code, company_type, force_logout'
+        `id, username, password_hash, email, full_name, whatsapp_phone,
+         company_id, approval_status, force_logout,
+         company:partner_companies!company_id (
+           id, name, company_code, company_type, discount_type, discount_value, is_active
+         )`
       )
       .eq('username', username.trim())
       .single();
 
-    if (error || !userData) {
+    if (error || !partner) {
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
     }
 
-    // Verify password
-    let passwordValid = false;
-    if (userData.password_hash) {
-      passwordValid = bcrypt.compareSync(password, userData.password_hash);
-    } else if (userData.password) {
-      // Some accounts may have bcrypt stored in the legacy password column
-      if (userData.password.startsWith("$2")) {
-        passwordValid = bcrypt.compareSync(password, userData.password);
-      } else {
-        passwordValid = userData.password === password;
-      }
-    }
+    const passwordValid = partner.password_hash
+      ? bcrypt.compareSync(password, partner.password_hash)
+      : false;
 
     if (!passwordValid) {
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
     }
 
-    if (userData.role !== 'thirdparty') {
+    if (partner.approval_status === 'rejected') {
       return NextResponse.json(
-        { error: 'This portal is for partner companies only.' },
+        { error: 'Your account application was not approved. Please contact administrator.' },
         { status: 403 }
       );
     }
 
-    // Check force_logout
-    if ((userData as any).force_logout) {
-      return NextResponse.json({ error: 'Your account has been logged out by admin.' }, { status: 403 });
+    if (partner.force_logout) {
+      return NextResponse.json(
+        { error: 'Your account has been logged out by admin.' },
+        { status: 403 }
+      );
     }
 
     resetRateLimit(rateLimitKey);
 
-    // Return user data (strip password fields)
-    const { password: _p, password_hash: _ph, ...safeUser } = userData as any;
+    const company = Array.isArray(partner.company) ? partner.company[0] : partner.company;
 
-    // Create a secure session cookie
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'doctor-clean-partner-secret-well-change-this-soon');
+    const safeUser = {
+      id: partner.id,
+      username: partner.username,
+      name: partner.full_name ?? partner.username,
+      email: partner.email ?? undefined,
+      whatsapp_phone: partner.whatsapp_phone ?? undefined,
+      company_id: partner.company_id,
+      company_name: company?.name ?? undefined,
+      company_code: company?.company_code ?? undefined,
+      company_type: company?.company_type ?? undefined,
+      company_discount_type: (company?.discount_type ?? null) as 'percent' | 'flat' | null,
+      company_discount_value: Number(company?.discount_value ?? 0),
+      approval_status: partner.approval_status as 'pending' | 'approved' | 'rejected',
+    };
+
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('CRITICAL: JWT_SECRET environment variable is not set!');
+      return NextResponse.json({ error: 'System configuration error' }, { status: 500 });
+    }
+    const secret = new TextEncoder().encode(jwtSecret);
     const token = await new SignJWT({ ...safeUser })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
@@ -88,13 +102,12 @@ export async function POST(req: NextRequest) {
       .sign(secret);
 
     const response = NextResponse.json({ user: safeUser }, { status: 200 });
-    
-    // Set cookie
+
     response.cookies.set('dc_partner_session', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 60 * 60 * 24, // 24 hours
+      maxAge: 60 * 60 * 24,
       path: '/',
     });
 

@@ -3,18 +3,20 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  CalendarDays,
-  Clock,
-  Briefcase,
-  Gift,
+  AlertTriangle,
   ArrowRight,
+  Briefcase,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  Clock,
+  Gift,
+  LineChart,
   Loader2,
-  Wallet,
+  Star,
   TrendingUp,
   Trophy,
-  Star,
-  LineChart,
-  ChevronDown,
+  Wallet,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { getSupabaseClient } from '@/lib/supabase/client';
@@ -61,15 +63,19 @@ export default function DashboardPage() {
     try {
       const today = new Date().toISOString().split('T')[0];
 
+      const companyFilter = user.company_id
+        ? { column: 'partner_company_id' as const, value: user.company_id }
+        : { column: 'owned_by_third_party' as const, value: user.id };
+
       const [allResult, upcomingResult] = await Promise.all([
         supabase
           .from('events')
           .select('id, Start_Date, commission_percentage, rebate_amount')
-          .eq('owned_by_third_party', user.id),
+          .eq(companyFilter.column, companyFilter.value),
         supabase
           .from('events')
           .select('id, Start_Date, Start_Time, Service_Type, Name, Title, status, Assign_Cleaner')
-          .eq('owned_by_third_party', user.id)
+          .eq(companyFilter.column, companyFilter.value)
           .gte('Start_Date', today)
           .order('Start_Date', { ascending: true })
           .order('Start_Time', { ascending: true })
@@ -158,6 +164,7 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12 animate-in fade-in duration-500">
+      <ApprovalBanner status={user?.approval_status} />
       {/* ============ HERO ============ */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-900 via-emerald-800 to-emerald-700 text-white shadow-xl shadow-emerald-900/20">
         {/* Decorative dots */}
@@ -392,6 +399,40 @@ export default function DashboardPage() {
 }
 
 /* ---------- Sub-components ---------- */
+
+function ApprovalBanner({ status }: { status?: 'pending' | 'approved' | 'rejected' }) {
+  if (!status || status === 'approved') return null;
+  if (status === 'pending') {
+    return (
+      <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
+        <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+          <AlertTriangle className="w-5 h-5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-amber-900">Your account is pending approval</p>
+          <p className="text-xs text-amber-800/80 mt-0.5 leading-relaxed">
+            You can browse your dashboard, but booking is disabled until an admin approves your application.
+            We&apos;ll notify you via WhatsApp as soon as it&apos;s reviewed.
+          </p>
+        </div>
+        <CheckCircle2 className="w-5 h-5 text-amber-300 shrink-0 mt-2" />
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-2xl bg-red-50 border border-red-200 p-4 flex items-start gap-3">
+      <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+        <AlertTriangle className="w-5 h-5" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-red-900">Your account was not approved</p>
+        <p className="text-xs text-red-800/80 mt-0.5 leading-relaxed">
+          Please contact admin on WhatsApp if you believe this is a mistake.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function StatCard({
   icon: Icon,

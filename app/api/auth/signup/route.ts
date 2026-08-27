@@ -1,0 +1,175 @@
+import { createClient } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/utils';
+import { signupSchema } from '@/lib/validations/auth.schema';
+import bcrypt from 'bcryptjs';
+import { SignJWT, jwtVerify } from 'jose';
+import { NextRequest, NextResponse } from 'next/server';
+
+function normalizePhone(input: string): string {
+  const cleaned = input.replace(/[\s\-()]/g, '');
+  if (cleaned.startsWith('+')) return cleaned;
+  if (/^[89]\d{7}$/.test(cleaned)) return `+65${cleaned}`;
+  return cleaned;
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown';
+    if (!checkRateLimit(`signup:${ip}`, 5, 60 * 60 * 1000)) {
+      return NextResponse.json({ error: 'Too many signup attempts. Please try again later.' }, { status: 429 });
+    }
+
+    const body = await req.json();
+    const parsed = signupSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.errors[0]?.message ?? 'Invalid input', errors: parsed.error.errors },
+        { status: 400 }
+      );
+    }
+
+    const {
+      username,
+      password,
+      full_name,
+      email,
+      whatsapp_phone,
+      company_id,
+      signup_token,
+      oauth_provider,
+      oauth_subject,
+    } = parsed.data;
+
+    const usingOAuth = !!oauth_provider && !!oauth_subject;
+
+    // Must have EITHER a password OR an OAuth identity
+    if (!usingOAuth && (!password || password.length < 8)) {
+      return NextResponse.json({ error: 'Password is required' }, { status: 400 });
+    }
+
+    // Require WhatsApp OTP verification token (proves phone ownership)
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
+
+    const normalizedPhone = normalizePhone(whatsapp_phone);
+
+    // Skip OTP requirement in dev if BYPASS_OTP=1 for testing
+    const bypassOtp = process.env.PARTNER_SIGNUP_BYPASS_OTP === '1';
+    if (!bypassOtp) {
+      if (!signup_token) {
+        return NextResponse.json(
+          { error: 'Please verify your WhatsApp number first.', errorCode: 'otp_required' },
+          { status: 400 }
+        );
+      }
+      try {
+        const { payload } = await jwtVerify(signup_token, new TextEncoder().encode(jwtSecret));
+        if (payload.purpose !== 'partner_signup' || payload.phone !== normalizedPhone) {
+          return NextResponse.json(
+            { error: 'Verification token does not match your phone number.', errorCode: 'otp_mismatch' },
+            { status: 400 }
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { error: 'Verification token expired. Please verify your phone again.', errorCode: 'otp_expired' },
+          { status: 400 }
+        );
+      }
+    }
+
+    const supabase = await createClient();
+
+    // Check username availability
+    const { data: existingUsername } = await supabase
+      .from('partner_user')
+      .select('id')
+      .eq('username', username.trim())
+      .maybeSingle();
+    if (existingUsername) {
+      return NextResponse.json({ error: 'This username is already taken.' }, { status: 409 });
+    }
+
+    // Check email availability (email-based social login collides with existing accounts)
+    const { data: existingEmail } = await supabase
+      .from('partner_user')
+      .select('id')
+      .ilike('email', email.trim())
+      .maybeSingle();
+    if (existingEmail) {
+      return NextResponse.json({ error: 'This email is already registered.' }, { status: 409 });
+    }
+
+    // Verify the picked company exists and is active
+    const { data: company, error: coErr } = await supabase
+      .from('partner_companies')
+      .select('id, name, company_code, company_type, is_active, discount_type, discount_value')
+      .eq('id', company_id)
+      .single();
+    if (coErr || !company || !company.is_active) {
+      return NextResponse.json({ error: 'Selected company is not available.' }, { status: 400 });
+    }
+
+    const password_hash = password ? bcrypt.hashSync(password, 10) : null;
+    const now = new Date().toISOString();
+
+    const { data: inserted, error: insErr } = await supabase
+      .from('partner_user')
+      .insert({
+        username: username.trim(),
+        password_hash,
+        email: email.trim().toLowerCase(),
+        full_name: full_name.trim(),
+        whatsapp_phone: normalizedPhone,
+        company_id,
+        approval_status: 'pending',
+        tnc_accepted_at: now,
+        wa_verified_at: bypassOtp ? null : now,
+        oauth_provider: oauth_provider ?? null,
+        oauth_subject: oauth_subject ?? null,
+      })
+      .select('id, username, email, full_name, whatsapp_phone, company_id, approval_status')
+      .single();
+
+    if (insErr || !inserted) {
+      console.error('[signup] insert error:', insErr);
+      return NextResponse.json({ error: 'Failed to create account. Please try again.' }, { status: 500 });
+    }
+
+    const safeUser = {
+      id: inserted.id,
+      username: inserted.username,
+      name: inserted.full_name ?? inserted.username,
+      email: inserted.email ?? undefined,
+      whatsapp_phone: inserted.whatsapp_phone ?? undefined,
+      company_id: inserted.company_id,
+      company_name: company.name,
+      company_code: company.company_code ?? undefined,
+      company_type: company.company_type ?? undefined,
+      company_discount_type: (company.discount_type ?? null) as 'percent' | 'flat' | null,
+      company_discount_value: Number(company.discount_value ?? 0),
+      approval_status: 'pending' as const,
+    };
+
+    const secret = new TextEncoder().encode(jwtSecret);
+    const token = await new SignJWT({ ...safeUser })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('24h')
+      .sign(secret);
+
+    const response = NextResponse.json({ user: safeUser }, { status: 201 });
+    response.cookies.set('dc_partner_session', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24,
+      path: '/',
+    });
+
+    return response;
+  } catch (err) {
+    console.error('[signup] unexpected:', err);
+    return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
+  }
+}

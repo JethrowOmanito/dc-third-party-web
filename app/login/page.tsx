@@ -24,9 +24,21 @@ import {
   User,
   Users,
 } from 'lucide-react';
+import Script from 'next/script';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare global {
+  interface Window {
+    google?: any;
+    AppleID?: any;
+  }
+}
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '';
+const APPLE_SERVICES_ID = process.env.NEXT_PUBLIC_APPLE_SERVICES_ID ?? '';
 
 const LOGO_URL =
   'https://agyzvknaqnamaoczxgsb.supabase.co/storage/v1/object/public/doctor-clean-files/uploads/doctor_clean_logo.542c4621e2b4379e4d95.png';
@@ -50,6 +62,8 @@ export default function LoginPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [serverError, setServerError] = useState('');
   const [teamPhotoError, setTeamPhotoError] = useState(false);
+  const [oauthProcessing, setOauthProcessing] = useState(false);
+  const googleButtonRef = useRef<HTMLDivElement>(null);
   const year = new Date().getFullYear();
 
   const partnerForm = useForm<LoginInput>({
@@ -102,9 +116,126 @@ export default function LoginPage() {
     }
   };
 
+  // ── OAuth: Google ─────────────────────────────
+  const handleGoogleCredential = useCallback(async (credential: string) => {
+    if (!credential) return;
+    setOauthProcessing(true);
+    setServerError('');
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setServerError(json.error ?? 'Google sign-in failed.');
+        return;
+      }
+      if (json.user) {
+        setUser(json.user);
+        router.replace('/dashboard');
+        return;
+      }
+      if (json.needsSignup && json.prefill) {
+        // Store prefill for signup wizard
+        try {
+          sessionStorage.setItem('dc-signup-prefill', JSON.stringify(json.prefill));
+        } catch {}
+        router.push('/signup');
+      }
+    } catch {
+      setServerError('Network error. Please try again.');
+    } finally {
+      setOauthProcessing(false);
+    }
+  }, [router, setUser]);
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return;
+    const tryRender = () => {
+      if (window.google?.accounts?.id && googleButtonRef.current) {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: (r: { credential: string }) => handleGoogleCredential(r.credential),
+        });
+        window.google.accounts.id.renderButton(googleButtonRef.current, {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          text: 'signin_with',
+          shape: 'rectangular',
+          width: 320,
+        });
+        return true;
+      }
+      return false;
+    };
+    if (!tryRender()) {
+      const t = setInterval(() => { if (tryRender()) clearInterval(t); }, 300);
+      return () => clearInterval(t);
+    }
+  }, [handleGoogleCredential]);
+
+  // ── OAuth: Apple ─────────────────────────────
+  const handleAppleClick = useCallback(() => {
+    if (!APPLE_SERVICES_ID || !window.AppleID) return;
+    window.AppleID.auth.init({
+      clientId: APPLE_SERVICES_ID,
+      scope: 'name email',
+      redirectURI: `${window.location.origin}/api/auth/apple/callback`,
+      usePopup: true,
+    });
+    window.AppleID.auth.signIn().then(async (res: {
+      authorization: { id_token: string };
+      user?: { name?: { firstName?: string; lastName?: string }; email?: string };
+    }) => {
+      setOauthProcessing(true);
+      setServerError('');
+      try {
+        const apiRes = await fetch('/api/auth/apple', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identityToken: res.authorization.id_token, user: res.user }),
+        });
+        const json = await apiRes.json();
+        if (!apiRes.ok) {
+          setServerError(json.error ?? 'Apple sign-in failed.');
+          return;
+        }
+        if (json.user) {
+          setUser(json.user);
+          router.replace('/dashboard');
+          return;
+        }
+        if (json.needsSignup && json.prefill) {
+          try {
+            sessionStorage.setItem('dc-signup-prefill', JSON.stringify(json.prefill));
+          } catch {}
+          router.push('/signup');
+        }
+      } catch {
+        setServerError('Network error. Please try again.');
+      } finally {
+        setOauthProcessing(false);
+      }
+    }).catch(() => {
+      // user cancelled or popup blocked — silent
+    });
+  }, [router, setUser]);
+
   return (
     <>
       <style>{CSS}</style>
+      {GOOGLE_CLIENT_ID && (
+        <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
+      )}
+      {APPLE_SERVICES_ID && (
+        <Script
+          src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js"
+          strategy="afterInteractive"
+        />
+      )}
 
       <div className="dc-login">
         <svg
@@ -341,6 +472,31 @@ export default function LoginPage() {
                 </form>
               )}
 
+              {/* OAuth block (Google + Apple), only when configured */}
+              {(GOOGLE_CLIENT_ID || APPLE_SERVICES_ID) && activeTab === 'partner' && (
+                <>
+                  <div className="dc-divider"><span>or</span></div>
+                  <div className="dc-oauth-login">
+                    {GOOGLE_CLIENT_ID && (
+                      <div className="dc-oauth-login__google" ref={googleButtonRef} />
+                    )}
+                    {APPLE_SERVICES_ID && (
+                      <button
+                        type="button"
+                        onClick={handleAppleClick}
+                        disabled={oauthProcessing}
+                        className="dc-btn-apple"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 384 512" fill="currentColor" aria-hidden>
+                          <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/>
+                        </svg>
+                        Continue with Apple
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+
               {/* Divider */}
               <div className="dc-divider"><span>or</span></div>
 
@@ -356,7 +512,8 @@ export default function LoginPage() {
               </a>
 
               <p className="dc-help">
-                Need help logging in? Contact administrator.
+                New partner?{' '}
+                <a href="/signup" className="dc-link">Create an account</a>
               </p>
             </div>
 
@@ -726,6 +883,23 @@ const CSS = `
 }
 .dc-btn-secondary:hover { background: #f8fafc; border-color: #b8c4d3; }
 .dc-btn-secondary svg { color: var(--dc-green); }
+
+.dc-oauth-login {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-bottom: 6px;
+}
+.dc-oauth-login__google { display: flex; justify-content: center; min-height: 44px; }
+.dc-btn-apple {
+  width: 100%; height: 44px;
+  border-radius: 12px;
+  border: none; background: #000; color: #fff;
+  font-family: inherit; font-size: 14px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.dc-btn-apple:hover:not(:disabled) { background: #1a1a1a; }
+.dc-btn-apple:disabled { opacity: 0.7; cursor: not-allowed; }
 
 .dc-spin { animation: dc-spin 700ms linear infinite; }
 

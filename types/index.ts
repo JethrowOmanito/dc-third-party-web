@@ -1,18 +1,16 @@
 export interface User {
   id: string;
   username: string;
-  role: string;
-  privilege: number;
   name?: string;
   email?: string;
-  service_assigned?: string[];
+  whatsapp_phone?: string;
+  company_id?: string | null;
   company_name?: string;
   company_code?: string;
   company_type?: string;
-  can_create_jobs?: boolean;
-  can_view_all_jobs?: boolean;
-  whatsapp_phone?: string;
-  color_label?: string;
+  company_discount_type?: 'percent' | 'flat' | null;
+  company_discount_value?: number;
+  approval_status?: 'pending' | 'approved' | 'rejected';
 }
 
 export interface Job {

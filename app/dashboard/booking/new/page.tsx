@@ -372,20 +372,30 @@ export default function BookingNewPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [basePrice, selectedAddons, selectedAddonServices, additionalServicesTotal, bundleUpholsteryPrice, bundleCurtainSteamPrice, upholsteryAddonTotal, upholsteryLShape, UPHOLSTERY_LSHAPE_PRICE, coatingScrubbingRow, blindsTotal, slot, highCeilingAddon]);
 
-  // Recompute finalPrice whenever totalPrice changes — including when a promo is already applied
-  // (matches booking-web page.tsx:673-679). Without this, toggling an add-on after applying a
-  // promo keeps a stale finalPrice.
+  // Company (partner) discount — applied automatically for approved partners.
+  // Order: company discount first, then promo code on the discounted amount.
+  const companyDiscountAmount = useMemo(() => {
+    if (user?.approval_status !== 'approved') return 0;
+    const type = user.company_discount_type;
+    const value = Number(user.company_discount_value ?? 0);
+    if (!type || value <= 0) return 0;
+    if (type === 'percent') return (totalPrice * value) / 100;
+    return Math.min(value, totalPrice);
+  }, [user, totalPrice]);
+
+  // Recompute finalPrice whenever totalPrice or discounts change.
   useEffect(() => {
+    const afterCompanyDiscount = Math.max(0, totalPrice - companyDiscountAmount);
     if (!appliedPromo) {
-      setFinalPrice(totalPrice);
+      setFinalPrice(afterCompanyDiscount);
       return;
     }
-    const discount =
+    const promoDiscount =
       (appliedPromo as any).discount_type === 'percentage'
-        ? (totalPrice * ((appliedPromo as any).discount_value ?? 0)) / 100
+        ? (afterCompanyDiscount * ((appliedPromo as any).discount_value ?? 0)) / 100
         : ((appliedPromo as any).discount_value ?? 0);
-    setFinalPrice(Math.max(0, totalPrice - discount));
-  }, [totalPrice, appliedPromo]);
+    setFinalPrice(Math.max(0, afterCompanyDiscount - promoDiscount));
+  }, [totalPrice, companyDiscountAmount, appliedPromo]);
 
   const slotAvail = useMemo(() => slot ? availability[slot.start] : null, [slot, availability]);
   const isOverbook = useMemo(() => Boolean(slotAvail && !slotAvail.available), [slotAvail]);
@@ -2755,10 +2765,20 @@ export default function BookingNewPage() {
                                 <span className="text-xs font-bold text-orange-600">+S${slot?.additionalFee}</span>
                               </div>
                             )}
+                            {companyDiscountAmount > 0 && (
+                              <div className="flex justify-between items-center px-3 py-1">
+                                <span className="text-xs text-emerald-600 italic">
+                                  − Partner discount{user?.company_name ? ` (${user.company_name})` : ''}
+                                </span>
+                                <span className="text-xs font-bold text-emerald-600">−S${companyDiscountAmount.toFixed(2)}</span>
+                              </div>
+                            )}
                             {appliedPromo && (
                               <div className="flex justify-between items-center px-3 py-1">
                                 <span className="text-xs text-emerald-600 italic">− Promo ({appliedPromo.code})</span>
-                                <span className="text-xs font-bold text-emerald-600">−S${(totalPrice - finalPrice).toFixed(2)}</span>
+                                <span className="text-xs font-bold text-emerald-600">
+                                  −S${Math.max(0, (totalPrice - companyDiscountAmount) - finalPrice).toFixed(2)}
+                                </span>
                               </div>
                             )}
                             <div className="flex justify-between items-center px-3 pt-2 border-t border-slate-100 mt-2">
