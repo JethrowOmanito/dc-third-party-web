@@ -509,7 +509,7 @@ export default function LoginPage() {
                           data-text="signin_with"
                           data-size="large"
                           data-logo_alignment="left"
-                          data-width="320"
+                          data-width="340"
                         />
                       </>
                     )}
@@ -581,12 +581,14 @@ const CSS = `
   color: var(--dc-text);
 }
 .dc-login * { box-sizing: border-box; }
-/* Desktop: min-height instead of hard lock so OAuth block + card can scroll
-   when the viewport is shorter than the card. Prevents logo clipping. */
+/* Desktop: lock to viewport height (footer is inside the card now, so we
+   don't need scrolling). Mobile/tablet still allows scroll. */
 @media (min-width: 901px) {
   .dc-login {
-    min-height: 100vh;
-    min-height: 100svh;
+    height: 100vh;
+    height: 100svh;
+    min-height: 0;
+    overflow: hidden;
   }
 }
 
@@ -904,12 +906,12 @@ const CSS = `
 .dc-btn-secondary svg { color: var(--dc-green); }
 
 .dc-oauth-login {
-  display: flex; flex-direction: column; gap: 6px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
   margin-bottom: 4px;
 }
-.dc-oauth-login__google { display: flex; justify-content: center; min-height: 38px; }
+.dc-oauth-login__google { display: flex; justify-content: center; min-height: 38px; width: 340px; max-width: 100%; }
 .dc-btn-apple {
-  width: 100%; height: 38px;
+  width: 340px; max-width: 100%; height: 38px;
   border-radius: 10px;
   border: none; background: #000; color: #fff;
   font-family: inherit; font-size: 13px; font-weight: 600;

@@ -488,7 +488,7 @@ export default function SignupPage() {
                             data-text="signup_with"
                             data-size="large"
                             data-logo_alignment="left"
-                            data-width="320"
+                            data-width="340"
                           />
                         </>
                       )}
@@ -975,13 +975,13 @@ const CSS = `
 
 /* OAuth buttons */
 .dc-oauth {
-  display: flex; flex-direction: column; gap: 10px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
   margin-bottom: 6px;
 }
-.dc-oauth__google { display: flex; justify-content: center; min-height: 44px; }
+.dc-oauth__google { display: flex; justify-content: center; min-height: 40px; width: 340px; max-width: 100%; }
 .dc-btn-apple {
-  width: 100%; height: 44px;
-  border-radius: 12px;
+  width: 340px; max-width: 100%; height: 40px;
+  border-radius: 8px;
   border: none; background: #000; color: #fff;
   font-family: inherit; font-size: 14px; font-weight: 600;
   display: flex; align-items: center; justify-content: center; gap: 8px;
