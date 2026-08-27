@@ -1,0 +1,4 @@
+{
+  "ignoreCommand": "exit 0",
+  "_note": "Auto-deploy disabled — production is on Hostinger VPS. See CLAUDE.md. Vercel kept as rollback insurance only. Remove ignoreCommand to re-enable Vercel builds."
+}
