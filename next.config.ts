@@ -15,15 +15,16 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com https://challenges.cloudflare.com",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' blob: data: https://agyzvknaqnamaoczxgsb.supabase.co https://*.stripe.com",
+      // Google Identity Services (Sign in with Google) + Apple ID SDK (Sign in with Apple)
+      "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com https://challenges.cloudflare.com https://accounts.google.com https://appleid.cdn-apple.com",
+      "style-src 'self' 'unsafe-inline' https://accounts.google.com",
+      "img-src 'self' blob: data: https://agyzvknaqnamaoczxgsb.supabase.co https://*.stripe.com https://*.googleusercontent.com https://accounts.google.com",
       "font-src 'self'",
-      "connect-src 'self' https://agyzvknaqnamaoczxgsb.supabase.co wss://agyzvknaqnamaoczxgsb.supabase.co https://api.stripe.com https://challenges.cloudflare.com",
-      "frame-src https://js.stripe.com https://hooks.stripe.com https://challenges.cloudflare.com",
+      "connect-src 'self' https://agyzvknaqnamaoczxgsb.supabase.co wss://agyzvknaqnamaoczxgsb.supabase.co https://api.stripe.com https://challenges.cloudflare.com https://accounts.google.com https://appleid.apple.com https://appleid.cdn-apple.com",
+      "frame-src https://js.stripe.com https://hooks.stripe.com https://challenges.cloudflare.com https://accounts.google.com https://appleid.apple.com",
       "object-src 'none'",
       "base-uri 'self'",
-      "form-action 'self'",
+      "form-action 'self' https://appleid.apple.com",
     ].join("; "),
   },
 ];
