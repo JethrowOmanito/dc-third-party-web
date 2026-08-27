@@ -279,33 +279,12 @@ export default function SignupPage() {
     }
   }, [form, router, setUser]);
 
+  // Attach credential handler to window for the declarative g_id_onload div.
+  // Google's SDK auto-discovers the g_id_onload/g_id_signin markup and invokes
+  // window[data-callback] with the credential.
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) return;
     window.handleGoogleCredential = (r) => handleGoogleCredential(r.credential);
-    const tryRender = () => {
-      if (window.google?.accounts?.id && googleButtonRef.current) {
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: (r: { credential: string }) => handleGoogleCredential(r.credential),
-        });
-        window.google.accounts.id.renderButton(googleButtonRef.current, {
-          type: 'standard',
-          theme: 'outline',
-          size: 'large',
-          text: 'signup_with',
-          shape: 'rectangular',
-          width: 320,
-        });
-        return true;
-      }
-      return false;
-    };
-    if (!tryRender()) {
-      const t = setInterval(() => {
-        if (tryRender()) clearInterval(t);
-      }, 300);
-      return () => clearInterval(t);
-    }
   }, [handleGoogleCredential]);
 
   // ── OAuth: Apple ─────────────────────────────
@@ -482,7 +461,25 @@ export default function SignupPage() {
                   {(GOOGLE_CLIENT_ID || APPLE_SERVICES_ID) && !oauthProvider && (
                     <div className="dc-oauth">
                       {GOOGLE_CLIENT_ID && (
-                        <div className="dc-oauth__google" ref={googleButtonRef} />
+                        <>
+                          <div
+                            id="g_id_onload"
+                            data-client_id={GOOGLE_CLIENT_ID}
+                            data-context="signup"
+                            data-callback="handleGoogleCredential"
+                            data-auto_prompt="false"
+                          />
+                          <div
+                            className="g_id_signin dc-oauth__google"
+                            data-type="standard"
+                            data-shape="rectangular"
+                            data-theme="outline"
+                            data-text="signup_with"
+                            data-size="large"
+                            data-logo_alignment="left"
+                            data-width="320"
+                          />
+                        </>
                       )}
                       {APPLE_SERVICES_ID && (
                         <button

@@ -174,30 +174,12 @@ export default function LoginPage() {
     }
   }, [router, setUser]);
 
+  // Attach credential handler to window for the declarative g_id_onload div.
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) return;
-    const tryRender = () => {
-      if (window.google?.accounts?.id && googleButtonRef.current) {
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: (r: { credential: string }) => handleGoogleCredential(r.credential),
-        });
-        window.google.accounts.id.renderButton(googleButtonRef.current, {
-          type: 'standard',
-          theme: 'outline',
-          size: 'large',
-          text: 'signin_with',
-          shape: 'rectangular',
-          width: 320,
-        });
-        return true;
-      }
-      return false;
-    };
-    if (!tryRender()) {
-      const t = setInterval(() => { if (tryRender()) clearInterval(t); }, 300);
-      return () => clearInterval(t);
-    }
+    (window as unknown as {
+      handleGoogleCredential?: (r: { credential: string }) => void;
+    }).handleGoogleCredential = (r) => handleGoogleCredential(r.credential);
   }, [handleGoogleCredential]);
 
   // ── OAuth: Apple ─────────────────────────────
@@ -505,7 +487,25 @@ export default function LoginPage() {
                   <div className="dc-divider"><span>or</span></div>
                   <div className="dc-oauth-login">
                     {GOOGLE_CLIENT_ID && (
-                      <div className="dc-oauth-login__google" ref={googleButtonRef} />
+                      <>
+                        <div
+                          id="g_id_onload"
+                          data-client_id={GOOGLE_CLIENT_ID}
+                          data-context="signin"
+                          data-callback="handleGoogleCredential"
+                          data-auto_prompt="false"
+                        />
+                        <div
+                          className="g_id_signin dc-oauth-login__google"
+                          data-type="standard"
+                          data-shape="rectangular"
+                          data-theme="outline"
+                          data-text="signin_with"
+                          data-size="large"
+                          data-logo_alignment="left"
+                          data-width="320"
+                        />
+                      </>
                     )}
                     {APPLE_SERVICES_ID && (
                       <button
