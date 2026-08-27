@@ -656,10 +656,14 @@ const CSS = `
 .dc-visual { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
 .dc-visual__merlion {
   position: absolute;
-  top: -140px; right: -30px;
+  /* Anchor to bottom so it moves with the team photo instead of drifting
+     independently when the viewport is resized. */
+  bottom: -2%;
+  right: -30px;
   width: min(520px, 52vw);
   opacity: 0.42;
   object-fit: contain;
+  object-position: right bottom;
   pointer-events: none;
   z-index: 3;
   user-select: none;
