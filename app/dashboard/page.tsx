@@ -55,11 +55,20 @@ export default function DashboardPage() {
   });
   const [upcoming, setUpcoming] = useState<UpcomingJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [firstLoadDone, setFirstLoadDone] = useState(false);
   const supabase = getSupabaseClient();
+
+  // Only depend on the fields we actually query with, so the /api/auth/me
+  // poll every 30s doesn't retrigger loadData (it returns a new user object
+  // reference every time, which was causing the flash on nav-back).
+  const filterId = user?.company_id ?? user?.id ?? null;
 
   const loadData = useCallback(async () => {
     if (!user) return;
-    setLoading(true);
+    // Show the full-page spinner only on the very first load. Subsequent
+    // navigations back to the dashboard keep the existing content visible
+    // and refresh silently.
+    if (!firstLoadDone) setLoading(true);
     try {
       const today = new Date().toISOString().split('T')[0];
 
@@ -92,8 +101,10 @@ export default function DashboardPage() {
       setUpcoming((upcomingResult.data as UpcomingJob[]) || []);
     } finally {
       setLoading(false);
+      setFirstLoadDone(true);
     }
-  }, [user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterId]);
 
   useEffect(() => {
     loadData();
@@ -148,7 +159,7 @@ export default function DashboardPage() {
 
   const greeting = getGreeting();
 
-  if (loading) {
+  if (loading && !firstLoadDone) {
     return (
       <div className="flex flex-col items-center justify-center h-96 space-y-4">
         <div className="relative">
@@ -163,7 +174,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-12 animate-in fade-in duration-500">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       <ApprovalBanner status={user?.approval_status} />
       {/* ============ HERO ============ */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-900 via-emerald-800 to-emerald-700 text-white shadow-xl shadow-emerald-900/20">

@@ -18,7 +18,20 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         const res = await fetch('/api/auth/me', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
-          setUser(data.user);
+          // Only push a fresh user into the store when meaningful fields
+          // changed. Otherwise every 30s poll triggers a cascade of re-renders
+          // (dashboard was flashing on nav-back because loadData re-ran).
+          const current = useAuthStore.getState().user;
+          const next = data.user;
+          const changed =
+            !current ||
+            current.id !== next.id ||
+            current.approval_status !== next.approval_status ||
+            current.company_id !== next.company_id ||
+            current.company_discount_value !== next.company_discount_value ||
+            current.company_discount_type !== next.company_discount_type ||
+            current.company_name !== next.company_name;
+          if (changed) setUser(next);
         } else if (!user) {
           router.replace('/login');
         }
