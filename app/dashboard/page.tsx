@@ -361,7 +361,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-bold text-slate-900">Upcoming Jobs</h2>
             <Link
-              href="/dashboard/jobs"
+              href="/dashboard/jobs/today"
               className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
             >
               View all
@@ -387,7 +387,7 @@ export default function DashboardPage() {
           </div>
 
           <Link
-            href="/dashboard/jobs"
+            href="/dashboard/jobs/today"
             className="mt-4 inline-flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700 font-semibold self-start"
           >
             View all jobs <ArrowRight className="w-3.5 h-3.5" />

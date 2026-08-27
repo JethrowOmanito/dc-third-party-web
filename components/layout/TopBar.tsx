@@ -7,9 +7,8 @@ import { Button } from '@/components/ui/button';
 
 const TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
-  '/dashboard/jobs': 'All Jobs',
   '/dashboard/jobs/today': "Today's Jobs",
-  '/dashboard/jobs/incoming': 'Incoming Jobs',
+  '/dashboard/check-availability': 'Check Availability',
   '/dashboard/booking/slots': 'Available Slots',
   '/dashboard/booking/new': 'Book a Service',
   '/dashboard/booking/payment': 'Confirm Booking',
@@ -18,7 +17,7 @@ const TITLES: Record<string, string> = {
 
 const SUBTITLES: Record<string, string> = {
   '/dashboard/booking/new': 'Follow the steps to complete your booking.',
-  '/dashboard/jobs': 'View and manage all service requests in one place.',
+  '/dashboard/check-availability': 'Pick a date to see Deep Cleaning slots.',
 };
 
 function getTitle(pathname: string): string {

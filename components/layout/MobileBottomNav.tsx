@@ -1,6 +1,6 @@
 'use client';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Briefcase, CalendarDays, Clock, BookOpen } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, CalendarSearch, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -14,9 +14,8 @@ interface Tab {
 
 const tabs: Tab[] = [
   { href: '/dashboard', label: 'Home', icon: LayoutDashboard },
-  { href: '/dashboard/jobs', label: 'Jobs', icon: Briefcase },
   { href: '/dashboard/jobs/today', label: 'Today', icon: CalendarDays },
-  { href: '/dashboard/jobs/incoming', label: 'Incoming', icon: Clock },
+  { href: '/dashboard/check-availability', label: 'Availability', icon: CalendarSearch },
   { href: '/dashboard/booking/new', label: 'Book', icon: BookOpen, requiresApproval: true },
 ];
 

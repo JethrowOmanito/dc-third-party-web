@@ -3,9 +3,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
-  Briefcase,
   CalendarDays,
-  Clock,
+  CalendarSearch,
   Settings,
   LogOut,
   Building2,
@@ -23,9 +22,8 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/jobs', label: 'All Jobs', icon: Briefcase },
   { href: '/dashboard/jobs/today', label: "Today's Jobs", icon: CalendarDays },
-  { href: '/dashboard/jobs/incoming', label: 'Incoming', icon: Clock },
+  { href: '/dashboard/check-availability', label: 'Check Availability', icon: CalendarSearch },
   { href: '/dashboard/booking/new', label: 'Book Service', icon: BookOpen, requiresApproval: true },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ];

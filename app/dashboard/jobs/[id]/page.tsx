@@ -372,7 +372,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-2">
         <p className="text-red-500 font-medium">Job not found</p>
-        <Link href="/dashboard/jobs" className="text-sm text-emerald-600 underline">
+        <Link href="/dashboard/jobs/today" className="text-sm text-emerald-600 underline">
           Back to Jobs
         </Link>
       </div>
@@ -435,7 +435,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       <div className="px-4 pt-3 pb-4 rounded-b-3xl" style={{ backgroundColor: '#064E3B' }}>
         {/* Nav row */}
         <div className="flex items-center gap-2 mb-2.5">
-          <Link href="/dashboard/jobs">
+          <Link href="/dashboard/jobs/today">
             <button
               className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
