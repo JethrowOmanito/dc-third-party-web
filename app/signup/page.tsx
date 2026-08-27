@@ -106,14 +106,23 @@ export default function SignupPage() {
   const [oauthSubject, setOauthSubject] = useState('');
   const [oauthProcessing, setOauthProcessing] = useState(false);
   const [appleReady, setAppleReady] = useState(false);
+  const [appleLoadFailed, setAppleLoadFailed] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement>(null);
 
-  // Poll for Apple SDK to load
+  // Poll for Apple SDK — give up after 15s so we don't loop forever if the CDN
+  // is blocked (CSP / Cloudflare / regional filtering).
   useEffect(() => {
     if (!APPLE_SERVICES_ID) return;
     if (window.AppleID) { setAppleReady(true); return; }
+    const start = Date.now();
     const t = setInterval(() => {
-      if (window.AppleID) { setAppleReady(true); clearInterval(t); }
+      if (window.AppleID) {
+        setAppleReady(true);
+        clearInterval(t);
+      } else if (Date.now() - start > 15000) {
+        setAppleLoadFailed(true);
+        clearInterval(t);
+      }
     }, 200);
     return () => clearInterval(t);
   }, []);
@@ -481,7 +490,7 @@ export default function SignupPage() {
                           />
                         </>
                       )}
-                      {APPLE_SERVICES_ID && (
+                      {APPLE_SERVICES_ID && !appleLoadFailed && (
                         <button
                           type="button"
                           onClick={handleAppleClick}

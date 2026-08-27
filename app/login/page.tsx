@@ -74,17 +74,24 @@ export default function LoginPage() {
   const [teamPhotoError, setTeamPhotoError] = useState(false);
   const [oauthProcessing, setOauthProcessing] = useState(false);
   const [appleReady, setAppleReady] = useState(false);
+  const [appleLoadFailed, setAppleLoadFailed] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement>(null);
   const year = new Date().getFullYear();
 
-  // Poll for Apple SDK to load — Next Script's afterInteractive strategy loads
-  // the script after page interactive, but window.AppleID becomes available
-  // asynchronously after that.
+  // Poll for Apple SDK to load. Give up after 15s so users see an actual
+  // failure state instead of an eternal "Loading Apple…".
   useEffect(() => {
     if (!APPLE_SERVICES_ID) return;
     if (window.AppleID) { setAppleReady(true); return; }
+    const start = Date.now();
     const t = setInterval(() => {
-      if (window.AppleID) { setAppleReady(true); clearInterval(t); }
+      if (window.AppleID) {
+        setAppleReady(true);
+        clearInterval(t);
+      } else if (Date.now() - start > 15000) {
+        setAppleLoadFailed(true);
+        clearInterval(t);
+      }
     }, 200);
     return () => clearInterval(t);
   }, []);
@@ -507,7 +514,7 @@ export default function LoginPage() {
                         />
                       </>
                     )}
-                    {APPLE_SERVICES_ID && (
+                    {APPLE_SERVICES_ID && !appleLoadFailed && (
                       <button
                         type="button"
                         onClick={handleAppleClick}
@@ -666,7 +673,7 @@ const CSS = `
 }
 .dc-visual__team {
   position: absolute;
-  bottom: -2%;
+  bottom: 23%;
   right: -17%;
   left: auto;
   width: min(484px, 37vw);
@@ -682,7 +689,7 @@ const CSS = `
 .dc-ribbon {
   position: absolute;
   left: 0;
-  bottom: 0;
+  bottom: 20%;
   width: 60%;
   height: 22vh;
   pointer-events: none;
