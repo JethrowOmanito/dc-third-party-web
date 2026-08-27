@@ -649,7 +649,7 @@ const CSS = `
 .dc-visual__merlion {
   position: absolute;
   top: -140px;
-  right: 10%;
+  right: -10%;
   width: min(520px, 52vw);
   opacity: 0.42;
   object-fit: contain;
@@ -660,7 +660,7 @@ const CSS = `
 .dc-visual__team {
   position: absolute;
   bottom: 13%;
-  right: -7%;
+  right: -27%;
   left: auto;
   width: min(484px, 37vw);
   height: auto;
