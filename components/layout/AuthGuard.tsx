@@ -10,27 +10,41 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [isVerifying, setIsVerifying] = useState(false);
 
   useEffect(() => {
-    const verifySession = async () => {
-      if (_hasHydrated && !user) {
-        setIsVerifying(true);
-        try {
-          const res = await fetch('/api/auth/me');
-          if (res.ok) {
-            const data = await res.json();
-            setUser(data.user);
-          } else {
-            router.replace('/login');
-          }
-        } catch {
+    if (!_hasHydrated) return;
+
+    const verifySession = async (initial: boolean) => {
+      if (initial) setIsVerifying(true);
+      try {
+        const res = await fetch('/api/auth/me', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data.user);
+        } else if (!user) {
           router.replace('/login');
-        } finally {
-          setIsVerifying(false);
         }
+      } catch {
+        if (!user) router.replace('/login');
+      } finally {
+        if (initial) setIsVerifying(false);
       }
     };
 
-    verifySession();
-  }, [user, _hasHydrated, router, setUser]);
+    // Initial verify (blocks render if no user yet)
+    verifySession(!user);
+
+    // Silent refresh every 30 seconds so approval flips propagate without
+    // requiring the user to log out and back in.
+    const interval = setInterval(() => verifySession(false), 30_000);
+
+    // Also refresh on window focus (user comes back from another tab)
+    const onFocus = () => verifySession(false);
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [_hasHydrated, router, setUser, user]);
 
   // Show spinner while Zustand is rehydrating from localStorage or verifying session
   if (!_hasHydrated || isVerifying || (!user && _hasHydrated)) {
