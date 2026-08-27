@@ -607,7 +607,7 @@ const CSS = `
 
 /* ── LEFT ─────────────────────────────────────────────────────── */
 .dc-left { position: relative; overflow: visible; height: 100%; }
-.dc-left__content { position: relative; z-index: 20; max-width: 560px; }
+.dc-left__content { position: relative; z-index: 20; max-width: 560px; padding-top: 5vh; }
 .dc-left__heading {
   margin: 0;
   font-size: clamp(38px, 3.4vw, 56px);
@@ -648,7 +648,8 @@ const CSS = `
 .dc-visual { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
 .dc-visual__merlion {
   position: absolute;
-  top: -140px; right: -30px;
+  top: -140px;
+  right: 10%;
   width: min(520px, 52vw);
   opacity: 0.42;
   object-fit: contain;
@@ -659,7 +660,7 @@ const CSS = `
 .dc-visual__team {
   position: absolute;
   bottom: 13%;
-  right: -17%;
+  right: -7%;
   left: auto;
   width: min(484px, 37vw);
   height: auto;
@@ -674,7 +675,7 @@ const CSS = `
 .dc-ribbon {
   position: absolute;
   left: 0;
-  bottom: 15%;
+  bottom: 10%;
   width: 60%;
   height: 22vh;
   pointer-events: none;
