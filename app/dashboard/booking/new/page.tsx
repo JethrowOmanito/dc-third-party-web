@@ -416,9 +416,15 @@ export default function BookingNewPage() {
 
   useEffect(() => {
     const s = bookingStore;
-    if (s.contactName) setName(s.contactName);
-    if (s.contactPhone) setPhone(s.contactPhone);
-    if (s.contactEmail) setEmail(s.contactEmail);
+    // Prefer values previously entered in this wizard session; fall back to
+    // the logged-in partner's profile so the contact step is prefilled by
+    // default (partner is booking on behalf of themselves in most cases).
+    if (s.contactName)      setName(s.contactName);
+    else if (user?.name)    setName(user.name);
+    if (s.contactPhone)     setPhone(s.contactPhone);
+    else if (user?.whatsapp_phone) setPhone(user.whatsapp_phone);
+    if (s.contactEmail)     setEmail(s.contactEmail);
+    else if (user?.email)   setEmail(user.email);
     if (s.contactNotes) setNotes(s.contactNotes);
     if (s.postalCode) {
       setPostalCode(s.postalCode);
@@ -426,7 +432,7 @@ export default function BookingNewPage() {
     }
     if (s.unitNumber) setUnitNumber(s.unitNumber);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user?.id]);
 
   // Sync contact + address back to store whenever they change
   useEffect(() => {
