@@ -708,12 +708,12 @@ const CSS = `
   position: relative;
   z-index: 50;
   width: 100%;
-  max-width: 500px;
-  padding: 28px 36px;
+  max-width: 420px;
+  padding: 22px 28px;
   background: rgba(255,255,255,0.94);
   backdrop-filter: blur(6px);
   border: 1px solid rgba(226,232,240,0.8);
-  border-radius: 22px;
+  border-radius: 18px;
   box-shadow:
     0 25px 60px rgba(15,23,42,0.08),
     0 5px 15px rgba(15,23,42,0.04);
@@ -721,10 +721,10 @@ const CSS = `
 }
 
 .dc-card__logo { margin: 0 auto; display: flex; align-items: center; justify-content: center; }
-.dc-card__logo img { height: 76px; width: auto; max-width: 100%; user-select: none; }
+.dc-card__logo img { height: 56px; width: auto; max-width: 100%; user-select: none; }
 .dc-card__title {
-  margin: 14px 0 0;
-  font-size: 26px;
+  margin: 10px 0 0;
+  font-size: 22px;
   line-height: 1.2;
   font-weight: 800;
   letter-spacing: -0.025em;
@@ -732,8 +732,8 @@ const CSS = `
   text-align: center;
 }
 .dc-card__subtitle {
-  margin: 6px 0 0;
-  font-size: 14px;
+  margin: 4px 0 0;
+  font-size: 13px;
   line-height: 1.5;
   color: var(--dc-muted);
   text-align: center;
@@ -744,13 +744,13 @@ const CSS = `
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
-  margin: 20px 0 4px;
-  padding: 4px;
+  margin: 14px 0 2px;
+  padding: 3px;
   background: #f1f5f9;
-  border-radius: 12px;
+  border-radius: 10px;
 }
 .dc-tab {
-  height: 40px;
+  height: 34px;
   border: none;
   background: transparent;
   color: #64748b;
@@ -778,10 +778,10 @@ const CSS = `
   font-size: 13px;
 }
 
-.dc-form { margin-top: 16px; display: flex; flex-direction: column; gap: 14px; }
-.dc-field { display: flex; flex-direction: column; gap: 6px; }
+.dc-form { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.dc-field { display: flex; flex-direction: column; gap: 4px; }
 .dc-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -789,25 +789,25 @@ const CSS = `
 }
 .dc-field__hint {
   margin: 0 0 4px;
-  font-size: 12.5px;
+  font-size: 11.5px;
   color: var(--dc-muted);
-  line-height: 1.45;
+  line-height: 1.4;
 }
 .dc-input-wrap { position: relative; }
 .dc-input {
   width: 100%;
-  height: 48px;
-  padding: 0 18px 0 46px;
+  height: 40px;
+  padding: 0 14px 0 40px;
   border: 1.5px solid var(--dc-border);
-  border-radius: 14px;
+  border-radius: 10px;
   background: #ffffff;
   color: var(--dc-navy);
-  font-size: 15px;
+  font-size: 14px;
   font-family: inherit;
   outline: none;
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
-.dc-input--password { padding-right: 48px; }
+.dc-input--password { padding-right: 42px; }
 .dc-input::placeholder { color: #a0aec0; }
 .dc-input:focus {
   border-color: var(--dc-green);
@@ -816,7 +816,7 @@ const CSS = `
 .dc-input--error { border-color: #ef4444; }
 .dc-input-icon {
   position: absolute;
-  left: 16px;
+  left: 14px;
   top: 50%;
   transform: translateY(-50%);
   color: #94a3b8;
@@ -824,21 +824,21 @@ const CSS = `
 }
 .dc-eye {
   position: absolute;
-  right: 12px;
+  right: 10px;
   top: 50%;
   transform: translateY(-50%);
-  padding: 6px;
+  padding: 5px;
   background: transparent;
   border: none;
   color: #94a3b8;
   cursor: pointer;
   display: flex;
   align-items: center;
-  border-radius: 8px;
+  border-radius: 6px;
   transition: color 150ms ease, background 150ms ease;
 }
 .dc-eye:hover { color: #64748b; background: #f1f5f9; }
-.dc-field__error { margin: 2px 0 0 4px; font-size: 12px; color: #ef4444; }
+.dc-field__error { margin: 2px 0 0 4px; font-size: 11.5px; color: #ef4444; }
 
 .dc-form__row { display: flex; justify-content: space-between; align-items: center; }
 .dc-form__row--end { justify-content: flex-end; }
@@ -849,7 +849,7 @@ const CSS = `
   cursor: pointer;
   color: var(--dc-green);
   font-weight: 600;
-  font-size: 14px;
+  font-size: 12.5px;
   text-decoration: none;
   font-family: inherit;
   transition: color 150ms ease;
@@ -858,13 +858,13 @@ const CSS = `
 
 .dc-btn-primary {
   width: 100%;
-  height: 48px;
+  height: 40px;
   margin-top: 4px;
   border: none;
-  border-radius: 14px;
+  border-radius: 10px;
   background: var(--dc-green);
   color: #ffffff;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -891,12 +891,12 @@ const CSS = `
 
 .dc-btn-secondary {
   width: 100%;
-  height: 48px;
-  border-radius: 14px;
+  height: 40px;
+  border-radius: 10px;
   border: 1px solid var(--dc-border);
   background: #ffffff;
   color: #43526a;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
   font-family: inherit;
   text-decoration: none;
@@ -904,22 +904,22 @@ const CSS = `
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   transition: background 150ms ease, border-color 150ms ease;
 }
 .dc-btn-secondary:hover { background: #f8fafc; border-color: #b8c4d3; }
 .dc-btn-secondary svg { color: var(--dc-green); }
 
 .dc-oauth-login {
-  display: flex; flex-direction: column; gap: 8px;
-  margin-bottom: 6px;
+  display: flex; flex-direction: column; gap: 6px;
+  margin-bottom: 4px;
 }
-.dc-oauth-login__google { display: flex; justify-content: center; min-height: 44px; }
+.dc-oauth-login__google { display: flex; justify-content: center; min-height: 38px; }
 .dc-btn-apple {
-  width: 100%; height: 44px;
-  border-radius: 12px;
+  width: 100%; height: 38px;
+  border-radius: 10px;
   border: none; background: #000; color: #fff;
-  font-family: inherit; font-size: 14px; font-weight: 600;
+  font-family: inherit; font-size: 13px; font-weight: 600;
   display: flex; align-items: center; justify-content: center; gap: 8px;
   cursor: pointer;
   transition: background 150ms ease;
@@ -929,7 +929,7 @@ const CSS = `
 
 .dc-spin { animation: dc-spin 700ms linear infinite; }
 
-.dc-help { margin: 12px 0 0; text-align: center; font-size: 13px; color: var(--dc-muted); }
+.dc-help { margin: 10px 0 0; text-align: center; font-size: 12px; color: var(--dc-muted); }
 
 .dc-footer {
   position: absolute;
