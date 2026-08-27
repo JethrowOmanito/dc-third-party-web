@@ -10,6 +10,7 @@ export interface User {
   company_type?: string;
   company_discount_type?: 'percent' | 'flat' | null;
   company_discount_value?: number;
+  company_payment_terms?: 'upfront' | 'end_of_month';
   approval_status?: 'pending' | 'approved' | 'rejected';
 }
 

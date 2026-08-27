@@ -35,7 +35,7 @@ export async function GET(_req: NextRequest) {
         `id, username, email, full_name, whatsapp_phone,
          company_id, approval_status, force_logout,
          company:partner_companies!company_id (
-           name, company_code, company_type, discount_type, discount_value
+           name, company_code, company_type, discount_type, discount_value, payment_terms
          )`
       )
       .eq('id', partnerId)
@@ -67,6 +67,7 @@ export async function GET(_req: NextRequest) {
       company_type: company?.company_type ?? undefined,
       company_discount_type: (company?.discount_type ?? null) as 'percent' | 'flat' | null,
       company_discount_value: Number(company?.discount_value ?? 0),
+      company_payment_terms: (company?.payment_terms ?? 'upfront') as 'upfront' | 'end_of_month',
       approval_status: partner.approval_status as 'pending' | 'approved' | 'rejected',
     };
 

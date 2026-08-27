@@ -30,6 +30,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             current.company_id !== next.company_id ||
             current.company_discount_value !== next.company_discount_value ||
             current.company_discount_type !== next.company_discount_type ||
+            current.company_payment_terms !== next.company_payment_terms ||
             current.company_name !== next.company_name;
           if (changed) setUser(next);
         } else if (!user) {

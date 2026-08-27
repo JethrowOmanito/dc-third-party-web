@@ -972,10 +972,14 @@ export default function BookingNewPage() {
           appliedPromo?.code ? `Promo: ${appliedPromo.code}` : null,
           service === 'blinds' && blindsCount > 0 ? `Blinds: ${blindsCount} piece${blindsCount === 1 ? '' : 's'} — $${blindsTotal}` : null,
         ].filter(Boolean).join(' | ') || null,
-        status: 'pending',
+        // End-of-month partners get an auto-confirmed, invoice-tagged event
+        // and skip the Stripe checkout step entirely.
+        status: user?.company_payment_terms === 'end_of_month' ? 'confirmed' : 'pending',
+        payment_status: user?.company_payment_terms === 'end_of_month' ? 'invoice' : 'unpaid',
         lifecycle_state: 'active',
         source: user?.company_code || 'AGT',
         owned_by_third_party: user?.id,
+        partner_company_id: user?.company_id ?? null,
         Assign_Cleaner: [],
         Price: totalPrice,
         final_price: effectiveFinal,
@@ -997,8 +1001,20 @@ export default function BookingNewPage() {
 
       await supabase.from('event_logs').insert({
         event_id: bData.id,
-        message: `Booking created by ${user?.name || user?.username || 'Partner'}`,
+        message: `Booking created by ${user?.name || user?.username || 'Partner'}${
+          user?.company_payment_terms === 'end_of_month' ? ' — invoiced at month-end' : ''
+        }`,
       });
+
+      // End-of-month partners: no Stripe. Redirect straight to success.
+      if (user?.company_payment_terms === 'end_of_month') {
+        setCurrentBookingId(bData.id);
+        setCurrentRefId(bData.Ref_ID);
+        router.replace(
+          `/dashboard/booking/success?id=${bData.id}&ref=${bData.Ref_ID}&invoice=1`
+        );
+        return;
+      }
 
       const res = await fetch('/api/checkout/create-intent', {
         method: 'POST',

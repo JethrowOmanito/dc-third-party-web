@@ -100,17 +100,17 @@ export async function POST(req: NextRequest) {
     const slotFee = data.slot.additionalFee || 0;
     const subtotal = basePrice + addonsTotal + slotFee;
 
-    // Server-side company discount lookup (never trust client for pricing).
+    // Server-side company discount + payment terms lookup (never trust client for pricing).
     const partnerUserId = user.id as string;
     const { data: partnerRow } = await supabase
       .from('partner_user')
-      .select('company_id, partner_companies!company_id(id, discount_type, discount_value)')
+      .select('company_id, partner_companies!company_id(id, discount_type, discount_value, payment_terms)')
       .eq('id', partnerUserId)
       .maybeSingle();
 
     const partnerCompany = partnerRow?.partner_companies as
-      | { id: string; discount_type: 'percent' | 'flat' | null; discount_value: number | string | null }
-      | { id: string; discount_type: 'percent' | 'flat' | null; discount_value: number | string | null }[]
+      | { id: string; discount_type: 'percent' | 'flat' | null; discount_value: number | string | null; payment_terms: 'upfront' | 'end_of_month' | null }
+      | { id: string; discount_type: 'percent' | 'flat' | null; discount_value: number | string | null; payment_terms: 'upfront' | 'end_of_month' | null }[]
       | undefined;
     const co = Array.isArray(partnerCompany) ? partnerCompany[0] : partnerCompany;
 
@@ -122,6 +122,9 @@ export async function POST(req: NextRequest) {
     }
     const finalTotal = Math.max(0, subtotal - companyDiscount);
     const gstAmount = Math.round(finalTotal * 0.09 * 100) / 100;
+
+    const paymentTerms: 'upfront' | 'end_of_month' = co?.payment_terms === 'end_of_month' ? 'end_of_month' : 'upfront';
+    const isInvoiced = paymentTerms === 'end_of_month';
 
     // 4. Insert Booking
     const { data: event, error: insertError } = await supabase.from('events').insert({
@@ -139,6 +142,10 @@ export async function POST(req: NextRequest) {
       tax_treatment: 'exclusive',
       gst_rate: 9,
       gst_amount: gstAmount,
+      // End-of-month partners: booking is confirmed immediately and will be
+      // invoiced at month-end. No Stripe intent required.
+      status: isInvoiced ? 'confirmed' : 'pending',
+      payment_status: isInvoiced ? 'invoice' : 'unpaid',
       owned_by_third_party: partnerUserId,
       partner_company_id: partnerRow?.company_id ?? null,
       // Unit & Size go to specific columns, not Extra_Service
@@ -164,7 +171,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to create booking' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, booking: event }, { status: 201 });
+    return NextResponse.json(
+      { success: true, booking: event, paymentTerms, requiresPayment: !isInvoiced },
+      { status: 201 }
+    );
 
   } catch (err) {
     console.error('Booking API Error:', err);

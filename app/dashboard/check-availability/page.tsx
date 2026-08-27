@@ -93,49 +93,51 @@ export default function CheckAvailabilityPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto">
-      {/* Compact inline header */}
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600">
-          <CalendarDays className="w-4 h-4" />
+    // Lock the page to viewport height so nothing scrolls the layout itself.
+    // Calendar cells auto-size to fill available space via CSS grid + minmax.
+    <div className="max-w-6xl mx-auto flex flex-col h-[calc(100vh-6rem)] min-h-[520px]">
+      {/* Inline header */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600">
+          <CalendarDays className="w-5 h-5" />
         </div>
         <div className="min-w-0">
-          <h1 className="text-base font-bold text-slate-900 leading-tight">Check Availability</h1>
-          <p className="text-[11px] text-slate-500 leading-tight">Deep Cleaning — tap a date to see slots</p>
+          <h1 className="text-lg font-bold text-slate-900 leading-tight">Check Availability</h1>
+          <p className="text-xs text-slate-500 leading-tight">Deep Cleaning — tap a date to see slots</p>
         </div>
       </div>
 
-      {/* Desktop: 2-column (calendar left, slots right) — no scroll on 1080p+ */}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)] gap-3">
-        {/* Calendar */}
-        <div className="rounded-xl bg-white ring-1 ring-slate-100 shadow-sm p-3">
-          <div className="flex items-center justify-between mb-2">
+      {/* 2-column grid that fills remaining vertical space */}
+      <div className="flex-1 min-h-0 grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] gap-4">
+        {/* Calendar — auto-fills its column */}
+        <div className="rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm p-4 flex flex-col min-h-0">
+          <div className="flex items-center justify-between mb-3 flex-shrink-0">
             <button
               type="button"
               onClick={() => setMonthOffset(o => Math.max(0, o - 1))}
               disabled={monthOffset === 0}
-              className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+              className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
             >
               <ChevronLeft className="w-4 h-4 text-slate-600" />
             </button>
-            <div className="text-sm font-bold text-slate-800">
+            <div className="text-base font-bold text-slate-800">
               {format(monthStart, 'MMMM yyyy')}
             </div>
             <button
               type="button"
               onClick={() => setMonthOffset(o => Math.min(maxMonthOffset, o + 1))}
               disabled={monthOffset === maxMonthOffset}
-              className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+              className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
             >
               <ChevronRight className="w-4 h-4 text-slate-600" />
             </button>
           </div>
 
-          <div className="grid grid-cols-7 gap-0.5 text-center text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+          <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex-shrink-0">
             {DAY_LABELS.map(d => <div key={d}>{d}</div>)}
           </div>
 
-          <div className="grid grid-cols-7 gap-0.5">
+          <div className="grid grid-cols-7 grid-rows-6 gap-1 flex-1 min-h-0">
             {gridDays.map((day, idx) => {
               const inMonth = day.getMonth() === monthStart.getMonth();
               const disabled = day < today || day > maxDate;
@@ -149,7 +151,7 @@ export default function CheckAvailabilityPage() {
                   onClick={() => !disabled && inMonth && handleDateSelect(day, true)}
                   disabled={disabled || !inMonth}
                   className={cn(
-                    'h-9 rounded-md text-xs font-semibold transition-all',
+                    'rounded-lg text-sm font-semibold transition-all flex items-center justify-center min-h-0',
                     !inMonth && 'opacity-0 pointer-events-none',
                     isSelected && 'bg-emerald-600 text-white shadow shadow-emerald-500/30',
                     !isSelected && isToday && 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
@@ -164,17 +166,17 @@ export default function CheckAvailabilityPage() {
           </div>
         </div>
 
-        {/* Slots panel — inline on desktop, hidden on mobile (sheet instead) */}
-        <div className="hidden lg:flex flex-col rounded-xl bg-white ring-1 ring-slate-100 shadow-sm">
-          <div className="px-3 py-2.5 border-b border-slate-100 flex-shrink-0">
+        {/* Slots panel — inline on desktop, sheet on mobile */}
+        <div className="hidden lg:flex flex-col rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm min-h-0">
+          <div className="px-4 py-3 border-b border-slate-100 flex-shrink-0">
             <h2 className="text-sm font-bold text-slate-900 leading-tight">
-              {format(date, 'EEE, MMM d')}
+              {format(date, 'EEEE, MMM d')}
             </h2>
-            <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">
+            <p className="text-xs text-slate-500 mt-0.5 leading-tight">
               {loading ? 'Loading slots…' : unconfigured ? 'Not yet configured' : `${availableCount} slot${availableCount !== 1 ? 's' : ''} available`}
             </p>
           </div>
-          <div className="p-3 overflow-y-auto max-h-[calc(100vh-220px)]">
+          <div className="p-3 flex-1 overflow-y-auto min-h-0">
             <SlotList loading={loading} slots={slots} error={error} unconfigured={unconfigured} />
           </div>
         </div>
