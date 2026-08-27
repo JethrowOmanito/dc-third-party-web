@@ -392,7 +392,9 @@ export default function SignupPage() {
     try {
       const payload = {
         ...data,
-        signup_token: signupToken,
+        // Only send signup_token when we actually have one (otherwise the
+        // .min(20) validation on the schema rejects an empty string).
+        ...(signupToken ? { signup_token: signupToken } : {}),
         ...(oauthProvider ? { oauth_provider: oauthProvider, oauth_subject: oauthSubject } : {}),
       };
       const res = await fetch('/api/auth/signup', {
