@@ -15,8 +15,8 @@ import { useRouter } from 'next/navigation';
 import {
   ChevronRight, ChevronLeft, ChevronDown, CheckCircle2,
   Loader2, Clock, Send, Sparkles, X, Plus, Minus,
-  Home, Sofa, Wind, Layers, Building2, ShieldCheck, Droplets,
-  MapPin, Calendar as CalendarIcon, Info, Waves, AppWindow, Blinds,
+  Home, Sofa, Wind, Layers, Building2, ShieldCheck,
+  MapPin, Calendar as CalendarIcon, Info, Waves,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,7 +43,7 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const SERVICES = [
-  { key: 'deep_cleaning'       as ServiceKey, label: 'Deep Cleaning',        icon: Sparkles,    sub: 'Tenancy · Reno · Spring · HIP' },
+  { key: 'deep_cleaning'       as ServiceKey, label: 'Deep Cleaning',        icon: Sparkles,    sub: 'Post-Renovation' },
   { key: 'housekeeping'        as ServiceKey, label: 'Housekeeping',          icon: Home,        sub: 'Regular Home Cleaning' },
   { key: 'office'              as ServiceKey, label: 'Office Cleaning',       icon: Building2,   sub: 'Corporate · Office · Retail' },
   { key: 'upholstery'          as ServiceKey, label: 'Upholstery',            icon: Sofa,        sub: 'Sofa · Mattress · Carpet' },
@@ -51,9 +51,6 @@ const SERVICES = [
   { key: 'scrubbing_machine'   as ServiceKey, label: 'Scrubbing Machine',     icon: Waves,       sub: 'Industrial Floor Polish' },
   { key: 'coating'             as ServiceKey, label: 'Floor Coating',         icon: Layers,      sub: 'Protective Floor Coating' },
   { key: 'formaldehyde_removal' as ServiceKey, label: 'Formaldehyde Removal', icon: ShieldCheck, sub: 'Full Unit Air Treatment' },
-  { key: 'disinfection'        as ServiceKey, label: 'Disinfection',          icon: Droplets,    sub: 'Sanitisation & Disinfection' },
-  { key: 'window_cleaning'     as ServiceKey, label: 'Window Cleaning',       icon: AppWindow,   sub: 'Residential & Commercial' },
-  { key: 'blinds'              as ServiceKey, label: 'Blinds Cleaning',       icon: Blinds,      sub: 'Roller · Venetian · Roman · Vertical' },
 ];
 
 const SERVICE_DB_MAP: Record<string, string> = {
@@ -145,10 +142,7 @@ const SPRING_HIP_BANDS: Record<string, string[]> = {
 
 const FALLBACK_SUBTYPES: Partial<Record<ServiceKey, { key: string; label: string }[]>> = {
   deep_cleaning: [
-    { key: 'tenancy',   label: 'Tenancy (Move-In/Out)' },
     { key: 'post_reno', label: 'Post-Renovation' },
-    { key: 'spring',    label: 'Spring Cleaning' },
-    { key: 'hip',       label: 'HIP Cleaning' },
   ],
   office: [
     { key: 'general_office',    label: 'General Office Cleaning' },
@@ -462,6 +456,8 @@ export default function BookingNewPage() {
   const subcategoryOptions = useMemo(() => {
     const seen = new Set<string>();
     const result: { key: string; label: string }[] = [];
+    // Partner portal restricts deep-cleaning subtypes to Post-Renovation only.
+    const PARTNER_DEEP_CLEANING_ALLOWLIST = new Set(['renovation', 'post_reno']);
     for (const row of pricingRows) {
       if (row.subcategory && !seen.has(row.subcategory)) {
         // Exclude addon/bundle pricing rows from subcategory selection options (mirror booking-web).
@@ -477,6 +473,8 @@ export default function BookingNewPage() {
         if (service === 'upholstery' && row.category === 'curtain') continue;
         // Deep cleaning: curtain rows are loaded for bundle pricing only — exclude from subtype list
         if (service === 'deep_cleaning' && row.category === 'curtain') continue;
+        // Partner portal: only expose Post-Renovation for deep cleaning
+        if (service === 'deep_cleaning' && !PARTNER_DEEP_CLEANING_ALLOWLIST.has(row.subcategory)) continue;
         const label = row.subcategory_label || row.subcategory;
         if (ALA_CARTE_KEYWORDS.some(kw => label.toLowerCase().includes(kw))) continue;
         if (service === 'curtain' && label.toLowerCase().includes('steam')) continue;
