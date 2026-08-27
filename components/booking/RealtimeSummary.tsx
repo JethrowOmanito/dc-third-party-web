@@ -63,6 +63,8 @@ interface RealtimeSummaryProps {
   highCeilingAddon?: '4_5m' | null;
   totalPrice: number;
   finalPrice: number;
+  companyDiscountAmount?: number;
+  companyDiscountLabel?: string | null;
   appliedPromo: PromoCode | null;
   isOverbook: boolean;
   step: string;
@@ -102,6 +104,8 @@ export default function RealtimeSummary({
   highCeilingAddon = null,
   totalPrice,
   finalPrice,
+  companyDiscountAmount = 0,
+  companyDiscountLabel = null,
   appliedPromo,
   isOverbook,
   step,
@@ -307,10 +311,21 @@ export default function RealtimeSummary({
                 </div>
               )}
 
+              {companyDiscountAmount > 0 && (
+                <div className="flex justify-between items-center text-xs text-emerald-600 font-bold">
+                  <span className="italic">
+                    − Partner discount{companyDiscountLabel ? ` (${companyDiscountLabel})` : ''}
+                  </span>
+                  <span>−S${companyDiscountAmount.toFixed(2)}</span>
+                </div>
+              )}
+
               {appliedPromo && (
                 <div className="flex justify-between items-center text-xs text-emerald-600 font-bold">
                   <span>− Promo: {appliedPromo.code}</span>
-                  <span>−S${(totalPrice - finalPrice).toFixed(2)}</span>
+                  <span>
+                    −S${Math.max(0, (totalPrice - companyDiscountAmount) - finalPrice).toFixed(2)}
+                  </span>
                 </div>
               )}
             </div>

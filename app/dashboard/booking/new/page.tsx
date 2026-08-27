@@ -2889,7 +2889,9 @@ export default function BookingNewPage() {
                 coatingScrubbingPrice={coatingScrubbingRow ? effectivePrice(coatingScrubbingRow) : 0}
                 highCeilingAddon={highCeilingAddon}
                 totalPrice={totalPrice}
-                finalPrice={appliedPromo ? finalPrice : totalPrice}
+                finalPrice={finalPrice || totalPrice}
+                companyDiscountAmount={companyDiscountAmount}
+                companyDiscountLabel={user?.company_name ?? null}
                 appliedPromo={appliedPromo}
                 isOverbook={isOverbook}
                 step={step as any}
@@ -3009,7 +3011,9 @@ export default function BookingNewPage() {
                 coatingScrubbingPrice={coatingScrubbingRow ? effectivePrice(coatingScrubbingRow) : 0}
                 highCeilingAddon={highCeilingAddon}
                 totalPrice={totalPrice}
-                finalPrice={appliedPromo ? finalPrice : totalPrice}
+                finalPrice={finalPrice || totalPrice}
+                companyDiscountAmount={companyDiscountAmount}
+                companyDiscountLabel={user?.company_name ?? null}
                 appliedPromo={appliedPromo}
                 isOverbook={isOverbook}
                 step={step as any}
