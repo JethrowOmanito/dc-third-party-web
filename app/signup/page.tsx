@@ -268,19 +268,29 @@ export default function SignupPage() {
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) return;
     window.handleGoogleCredential = (r) => handleGoogleCredential(r.credential);
-    if (window.google?.accounts?.id && googleButtonRef.current) {
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: (r: { credential: string }) => handleGoogleCredential(r.credential),
-      });
-      window.google.accounts.id.renderButton(googleButtonRef.current, {
-        type: 'standard',
-        theme: 'outline',
-        size: 'large',
-        text: 'signup_with',
-        shape: 'rectangular',
-        width: 320,
-      });
+    const tryRender = () => {
+      if (window.google?.accounts?.id && googleButtonRef.current) {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: (r: { credential: string }) => handleGoogleCredential(r.credential),
+        });
+        window.google.accounts.id.renderButton(googleButtonRef.current, {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          text: 'signup_with',
+          shape: 'rectangular',
+          width: 320,
+        });
+        return true;
+      }
+      return false;
+    };
+    if (!tryRender()) {
+      const t = setInterval(() => {
+        if (tryRender()) clearInterval(t);
+      }, 300);
+      return () => clearInterval(t);
     }
   }, [handleGoogleCredential]);
 
