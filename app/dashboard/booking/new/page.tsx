@@ -171,6 +171,24 @@ export default function BookingNewPage() {
   const isSubmitting = useRef(false);
   const bookingStore = useBookingStore();
 
+  // Approval gate — pending or rejected users can browse the dashboard but
+  // must be blocked from starting a booking.
+  useEffect(() => {
+    if (user && user.approval_status && user.approval_status !== 'approved') {
+      router.replace('/dashboard');
+    }
+  }, [user, router]);
+  if (user && user.approval_status && user.approval_status !== 'approved') {
+    return (
+      <div className="max-w-md mx-auto mt-16 p-6 bg-amber-50 border border-amber-200 rounded-2xl text-center">
+        <p className="text-sm font-semibold text-amber-900">Your account is pending approval.</p>
+        <p className="text-xs text-amber-800 mt-2">
+          You&apos;ll be able to book once an admin reviews your application. Redirecting to your dashboard…
+        </p>
+      </div>
+    );
+  }
+
   // ── Step state ──
   const [step, setStep]           = useState<Step>('service');
   const [service, setService]     = useState<ServiceKey | null>(null);

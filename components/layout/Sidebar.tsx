@@ -14,12 +14,19 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 
-const navItems = [
+interface NavItem {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  requiresApproval?: boolean;
+}
+
+const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/jobs', label: 'All Jobs', icon: Briefcase },
   { href: '/dashboard/jobs/today', label: "Today's Jobs", icon: CalendarDays },
   { href: '/dashboard/jobs/incoming', label: 'Incoming', icon: Clock },
-  { href: '/dashboard/booking/new', label: 'Book Service', icon: BookOpen },
+  { href: '/dashboard/booking/new', label: 'Book Service', icon: BookOpen, requiresApproval: true },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -60,13 +67,32 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          // Strict matching for specific views, prefix matching for general categories
+        {navItems.map(({ href, label, icon: Icon, requiresApproval }) => {
           const isSpecificView = href.split('/').length > 2 && href !== '/dashboard';
-          const isActive = isSpecificView 
-            ? pathname === href 
+          const isActive = isSpecificView
+            ? pathname === href
             : (href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href));
-          
+
+          const locked = requiresApproval && user?.approval_status !== 'approved';
+
+          if (locked) {
+            return (
+              <button
+                key={href}
+                type="button"
+                disabled
+                title="Booking is disabled until your account is approved."
+                className="flex items-center gap-3 px-3 py-2.5 w-full rounded-lg text-sm font-medium text-gray-400 cursor-not-allowed"
+              >
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                {label}
+                <span className="ml-auto text-[10px] font-bold uppercase tracking-wide text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded">
+                  Pending
+                </span>
+              </button>
+            );
+          }
+
           return (
             <Link
               key={href}

@@ -673,7 +673,7 @@ const CSS = `
 }
 .dc-visual__team {
   position: absolute;
-  bottom: 23%;
+  bottom: 13%;
   right: -17%;
   left: auto;
   width: min(484px, 37vw);
@@ -689,7 +689,7 @@ const CSS = `
 .dc-ribbon {
   position: absolute;
   left: 0;
-  bottom: 20%;
+  bottom: 15%;
   width: 60%;
   height: 22vh;
   pointer-events: none;
