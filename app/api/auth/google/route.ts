@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
             updated_at: new Date().toISOString(),
           })
           .eq('id', byEmail.id);
-        partner = byEmail as typeof partner;
+        partner = byEmail as unknown as typeof partner;
       }
     }
 

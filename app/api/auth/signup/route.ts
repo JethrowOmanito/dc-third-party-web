@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const parsed = signupSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.errors[0]?.message ?? 'Invalid input', errors: parsed.error.errors },
+        { error: parsed.error.issues[0]?.message ?? 'Invalid input', errors: parsed.error.issues },
         { status: 400 }
       );
     }
