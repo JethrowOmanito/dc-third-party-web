@@ -2,7 +2,7 @@
 
 **Production hosting: Hostinger VPS (as of 2026-08-27). NOT Vercel.**
 
-Vercel project for `third-party-web` was deleted on 2026-08-27. Do NOT push to Vercel, do NOT run `vercel deploy`, do NOT recreate `vercel.json` or `.vercel/`.
+Vercel auto-deploy for `dc-third-party-web` was disabled on 2026-08-27 via `vercel.json`'s `git.deploymentEnabled: false`. The Vercel project itself is kept alive as rollback insurance (frozen at last build). **Do NOT push to Vercel, do NOT run `vercel deploy`, do NOT remove or edit `vercel.json`.**
 
 ## Production URLs
 
@@ -10,21 +10,38 @@ Vercel project for `third-party-web` was deleted on 2026-08-27. Do NOT push to V
 - **main-web** → https://www.securedoctorclean.org
 - **booking-web** → https://doctorcleanpayment.sg (still on Vercel — do not touch)
 
-## Deploy path
+## Deploy path — TWO STEPS
 
-**Every push to `main` requires manual VPS sync until GitHub Actions is set up.**
-
-Run this after pushing to sync production:
+**After every `git push origin main`:**
 
 ```bash
-ssh root@187.52.126.97 "cd /home/deploy/apps/third-party-web && \
-  sudo -u deploy git pull && \
-  sudo -u deploy npm install --legacy-peer-deps --no-audit --no-fund && \
-  sudo -u deploy env NODE_ENV=production npm run build && \
-  sudo -u deploy pm2 reload third-party-web --update-env"
+ssh root@187.52.126.97 dc-deploy third-party-web
 ```
 
-Then verify: `curl -sSI https://www.securedoctorclean.com/login`
+That's it. The `dc-deploy` script on the VPS handles:
+- git fetch + pull
+- npm install (skipped if package.json unchanged — saves ~45s)
+- production build
+- pm2 reload (zero-downtime — in-flight requests survive)
+- `.next.previous` backup for instant rollback
+- automatic health check via `curl /login`
+
+Typical duration: **30-90 seconds** depending on whether deps changed.
+
+Logs at `/var/log/dc-deploy-third-party-web.log` on VPS.
+
+## Instant rollback (if a deploy breaks something)
+
+```bash
+ssh root@187.52.126.97 dc-rollback third-party-web
+```
+
+- ~10 seconds total
+- Swaps saved `.next.previous` back into place
+- Reverts git to previous SHA
+- pm2 reload
+- Prompts for confirmation before executing
+- Failed build kept at `.next.failed` for post-mortem
 
 ## VPS details
 
@@ -41,15 +58,17 @@ Stripe webhook endpoint is `https://www.securedoctorclean.com/api/webhooks/strip
 
 ## What NOT to do
 
-- ❌ Push a `vercel.json` back into the repo
+- ❌ Push to Vercel — Vercel auto-deploy is disabled and project is frozen as rollback insurance
+- ❌ Remove `vercel.json` — its `git.deploymentEnabled: false` is what keeps Vercel from wasting builds
 - ❌ Run `vercel deploy` or `vercel --prod`
 - ❌ Add `@vercel/*` packages
-- ❌ Add `.vercel/` directory
+- ❌ Add `.vercel/` directory (untracked / gitignored)
 - ❌ Reference "Vercel" in code comments (grep confirms none exist as of 2026-08-27)
+- ❌ Bypass `dc-deploy` script — manual steps are error-prone
 
 ## If VPS is down / broken
 
-No Vercel rollback available (project deleted). Options:
-1. Hostinger weekly backup restore (~30 min RTO)
-2. Redeploy to fresh VPS with these instructions
-3. Check `/var/log/nginx/error.log` and `pm2 logs third-party-web`
+- Rollback within VPS: `ssh root@187.52.126.97 dc-rollback third-party-web`
+- Emergency Vercel fallback: change Cloudflare DNS A records for `securedoctorclean.com` back to `76.76.21.21` — Vercel serves the last-known-good frozen build in ~5 min
+- Full disaster: Hostinger weekly backup restore (~30 min RTO)
+- Debug: `/var/log/nginx/error.log` and `pm2 logs third-party-web`
