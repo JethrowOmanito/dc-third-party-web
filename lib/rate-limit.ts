@@ -4,7 +4,7 @@
  * Uses globalThis so the Map persists across requests within the same worker/serverless
  * container, providing effective protection against burst attacks.
  *
- * On Vercel + Cloudflare: Cloudflare handles network-level DDoS at the edge;
+ * On VPS + Cloudflare: Cloudflare handles network-level DDoS at the edge;
  * this layer handles application-level rate limiting per IP.
  *
  * Upgrade path: swap the store() implementation below with Upstash Redis
