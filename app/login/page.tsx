@@ -581,6 +581,21 @@ const CSS = `
   color: var(--dc-text);
 }
 .dc-login * { box-sizing: border-box; }
+
+/* Extend the ribbon's light teal color down to the very bottom of the viewport
+   so it engulfs the gap below the s-curve. */
+.dc-login::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 5%;
+  background: #e7f8f3;
+  z-index: 2;
+  pointer-events: none;
+}
+
 /* Desktop: lock to viewport height (footer is inside the card now, so we
    don't need scrolling). Mobile/tablet still allows scroll. */
 @media (min-width: 901px) {
@@ -661,7 +676,7 @@ const CSS = `
 }
 .dc-visual__team {
   position: absolute;
-  bottom: 13%;
+  bottom: 8%;
   right: -27%;
   left: auto;
   width: min(484px, 37vw);
