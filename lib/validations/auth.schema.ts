@@ -49,7 +49,7 @@ export const signupSchema = z.object({
     .string()
     .uuid('Please select a company'),
   tnc_accepted: z
-    .literal(true, { errorMap: () => ({ message: 'You must accept the Terms & Conditions' }) }),
+    .literal(true, { message: 'You must accept the Terms & Conditions' }),
   signup_token: z
     .string()
     .min(20, 'Missing verification token')
