@@ -583,7 +583,7 @@ export default function SignupPage() {
                             data-text="signup_with"
                             data-size="large"
                             data-logo_alignment="left"
-                            data-width="340"
+                            data-width="380"
                           />
                         </>
                       )}
@@ -1183,13 +1183,13 @@ const CSS = `
   display: flex; flex-direction: column; align-items: center; gap: 10px;
   margin-bottom: 6px;
 }
-.dc-oauth__google { display: flex; justify-content: center; min-height: 40px; width: 340px; max-width: 100%; }
+.dc-oauth__google { display: flex; justify-content: center; min-height: 48px; width: 100%; max-width: 380px; }
 .dc-btn-apple {
-  width: 340px; max-width: 100%; height: 40px;
-  border-radius: 8px;
+  width: 100%; max-width: 380px; height: 48px;
+  border-radius: 12px;
   border: none; background: #000; color: #fff;
-  font-family: inherit; font-size: 14px; font-weight: 600;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-family: inherit; font-size: 15px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
   cursor: pointer;
   transition: background 150ms ease;
 }
@@ -1198,11 +1198,11 @@ const CSS = `
 
 /* WhatsApp option — same width as Apple/Google */
 .dc-btn-wa {
-  width: 340px; max-width: 100%; height: 40px;
-  border-radius: 8px;
+  width: 100%; max-width: 380px; height: 48px;
+  border-radius: 12px;
   border: 1px solid #cbd5e1; background: #fff; color: #0f172a;
-  font-family: inherit; font-size: 14px; font-weight: 600;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-family: inherit; font-size: 15px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
   cursor: pointer;
   transition: background 150ms ease, border-color 150ms ease;
 }
@@ -1216,12 +1216,12 @@ const CSS = `
 .dc-btn-wa--filled:hover:not(:disabled) { background: #20BC5B; border-color: #20BC5B; }
 
 .dc-wa-panel {
-  width: 340px; max-width: 100%;
-  padding: 12px;
+  width: 100%; max-width: 380px;
+  padding: 14px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  display: flex; flex-direction: column; gap: 8px;
+  border-radius: 14px;
+  display: flex; flex-direction: column; gap: 10px;
   animation: dc-card-in 200ms ease-out both;
 }
 .dc-wa-panel__head {
@@ -1243,11 +1243,11 @@ const CSS = `
 }
 .dc-wa-hint strong { color: var(--dc-navy); }
 .dc-wa-input {
-  width: 100%; height: 40px;
-  padding: 0 12px;
-  border: 1px solid var(--dc-border); border-radius: 8px;
+  width: 100%; height: 48px;
+  padding: 0 14px;
+  border: 1.5px solid var(--dc-border); border-radius: 12px;
   background: #fff; color: var(--dc-navy);
-  font-family: inherit; font-size: 14px;
+  font-family: inherit; font-size: 15px;
   outline: none;
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
@@ -1340,9 +1340,9 @@ const CSS = `
 }
 .dc-input-wrap { position: relative; }
 .dc-input {
-  width: 100%; height: 46px;
-  padding: 0 16px 0 44px;
-  border: 1.5px solid var(--dc-border); border-radius: 12px;
+  width: 100%; height: 52px;
+  padding: 0 16px 0 46px;
+  border: 1.5px solid var(--dc-border); border-radius: 14px;
   background: #fff; color: var(--dc-navy);
   font-size: 15px; font-family: inherit; outline: none;
   transition: border-color 160ms ease, box-shadow 160ms ease;
@@ -1487,12 +1487,12 @@ const CSS = `
   display: flex; gap: 10px; margin-top: 10px;
 }
 .dc-btn-primary, .dc-btn-secondary {
-  flex: 1; height: 46px;
-  border-radius: 12px;
-  font-size: 14px; font-weight: 700;
+  flex: 1; height: 52px;
+  border-radius: 14px;
+  font-size: 15px; font-weight: 800;
   font-family: inherit;
   display: flex; align-items: center; justify-content: center;
-  gap: 8px; letter-spacing: 0.02em;
+  gap: 10px; letter-spacing: 0.02em;
   cursor: pointer; text-decoration: none;
   transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
 }
