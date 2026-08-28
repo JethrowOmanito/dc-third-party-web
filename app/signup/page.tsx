@@ -49,7 +49,8 @@ declare global {
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '';
 const APPLE_SERVICES_ID = process.env.NEXT_PUBLIC_APPLE_SERVICES_ID ?? '';
-// Set to '1' temporarily while the Meta OTP template is pending approval.
+// (2026-08-28) Meta template partner_signup_otp is APPROVED and enabled.
+// Only set to '1' for local dev to skip OTP verification during testing.
 // When set, the OTP verification step is hidden and considered auto-passed on the client.
 // Backend enforces via PARTNER_SIGNUP_BYPASS_OTP (must match).
 const BYPASS_OTP = process.env.NEXT_PUBLIC_PARTNER_SIGNUP_BYPASS_OTP === '1';
