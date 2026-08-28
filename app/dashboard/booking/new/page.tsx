@@ -142,7 +142,7 @@ const SPRING_HIP_BANDS: Record<string, string[]> = {
 
 const FALLBACK_SUBTYPES: Partial<Record<ServiceKey, { key: string; label: string }[]>> = {
   deep_cleaning: [
-    { key: 'post_reno', label: 'Post-Renovation' },
+    { key: 'post_reno', label: 'Post-Renovation Cleaning' },
   ],
   office: [
     { key: 'general_office',    label: 'General Office Cleaning' },
@@ -178,6 +178,22 @@ export default function BookingNewPage() {
         <p className="text-sm font-semibold text-amber-900">Your account is pending approval.</p>
         <p className="text-xs text-amber-800 mt-2">
           You&apos;ll be able to book once an admin reviews your application. Redirecting to your dashboard…
+        </p>
+      </div>
+    );
+  }
+
+  // Payment-terms gate — admin (Zoe) must set upfront vs end_of_month
+  // before the company can book, otherwise the server would reject at
+  // /api/bookings/submit.
+  if (user && (user as any).company_payment_terms !== 'upfront' && (user as any).company_payment_terms !== 'end_of_month') {
+    return (
+      <div className="max-w-md mx-auto mt-16 p-6 bg-amber-50 border border-amber-200 rounded-2xl text-center">
+        <p className="text-sm font-semibold text-amber-900">Bookings are almost ready.</p>
+        <p className="text-xs text-amber-800 mt-2">
+          Your account is approved, but your company&apos;s payment terms haven&apos;t
+          been set yet. Please contact <span className="font-semibold">Zoe</span> to
+          enable bookings.
         </p>
       </div>
     );
@@ -941,6 +957,10 @@ export default function BookingNewPage() {
         Start_Time_Display: slot?.start,
         End_Time_Display: slot?.end,
         Service_Type: serviceDbName,
+        // Pass the chosen subtype (e.g., "Post-Renovation") so downstream
+        // WhatsApp templates and dashboard summaries show the specific
+        // service instead of the generic Service_Type.
+        service_subtype: subtype || null,
         calendar_id: calendarId,
         Unit_type: propertyType === 'hdb' ? 'HDB' : propertyType === 'landed' ? 'Landed' : propertyType === 'commercial' ? 'Commercial' : 'Condo/APT',
         Unit_sub_type: selectedHKPricing ? selectedHKPricing.label : selectedPricing?.unit_label,

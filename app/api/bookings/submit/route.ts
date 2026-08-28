@@ -120,6 +120,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Your company is inactive.' }, { status: 403 });
     }
 
+    // Zoe (admin) must set payment_terms before a partner company can book.
+    // If NULL, block with a clear message rather than silently defaulting
+    // to upfront (which would push the customer through Stripe against
+    // the arrangement).
+    if (company.payment_terms !== 'upfront' && company.payment_terms !== 'end_of_month') {
+      return NextResponse.json(
+        {
+          error:
+            'Your company\'s payment terms have not been set by admin yet. Please contact Zoe to enable bookings.',
+          errorCode: 'payment_terms_not_set',
+        },
+        { status: 403 }
+      );
+    }
+
     // 4. Parse client body.
     const body = (await req.json()) as ClientBooking;
 
