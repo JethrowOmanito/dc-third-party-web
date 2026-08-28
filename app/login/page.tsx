@@ -198,7 +198,16 @@ export default function LoginPage() {
         return;
       }
       if (json.needsSignup) {
-        // No partner account for this phone — push them to signup
+        // No partner account for this phone. Warn before creating a new
+        // account — the user may have signed up with a different number
+        // format (e.g. with/without country code) or a different method.
+        const proceed = window.confirm(
+          `No partner account is registered for ${waPhone}.\n\n` +
+          `If you already signed up with a different WhatsApp number, email, or Google/Apple, ` +
+          `click Cancel and log in that way instead.\n\n` +
+          `Click OK to continue creating a new account with this number.`
+        );
+        if (!proceed) return;
         try {
           sessionStorage.setItem('dc-signup-prefill', JSON.stringify({ whatsapp_phone: waPhone }));
         } catch {}
@@ -278,7 +287,18 @@ export default function LoginPage() {
         return;
       }
       if (json.needsSignup && json.prefill) {
-        // Store prefill for signup wizard
+        // Don't silently push to signup — the user may already have an
+        // account under a different login method (WhatsApp, email, or a
+        // different Google account). Tell them which Google identity we
+        // saw and let them choose.
+        const email = String(json.prefill.email ?? 'this Google account');
+        const proceed = window.confirm(
+          `No partner account is linked to ${email}.\n\n` +
+          `If you already signed up with WhatsApp, email/password, or a different Google account, ` +
+          `click Cancel and log in that way instead.\n\n` +
+          `Click OK to continue creating a new account with this Google login.`
+        );
+        if (!proceed) return;
         try {
           sessionStorage.setItem('dc-signup-prefill', JSON.stringify(json.prefill));
         } catch {}
@@ -335,6 +355,14 @@ export default function LoginPage() {
           return;
         }
         if (json.needsSignup && json.prefill) {
+          const email = String(json.prefill.email ?? 'this Apple ID');
+          const proceed = window.confirm(
+            `No partner account is linked to ${email}.\n\n` +
+            `If you already signed up with WhatsApp, email/password, or a different Apple ID, ` +
+            `click Cancel and log in that way instead.\n\n` +
+            `Click OK to continue creating a new account with this Apple login.`
+          );
+          if (!proceed) return;
           try {
             sessionStorage.setItem('dc-signup-prefill', JSON.stringify(json.prefill));
           } catch {}
