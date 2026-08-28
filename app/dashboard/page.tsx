@@ -686,14 +686,13 @@ function PerformanceStat({
 }
 
 function PeriodPill({ label }: { label: string }) {
+  // Static badge — no action attached. Was previously a button-with-chevron
+  // that looked like a dropdown but did nothing, so users clicked and got
+  // no feedback. Rendered as span so it doesn't invite clicks.
   return (
-    <button
-      type="button"
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white ring-1 ring-slate-200 rounded-lg hover:bg-slate-50"
-    >
+    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 bg-slate-50 ring-1 ring-slate-200 rounded-lg">
       {label}
-      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-    </button>
+    </span>
   );
 }
 
