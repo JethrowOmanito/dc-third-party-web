@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 function normalizePhone(input: string): string {
   const cleaned = input.replace(/[\s\-()]/g, '');
   if (cleaned.startsWith('+')) return cleaned;
+  if (/^65\d{8}$/.test(cleaned)) return `+${cleaned}`;
   if (/^[89]\d{7}$/.test(cleaned)) return `+65${cleaned}`;
   return cleaned;
 }

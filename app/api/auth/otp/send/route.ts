@@ -9,10 +9,12 @@ const schema = z.object({
 });
 
 // Normalize a phone number for consistent matching / storage.
+// Handles: +65 88656751, 8865 6751, 6588656751, +6588656751, 88656751
 function normalizePhone(input: string): string {
   const cleaned = input.replace(/[\s\-()]/g, '');
   if (cleaned.startsWith('+')) return cleaned;
-  if (/^[89]\d{7}$/.test(cleaned)) return `+65${cleaned}`;
+  if (/^65\d{8}$/.test(cleaned)) return `+${cleaned}`;         // 65 prefix without +
+  if (/^[89]\d{7}$/.test(cleaned)) return `+65${cleaned}`;      // 8-digit SG
   return cleaned;
 }
 
