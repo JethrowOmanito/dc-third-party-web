@@ -979,21 +979,30 @@ export default function SignupPage() {
                   <div className="dc-tnc">
                     <div className="dc-tnc__head">
                       <FileText size={16} />
-                      <span>Terms &amp; Conditions</span>
+                      <span>Terms &amp; Privacy</span>
                     </div>
                     <div className="dc-tnc__body">
                       <p>
-                        By continuing, you agree to Doctor Clean&apos;s full Terms &amp; Conditions,
-                        including booking, cancellation, rescheduling, and payment policies.
+                        By continuing, you agree to Doctor Clean&apos;s Terms &amp; Conditions and
+                        Privacy Policy, including how we handle your booking, cancellation,
+                        rescheduling, payment, and personal data.
                       </p>
-                      <p>
+                      <p style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                         <a
                           href="https://doctorcleanpayment.sg/terms"
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{ color: 'var(--dc-green)', fontWeight: 700, textDecoration: 'underline' }}
                         >
-                          Read the full Terms &amp; Conditions →
+                          Terms &amp; Conditions →
+                        </a>
+                        <a
+                          href="https://doctorcleanpayment.sg/privacy"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: 'var(--dc-green)', fontWeight: 700, textDecoration: 'underline' }}
+                        >
+                          Privacy Policy →
                         </a>
                       </p>
                       <p>
@@ -1009,7 +1018,7 @@ export default function SignupPage() {
                       type="checkbox"
                       {...form.register('tnc_accepted')}
                     />
-                    <span>I have read and accept the Terms &amp; Conditions.</span>
+                    <span>I have read and accept the Terms &amp; Conditions and Privacy Policy.</span>
                   </label>
                   {form.formState.errors.tnc_accepted && (
                     <p className="dc-field__error">{form.formState.errors.tnc_accepted.message}</p>
