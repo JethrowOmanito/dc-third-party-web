@@ -79,6 +79,20 @@ export default function LoginPage() {
   const [appleReady, setAppleReady] = useState(false);
   const [appleLoadFailed, setAppleLoadFailed] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement>(null);
+  // Measure the OAuth wrapper so Google's fixed-pixel button matches
+  // Apple/WhatsApp widths on every screen size.
+  const oauthRef = useRef<HTMLDivElement>(null);
+  const [oauthWidth, setOauthWidth] = useState<number>(320);
+  useEffect(() => {
+    const measure = () => {
+      if (!oauthRef.current) return;
+      const w = Math.min(380, Math.max(240, Math.floor(oauthRef.current.clientWidth)));
+      setOauthWidth(w);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
   const year = new Date().getFullYear();
 
   // WA login state
@@ -588,7 +602,7 @@ export default function LoginPage() {
               {activeTab === 'partner' && (
                 <>
                   <div className="dc-divider"><span>or</span></div>
-                  <div className="dc-oauth-login">
+                  <div ref={oauthRef} className="dc-oauth-login" style={{ ['--oauth-w' as string]: `${oauthWidth}px` }}>
                     {GOOGLE_CLIENT_ID && waStage === 'idle' && (
                       <>
                         <div
@@ -599,6 +613,7 @@ export default function LoginPage() {
                           data-auto_prompt="false"
                         />
                         <div
+                          key={`gbtn-${oauthWidth}`}
                           className="g_id_signin dc-oauth-login__google"
                           data-type="standard"
                           data-shape="rectangular"
@@ -606,7 +621,7 @@ export default function LoginPage() {
                           data-text="signin_with"
                           data-size="large"
                           data-logo_alignment="left"
-                          data-width="340"
+                          data-width={String(oauthWidth)}
                         />
                       </>
                     )}
@@ -1112,9 +1127,12 @@ const CSS = `
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   margin-bottom: 4px;
 }
-.dc-oauth-login__google { display: flex; justify-content: center; min-height: 38px; width: 340px; max-width: 100%; }
+.dc-oauth-login__google {
+  display: flex; justify-content: center; min-height: 38px;
+  width: var(--oauth-w, 320px); max-width: 100%;
+}
 .dc-btn-apple {
-  width: 340px; max-width: 100%; height: 38px;
+  width: var(--oauth-w, 320px); max-width: 100%; height: 38px;
   border-radius: 10px;
   border: none; background: #000; color: #fff;
   font-family: inherit; font-size: 13px; font-weight: 600;
@@ -1127,7 +1145,7 @@ const CSS = `
 
 /* WhatsApp option — same width as Apple/Google */
 .dc-btn-wa {
-  width: 340px; max-width: 100%; height: 38px;
+  width: var(--oauth-w, 320px); max-width: 100%; height: 38px;
   border-radius: 10px;
   border: 1px solid #cbd5e1; background: #fff; color: #0f172a;
   font-family: inherit; font-size: 13px; font-weight: 600;
@@ -1145,7 +1163,7 @@ const CSS = `
 .dc-btn-wa--filled:hover:not(:disabled) { background: #20BC5B; border-color: #20BC5B; }
 
 .dc-wa-panel {
-  width: 340px; max-width: 100%;
+  width: var(--oauth-w, 320px); max-width: 100%;
   padding: 12px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -1426,9 +1444,11 @@ const CSS = `
   .dc-eye { right: 10px; padding: 8px; }
   .dc-btn-primary,
   .dc-btn-secondary { height: 48px; font-size: 14px; }
-  .dc-oauth-login__google { width: 100%; }
-  .dc-btn-apple, .dc-btn-wa { width: 100%; }
-  .dc-wa-panel { width: 100%; }
+  /* Mobile: keep the OAuth trio locked to the measured wrapper width so
+     Google, Apple and WhatsApp render at the same pixel size. */
+  .dc-oauth-login__google { width: var(--oauth-w, 100%); }
+  .dc-btn-apple, .dc-btn-wa { width: var(--oauth-w, 100%); }
+  .dc-wa-panel { width: var(--oauth-w, 100%); }
 
   /* Outer footer is disabled on mobile — the inside-card footer covers it. */
   .dc-footer:not(.dc-footer--inside) { display: none; }

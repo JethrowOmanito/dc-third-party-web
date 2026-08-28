@@ -116,6 +116,20 @@ export default function SignupPage() {
   const [waVerifying, setWaVerifying] = useState(false);
   const [appleLoadFailed, setAppleLoadFailed] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement>(null);
+  // Measure the OAuth container so we can render Google's fixed-pixel button
+  // at exactly the same width as Apple/WhatsApp (which use max-width:380).
+  const oauthRef = useRef<HTMLDivElement>(null);
+  const [oauthWidth, setOauthWidth] = useState<number>(320);
+  useEffect(() => {
+    const measure = () => {
+      if (!oauthRef.current) return;
+      const w = Math.min(380, Math.max(240, Math.floor(oauthRef.current.clientWidth)));
+      setOauthWidth(w);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
 
   // Poll for Apple SDK — give up after 15s so we don't loop forever if the CDN
   // is blocked (CSP / Cloudflare / regional filtering).
@@ -565,7 +579,7 @@ export default function SignupPage() {
               {step === 0 && (
                 <>
                   {!oauthProvider && (
-                    <div className="dc-oauth">
+                    <div ref={oauthRef} className="dc-oauth" style={{ ['--oauth-w' as string]: `${oauthWidth}px` }}>
                       {GOOGLE_CLIENT_ID && waStage === 'idle' && (
                         <>
                           <div
@@ -576,6 +590,7 @@ export default function SignupPage() {
                             data-auto_prompt="false"
                           />
                           <div
+                            key={`gbtn-${oauthWidth}`}
                             className="g_id_signin dc-oauth__google"
                             data-type="standard"
                             data-shape="rectangular"
@@ -583,7 +598,7 @@ export default function SignupPage() {
                             data-text="signup_with"
                             data-size="large"
                             data-logo_alignment="left"
-                            data-width="380"
+                            data-width={String(oauthWidth)}
                           />
                         </>
                       )}
@@ -1183,9 +1198,14 @@ const CSS = `
   display: flex; flex-direction: column; align-items: center; gap: 10px;
   margin-bottom: 6px;
 }
-.dc-oauth__google { display: flex; justify-content: center; min-height: 48px; width: 100%; max-width: 380px; }
+.dc-oauth__google {
+  display: flex; justify-content: center;
+  min-height: 48px;
+  width: var(--oauth-w, 320px);
+  max-width: 100%;
+}
 .dc-btn-apple {
-  width: 100%; max-width: 380px; height: 48px;
+  width: var(--oauth-w, 320px); max-width: 100%; height: 48px;
   border-radius: 12px;
   border: none; background: #000; color: #fff;
   font-family: inherit; font-size: 15px; font-weight: 600;
@@ -1198,7 +1218,7 @@ const CSS = `
 
 /* WhatsApp option — same width as Apple/Google */
 .dc-btn-wa {
-  width: 100%; max-width: 380px; height: 48px;
+  width: var(--oauth-w, 320px); max-width: 100%; height: 48px;
   border-radius: 12px;
   border: 1px solid #cbd5e1; background: #fff; color: #0f172a;
   font-family: inherit; font-size: 15px; font-weight: 600;
@@ -1216,7 +1236,7 @@ const CSS = `
 .dc-btn-wa--filled:hover:not(:disabled) { background: #20BC5B; border-color: #20BC5B; }
 
 .dc-wa-panel {
-  width: 100%; max-width: 380px;
+  width: var(--oauth-w, 320px); max-width: 100%;
   padding: 14px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
