@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
     const subtotal = basePrice + addonsTotal + slotFee;
 
     // Server-side company discount + payment terms lookup (never trust client for pricing).
-    const partnerUserId = user.id as string;
+    // partnerUserId is already declared + validated above (approval gate).
     const { data: partnerRow } = await supabase
       .from('partner_user')
       .select('company_id, partner_companies!company_id(id, discount_type, discount_value, payment_terms)')
