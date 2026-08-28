@@ -14,9 +14,11 @@ export default function SettingsPage() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
     logout();
-    router.replace('/login');
+    try { localStorage.removeItem('dc-partner-auth-v2'); } catch {}
+    window.location.href = '/login';
   };
 
   const handleContactAdmin = () => {

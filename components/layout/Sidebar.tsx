@@ -33,9 +33,22 @@ export function Sidebar() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Clear the server-side session cookie first, otherwise the login page's
+    // auto-redirect check on /api/auth/me will see the still-valid cookie
+    // and bounce the user back to /dashboard.
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // Network fail — still clear local state and force navigation.
+    }
     logout();
-    router.push('/login');
+    try {
+      localStorage.removeItem('dc-partner-auth-v2');
+    } catch {}
+    // Full navigation instead of client-side push to ensure the new session
+    // check runs cleanly on the login page.
+    window.location.href = '/login';
   };
 
   return (

@@ -39,9 +39,11 @@ export function TopBar() {
   const title = getTitle(pathname);
   const subtitle = getSubtitle(pathname);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
     logout();
-    router.push('/login');
+    try { localStorage.removeItem('dc-partner-auth-v2'); } catch {}
+    window.location.href = '/login';
   };
 
   return (
