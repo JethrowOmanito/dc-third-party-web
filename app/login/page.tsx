@@ -1242,97 +1242,231 @@ const CSS = `
   .dc-visual__merlion { width: 38vw; }
 }
 
-/* Tablet: single-column, form first */
+/* ────────────────────────────────────────────────────────────────
+   MOBILE + TABLET LAYOUT (≤900px)
+   Matches main-app LoginScreen layout: hero (logo + heading + 4
+   features horizontal) at top → visual section (merlion fade +
+   team photo + green V-curve) → form card overlapping the bottom
+   of the visual by negative margin.
+   ──────────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
+  .dc-login {
+    background: #f4fff9;
+    padding: 0;
+  }
+
+  /* Flatten the grid so we can order the pieces linearly. */
   .dc-login__container {
     display: flex;
     flex-direction: column;
-    max-width: 640px;
-    padding: 24px 24px 40px;
-    gap: 28px;
+    max-width: 480px;
+    padding: 12px 20px 28px;
+    gap: 0;
     min-height: auto;
     height: auto;
   }
-  .dc-left { order: 2; min-height: 0; text-align: center; }
-  .dc-left__content { max-width: 100%; margin: 0 auto; }
-  .dc-features      { max-width: 100%; align-items: center; }
-  .dc-feature       { max-width: 380px; text-align: left; width: 100%; }
-  .dc-visual        { position: relative; height: 260px; }
-  .dc-visual__team {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: 10px;
-    width: 82%;
-    max-width: 460px;
+  .dc-left, .dc-right { display: contents; }
+
+  /* 1. Logo — top of hero, centered */
+  .dc-mobile-brand {
+    display: block;
+    order: 1;
+    text-align: center;
+    margin: 0 0 -6px;
   }
-  .dc-visual__merlion { display: none; }
-  .dc-ribbon          { display: none; }
-  .dc-right           { order: 1; padding: 0; }
-  .dc-mobile-brand    { display: block; }
-  /* Footer becomes inline (not fixed) so it doesn't overlap the scrolling card. */
-  .dc-footer {
-    position: static;
-    margin-top: 8px;
+  .dc-mobile-brand img { width: 160px; height: 62px; object-fit: contain; }
+
+  /* 2. Hero content: heading + description + 4-across features */
+  .dc-left__content {
+    order: 2;
+    max-width: 100%;
+    padding: 0;
+    margin: 0;
+    text-align: center;
+  }
+  .dc-left__heading {
+    font-size: 22px;
+    line-height: 28px;
+    letter-spacing: -0.4px;
+    margin: 0;
+  }
+  .dc-left__heading--primary,
+  .dc-left__heading--accent { display: inline; }
+  .dc-left__heading--primary::after { content: " "; }
+  .dc-left__desc {
+    margin: 4px 0 0;
+    font-size: 13.5px;
+    line-height: 19px;
+    padding: 0 4px;
+    max-width: 100%;
+  }
+  /* 4 features in a single row */
+  .dc-features {
+    margin-top: 22px;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0;
+    max-width: 100%;
+  }
+  .dc-feature {
+    flex: 1 1 23%;
+    max-width: 23%;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0;
+  }
+  .dc-feature__icon {
+    width: 44px; height: 44px;
+    background: rgba(20,174,143,0.10);
+    color: #059b7b;
+    margin: 0 0 8px;
+  }
+  .dc-feature__title {
+    font-size: 12px;
+    line-height: 15px;
+    text-align: center;
+  }
+  .dc-feature__desc {
+    margin-top: 4px;
+    font-size: 10.5px;
+    line-height: 14px;
+    text-align: center;
+    max-width: 100%;
+  }
+
+  /* 3. Visual — merlion (faded background) + team + green V-curve */
+  .dc-visual {
     order: 3;
+    position: relative;
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+    margin-top: 4px;
+    height: 360px;
+    inset: auto;
+    overflow: hidden;
   }
+  .dc-visual__merlion {
+    display: block;
+    position: absolute;
+    top: -254px; left: 0; right: 0; bottom: 264px;
+    width: 100%;
+    height: auto;
+    opacity: 0.4;
+    object-fit: cover;
+  }
+  .dc-visual__team {
+    display: block;
+    position: absolute;
+    top: -20px; left: 0; right: 0; bottom: 0;
+    width: 100%; height: auto;
+    object-fit: contain;
+    object-position: center bottom;
+    transform: none;
+    max-width: none;
+  }
+  /* Solid green V-shape ribbon at the bottom of the visual.
+     We hide the desktop SVG paths and use the SVG element itself as a
+     div with background + clip-path for a clean V. */
+  .dc-ribbon {
+    display: block;
+    position: absolute;
+    left: 0; right: 0; bottom: 196px;
+    width: 100%; height: 110px;
+    background: #10b981;
+    clip-path: polygon(0 40%, 50% 100%, 100% 40%, 100% 100%, 0 100%);
+    z-index: 4;
+    opacity: 0.95;
+  }
+  .dc-ribbon path { display: none; }
+  /* Also fill the area below the V-curve down to the top of the card so
+     the green flows visually into the card region. */
+  .dc-visual::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0;
+    bottom: 0;
+    height: 196px;
+    background: #10b981;
+    opacity: 0.95;
+    z-index: 3;
+    pointer-events: none;
+  }
+
+  /* 4. Card overlaps the visual — pulls up over the bottom of the ribbon */
+  .dc-right {
+    display: contents;
+  }
+  .dc-card {
+    order: 4;
+    margin: -236px 0 0;
+    padding: 22px;
+    border-radius: 22px;
+    border: 1px solid rgba(226,232,240,0.9);
+    background: #fff;
+    box-shadow: 0 12px 24px rgba(15,23,42,0.06);
+    max-width: 100%;
+    position: relative;
+    z-index: 20;
+  }
+  /* Logo inside card is redundant when the mobile-brand logo is above hero */
+  .dc-card__logo { display: none; }
+  .dc-card__title { margin-top: 0; font-size: 20px; }
+  .dc-card__subtitle { font-size: 13px; }
+
+  .dc-tabs { margin: 14px 0 4px; }
+  .dc-tab  { height: 40px; font-size: 13px; }
+  .dc-form { margin-top: 12px; gap: 12px; }
+  .dc-label { font-size: 11px; letter-spacing: 1.2px; }
+  .dc-input { height: 48px; padding-left: 44px; font-size: 15px; }
+  .dc-input-icon { left: 14px; }
+  .dc-eye { right: 10px; padding: 8px; }
+  .dc-btn-primary,
+  .dc-btn-secondary { height: 48px; font-size: 14px; }
+  .dc-oauth-login__google { width: 100%; }
+  .dc-btn-apple, .dc-btn-wa { width: 100%; }
+  .dc-wa-panel { width: 100%; }
+
+  /* Outer footer is disabled on mobile — the inside-card footer covers it. */
+  .dc-footer:not(.dc-footer--inside) { display: none; }
 }
 
-/* Mobile */
+/* Mobile fine-tuning */
 @media (max-width: 640px) {
-  .dc-login__container { padding: 20px 14px 28px; gap: 22px; }
-  .dc-card {
-    padding: 24px 20px;
-    border-radius: 20px;
-    box-shadow: 0 8px 24px rgba(15,23,42,0.05);
-    border: 1px solid rgba(226,232,240,0.9);
-    background: #ffffff;
-  }
-  .dc-card__title      { font-size: 24px; margin-top: 12px; }
-  .dc-card__subtitle   { font-size: 13.5px; margin-top: 4px; }
-  .dc-card__logo img   { height: 60px; }
-  .dc-tabs             { margin: 18px 0 2px; }
-  .dc-tab              { height: 42px; font-size: 13.5px; }
-  .dc-form             { margin-top: 14px; gap: 12px; }
-  .dc-input            { height: 48px; padding-left: 44px; font-size: 15px; }
-  .dc-input-icon       { left: 14px; }
-  .dc-eye              { right: 8px; padding: 8px; }
-  .dc-btn-primary,
-  .dc-btn-secondary    { height: 48px; font-size: 14px; }
-  .dc-left__heading    { font-size: 30px; }
-  .dc-left__desc       { font-size: 14px; margin: 16px 0 24px; }
-  .dc-features         { gap: 14px; }
-  .dc-feature__icon    { width: 42px; height: 42px; }
-  .dc-visual           { height: 200px; }
-  .dc-visual__team     { width: 92%; bottom: 6px; }
-  .dc-mobile-brand img { width: 105px; }
-  .dc-footer           { font-size: 12px; }
+  .dc-login__container { padding: 10px 16px 24px; }
+  .dc-mobile-brand img { width: 140px; height: 54px; }
+  .dc-left__heading    { font-size: 20px; line-height: 26px; }
+  .dc-left__desc       { font-size: 13px; }
+  .dc-visual           { height: 320px; }
+  .dc-visual__merlion  { top: -220px; bottom: 240px; }
+  .dc-visual__team     { top: -12px; }
+  .dc-ribbon           { bottom: 176px; height: 96px; }
+  .dc-card             { margin-top: -216px; padding: 20px; }
 }
 
 /* Very small phones (iPhone SE, 360-wide Androids) */
 @media (max-width: 380px) {
-  .dc-login__container { padding: 16px 12px 24px; gap: 18px; }
-  .dc-card             { padding: 22px 16px; border-radius: 18px; }
-  .dc-card__title      { font-size: 22px; }
-  .dc-card__logo img   { height: 54px; }
-  .dc-tabs             { padding: 3px; }
-  .dc-tab              { height: 40px; font-size: 13px; }
-  .dc-input            { height: 46px; padding-left: 42px; font-size: 14.5px; }
-  .dc-input-icon       { left: 12px; }
-  .dc-btn-primary,
-  .dc-btn-secondary    { height: 46px; letter-spacing: 0.05em; }
-  .dc-left__heading    { font-size: 26px; }
-  .dc-left__desc       { margin: 14px 0 20px; }
-  .dc-visual           { height: 170px; }
-  .dc-form__row        { flex-wrap: wrap; gap: 8px; }
-  .dc-link             { font-size: 13.5px; }
+  .dc-login__container { padding: 8px 14px 20px; }
+  .dc-mobile-brand img { width: 125px; height: 48px; }
+  .dc-left__heading    { font-size: 18px; line-height: 24px; }
+  .dc-feature__desc    { display: none; }
+  .dc-feature__icon    { width: 40px; height: 40px; }
+  .dc-visual           { height: 280px; }
+  .dc-visual__merlion  { top: -200px; bottom: 210px; }
+  .dc-ribbon           { bottom: 156px; height: 84px; }
+  .dc-card             { margin-top: -188px; padding: 18px 16px; border-radius: 20px; }
+  .dc-card__title      { font-size: 19px; }
 }
 
-/* Landscape phones (short height) — keep card compact so form stays visible above the fold */
+/* Landscape phones — hide the visual, keep only hero + form */
 @media (max-width: 900px) and (max-height: 500px) and (orientation: landscape) {
   .dc-visual           { display: none; }
-  .dc-left__desc       { margin: 12px 0 18px; }
-  .dc-features         { gap: 10px; }
+  .dc-ribbon           { display: none; }
+  .dc-card             { margin-top: 16px; }
   .dc-feature__desc    { display: none; }
+  .dc-features         { gap: 10px; }
 }
 `;
