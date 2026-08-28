@@ -65,9 +65,10 @@ const FEATURES = [
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setUser, setGuestSession } = useAuthStore();
+  const { user, setUser, setGuestSession, _hasHydrated } = useAuthStore();
 
   const [activeTab, setActiveTab] = useState<'partner' | 'reference'>('partner');
+  const [partnerMode, setPartnerMode] = useState<'password' | 'whatsapp'>('password');
   const [showPwd, setShowPwd] = useState(false);
   const [serverError, setServerError] = useState('');
   const [teamPhotoError, setTeamPhotoError] = useState(false);
@@ -76,6 +77,35 @@ export default function LoginPage() {
   const [appleLoadFailed, setAppleLoadFailed] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement>(null);
   const year = new Date().getFullYear();
+
+  // WA login state
+  const [waPhone, setWaPhone] = useState('');
+  const [waCode, setWaCode] = useState('');
+  const [waOtpSent, setWaOtpSent] = useState(false);
+  const [waOtpSending, setWaOtpSending] = useState(false);
+  const [waLoggingIn, setWaLoggingIn] = useState(false);
+
+  // If a valid session already exists (JWT cookie), bounce to /dashboard
+  // instead of showing the login form.
+  useEffect(() => {
+    if (!_hasHydrated) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/auth/me', { cache: 'no-store' });
+        if (!cancelled && res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            setUser(data.user);
+            router.replace('/dashboard');
+          }
+        }
+      } catch {
+        // no session — stay on login page
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [_hasHydrated, router, setUser]);
 
   // Poll for Apple SDK to load. Give up after 15s so users see an actual
   // failure state instead of an eternal "Loading Apple…".
@@ -104,6 +134,70 @@ export default function LoginPage() {
     resolver: zodResolver(referenceLoginSchema),
     defaultValues: { referenceNumber: '' },
   });
+
+  // ── WhatsApp login handlers ────────────────────────────────
+  const handleWaSendOtp = useCallback(async () => {
+    setServerError('');
+    if (waPhone.trim().length < 8) {
+      setServerError('Enter a valid WhatsApp number.');
+      return;
+    }
+    setWaOtpSending(true);
+    try {
+      const res = await fetch('/api/auth/otp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: waPhone }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setServerError(json.error ?? 'Could not send code.');
+        return;
+      }
+      setWaOtpSent(true);
+    } catch {
+      setServerError('Network error. Try again.');
+    } finally {
+      setWaOtpSending(false);
+    }
+  }, [waPhone]);
+
+  const handleWaLogin = useCallback(async () => {
+    setServerError('');
+    if (waCode.length !== 6) {
+      setServerError('Enter the 6-digit code.');
+      return;
+    }
+    setWaLoggingIn(true);
+    try {
+      const res = await fetch('/api/auth/wa-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: waPhone, code: waCode }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setServerError(json.error ?? 'Login failed.');
+        return;
+      }
+      if (json.needsSignup) {
+        // No partner account for this phone — push them to signup
+        try {
+          sessionStorage.setItem('dc-signup-prefill', JSON.stringify({ whatsapp_phone: waPhone }));
+        } catch {}
+        router.push('/signup');
+        return;
+      }
+      if (json.user) {
+        setUser(json.user);
+        router.replace('/dashboard');
+      }
+    } catch {
+      setServerError('Network error. Try again.');
+    } finally {
+      setWaLoggingIn(false);
+    }
+  }, [waPhone, waCode, router, setUser]);
 
   const onPartnerSubmit = async (data: LoginInput) => {
     setServerError('');
@@ -352,7 +446,96 @@ export default function LoginPage() {
 
               {serverError && <div className="dc-error">{serverError}</div>}
 
-              {activeTab === 'partner' ? (
+              {activeTab === 'partner' && (
+                <div className="dc-mode-tabs" role="tablist" aria-label="Partner login mode">
+                  <button
+                    type="button"
+                    onClick={() => { setPartnerMode('password'); setServerError(''); }}
+                    className={`dc-mode-tab${partnerMode === 'password' ? ' dc-mode-tab--active' : ''}`}
+                  >
+                    Password
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setPartnerMode('whatsapp'); setServerError(''); }}
+                    className={`dc-mode-tab${partnerMode === 'whatsapp' ? ' dc-mode-tab--active' : ''}`}
+                  >
+                    WhatsApp
+                  </button>
+                </div>
+              )}
+
+              {activeTab === 'partner' && partnerMode === 'whatsapp' ? (
+                <div className="dc-form">
+                  <div className="dc-field">
+                    <label htmlFor="wa-phone" className="dc-label">WhatsApp Phone</label>
+                    <div className="dc-input-wrap">
+                      <User className="dc-input-icon" size={18} />
+                      <input
+                        id="wa-phone"
+                        type="tel"
+                        placeholder="+65 8888 8888"
+                        autoComplete="tel"
+                        value={waPhone}
+                        disabled={waOtpSent}
+                        onChange={e => setWaPhone(e.target.value)}
+                        className="dc-input"
+                      />
+                    </div>
+                  </div>
+                  {!waOtpSent ? (
+                    <button
+                      type="button"
+                      onClick={handleWaSendOtp}
+                      disabled={waOtpSending}
+                      className="dc-btn-primary"
+                    >
+                      {waOtpSending ? (
+                        <><Loader2 size={16} className="dc-spin" />Sending…</>
+                      ) : (
+                        <><LogIn size={18} />Send Code</>
+                      )}
+                    </button>
+                  ) : (
+                    <>
+                      <div className="dc-field">
+                        <label htmlFor="wa-code" className="dc-label">6-digit code</label>
+                        <input
+                          id="wa-code"
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          placeholder="123456"
+                          value={waCode}
+                          onChange={e => setWaCode(e.target.value.replace(/\D/g, ''))}
+                          className="dc-input"
+                          style={{ paddingLeft: 16, letterSpacing: '0.3em', fontFamily: 'ui-monospace,monospace', fontSize: 18, textAlign: 'center' }}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleWaLogin}
+                        disabled={waLoggingIn || waCode.length !== 6}
+                        className="dc-btn-primary"
+                      >
+                        {waLoggingIn ? (
+                          <><Loader2 size={16} className="dc-spin" />Logging In…</>
+                        ) : (
+                          <><LogIn size={18} />Verify & Sign In</>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setWaOtpSent(false); setWaCode(''); setServerError(''); }}
+                        className="dc-link"
+                        style={{ marginTop: 4 }}
+                      >
+                        Use a different number
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : activeTab === 'partner' ? (
                 <form onSubmit={partnerForm.handleSubmit(onPartnerSubmit)} className="dc-form">
                   {/* Username */}
                   <div className="dc-field">
@@ -776,6 +959,28 @@ const CSS = `
   background: #ffffff;
   color: var(--dc-navy);
   box-shadow: 0 1px 3px rgba(15,23,42,0.08);
+}
+
+/* Sub-tabs within Partner Login: Password / WhatsApp */
+.dc-mode-tabs {
+  display: inline-flex; gap: 4px;
+  margin: 12px 0 8px;
+  padding: 2px;
+  background: #f1f5f9;
+  border-radius: 8px;
+}
+.dc-mode-tab {
+  height: 28px; padding: 0 12px;
+  border: none; background: transparent;
+  color: #64748b;
+  font-family: inherit; font-size: 12px; font-weight: 600;
+  cursor: pointer; border-radius: 6px;
+  transition: background 150ms ease, color 150ms ease;
+}
+.dc-mode-tab:hover:not(.dc-mode-tab--active) { color: #334155; }
+.dc-mode-tab--active {
+  background: #ffffff; color: var(--dc-navy);
+  box-shadow: 0 1px 2px rgba(15,23,42,0.08);
 }
 
 .dc-error {

@@ -156,19 +156,21 @@ export default function SignupPage() {
       }
     })();
 
-    // If we arrived here from the login page via Google/Apple with no existing account,
-    // consume the prefill payload so the wizard starts with email + name pre-filled.
+    // If we arrived here from the login page via Google/Apple/WhatsApp with no existing
+    // account, consume the prefill payload so the wizard pre-populates.
     try {
       const raw = sessionStorage.getItem('dc-signup-prefill');
       if (raw) {
         const prefill = JSON.parse(raw) as {
           email?: string;
           full_name?: string;
+          whatsapp_phone?: string;
           oauth_provider?: 'google' | 'apple';
           oauth_subject?: string;
         };
         if (prefill.email) form.setValue('email', prefill.email);
         if (prefill.full_name) form.setValue('full_name', prefill.full_name);
+        if (prefill.whatsapp_phone) form.setValue('whatsapp_phone', prefill.whatsapp_phone);
         if (prefill.oauth_provider) setOauthProvider(prefill.oauth_provider);
         if (prefill.oauth_subject) setOauthSubject(prefill.oauth_subject);
         sessionStorage.removeItem('dc-signup-prefill');
@@ -176,6 +178,17 @@ export default function SignupPage() {
     } catch {
       // sessionStorage unavailable or bad JSON — ignore
     }
+
+    // Auto-redirect logged-in users away from the signup form.
+    (async () => {
+      try {
+        const res = await fetch('/api/auth/me', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) router.replace('/dashboard');
+        }
+      } catch {}
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -800,12 +813,25 @@ export default function SignupPage() {
                       <span>Terms &amp; Conditions</span>
                     </div>
                     <div className="dc-tnc__body">
-                      <p><strong>1. Account eligibility.</strong> You confirm you are an authorized representative of the company selected and that all information provided is accurate.</p>
-                      <p><strong>2. Approval.</strong> Doctor Clean reviews every partner application. Access to booking features is granted only after approval. Rejections may be appealed via admin.</p>
-                      <p><strong>3. Fair use.</strong> Your account is for legitimate business booking and coordination. Sharing credentials or automated abuse will result in permanent termination.</p>
-                      <p><strong>4. Data.</strong> We store your account details, booking history, and communication logs. Data is used only to deliver the service and communicate with you.</p>
-                      <p><strong>5. Discounts.</strong> Any company-level discount is set by Doctor Clean and may change without notice. Discounts apply only to bookings placed while your account is in good standing.</p>
-                      <p><strong>6. Termination.</strong> Doctor Clean reserves the right to suspend or terminate accounts that violate these terms.</p>
+                      <p>
+                        By continuing, you agree to Doctor Clean&apos;s full Terms &amp; Conditions,
+                        including booking, cancellation, rescheduling, and payment policies.
+                      </p>
+                      <p>
+                        <a
+                          href="https://doctorcleanpayment.sg/terms"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: 'var(--dc-green)', fontWeight: 700, textDecoration: 'underline' }}
+                        >
+                          Read the full Terms &amp; Conditions →
+                        </a>
+                      </p>
+                      <p>
+                        <strong>Partner-specific:</strong> Access to booking is granted only after admin
+                        approval. Any company-level discount is set by Doctor Clean and may change.
+                        Sharing credentials or automated abuse will result in permanent termination.
+                      </p>
                     </div>
                   </div>
 
@@ -814,7 +840,7 @@ export default function SignupPage() {
                       type="checkbox"
                       {...form.register('tnc_accepted')}
                     />
-                    <span>I have read and accept the Terms &amp; Conditions above.</span>
+                    <span>I have read and accept the Terms &amp; Conditions.</span>
                   </label>
                   {form.formState.errors.tnc_accepted && (
                     <p className="dc-field__error">{form.formState.errors.tnc_accepted.message}</p>
