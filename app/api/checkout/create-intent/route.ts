@@ -13,7 +13,13 @@ export async function POST(req: Request) {
     // 1. FORTRESS: Custom JWT Authentication Guard
     const cookieStore = await cookies();
     const token = cookieStore.get('dc_partner_session')?.value;
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'doctor-clean-partner-secret-well-change-this-soon');
+    // No fallback JWT secret — refuse instead of allowing forgery via a
+    // hard-coded default.
+    if (!process.env.JWT_SECRET) {
+      console.error('[Stripe Intent] CRITICAL: JWT_SECRET env var is not set');
+      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
+    }
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
 
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized: Please log in to pay.' }, { status: 401 });
@@ -28,12 +34,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Session expired. Please log in again.' }, { status: 401 });
     }
 
-    // 1b. Approval gate — pending or rejected partners cannot pay
-    if (user.approval_status && user.approval_status !== 'approved') {
+    // 1b. Approval gate — DB is authoritative, not the JWT. Refetch so a
+    // partner rejected/pending after login can't sneak past with an old JWT.
+    const partnerUserId = user.id as string | undefined;
+    if (!partnerUserId) {
+      return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
+    }
+    const _admin = createAdminClient();
+    const { data: liveStatus } = await _admin
+      .from('partner_user')
+      .select('approval_status, force_logout')
+      .eq('id', partnerUserId)
+      .single();
+    if (liveStatus?.force_logout) {
+      return NextResponse.json(
+        { error: 'Your account has been logged out by admin.', errorCode: 'force_logout' },
+        { status: 403 }
+      );
+    }
+    const liveApproval = liveStatus?.approval_status ?? user.approval_status;
+    if (liveApproval && liveApproval !== 'approved') {
       return NextResponse.json(
         {
           error:
-            user.approval_status === 'pending'
+            liveApproval === 'pending'
               ? 'Your account is pending admin approval. Bookings are disabled until approved.'
               : 'Your account is not approved. Please contact administrator.',
           errorCode: 'partner_not_approved',

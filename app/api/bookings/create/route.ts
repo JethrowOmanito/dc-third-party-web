@@ -38,17 +38,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const secret = new TextEncoder().encode(
-      process.env.JWT_SECRET || 'doctor-clean-partner-secret-well-change-this-soon'
-    );
+    // No fallback — if JWT_SECRET is missing, refuse instead of using a
+    // hard-coded value that could allow signed-token forgery.
+    if (!process.env.JWT_SECRET) {
+      console.error('CRITICAL: JWT_SECRET env var is not set');
+      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
+    }
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const { payload: user } = await jwtVerify(token, secret);
 
-    // 1b. Approval gate — pending or rejected partners cannot book
-    if (user.approval_status && user.approval_status !== 'approved') {
+    // 1b. Approval gate — DB is authoritative, not the JWT. A partner who was
+    // approved at login then later rejected by admin still has a valid JWT
+    // marked 'approved'; refetch here so their old JWT can't sneak past.
+    const partnerUserId = user.id as string | undefined;
+    if (!partnerUserId) {
+      return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
+    }
+    const { data: liveStatus } = await (await createClient())
+      .from('partner_user')
+      .select('approval_status, force_logout')
+      .eq('id', partnerUserId)
+      .single();
+    const liveApproval = liveStatus?.approval_status ?? user.approval_status;
+    if (liveStatus?.force_logout) {
+      return NextResponse.json(
+        { error: 'Your account has been logged out by admin.', errorCode: 'force_logout' },
+        { status: 403 }
+      );
+    }
+    if (liveApproval && liveApproval !== 'approved') {
       return NextResponse.json(
         {
           error:
-            user.approval_status === 'pending'
+            liveApproval === 'pending'
               ? 'Your account is pending admin approval. Bookings are disabled until approved.'
               : 'Your account is not approved. Please contact administrator.',
           errorCode: 'partner_not_approved',
@@ -85,7 +107,9 @@ export async function POST(req: NextRequest) {
     // 3. Server-side price calculation (Hardening against tampering)
     // Fetch original pricing and addons from DB
     const [pricingRes, addonsRes] = await Promise.all([
-      supabase.from('service_pricing').select('*').eq('id', data.pricingId).single(),
+      // Refuse inactive pricing rows so clients can't book against a
+      // deprecated price the admin has archived.
+      supabase.from('service_pricing').select('*').eq('id', data.pricingId).eq('is_active', true).single(),
       data.addonIds && data.addonIds.length > 0 
         ? supabase.from('service_addons').select('*').in('id', data.addonIds)
         : Promise.resolve({ data: [] }),
