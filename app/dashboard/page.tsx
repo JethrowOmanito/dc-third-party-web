@@ -37,7 +37,10 @@ interface UpcomingJob {
   id: string;
   Start_Date: string;
   Start_Time: string | null;
+  Start_Time_Display: string | null;
+  End_Time_Display: string | null;
   Service_Type: string | null;
+  service_subtype: string | null;
   Name: string | null;
   Title: string | null;
   status: string | null;
@@ -87,7 +90,7 @@ export default function DashboardPage() {
           .eq(companyFilter.column, companyFilter.value),
         supabase
           .from('events')
-          .select('id, Start_Date, Start_Time, Service_Type, Name, Title, status, Assign_Cleaner')
+          .select('id, Start_Date, Start_Time, Start_Time_Display, End_Time_Display, Service_Type, service_subtype, Name, Title, status, Assign_Cleaner')
           .eq(companyFilter.column, companyFilter.value)
           .gte('Start_Date', today)
           .order('Start_Date', { ascending: true })
@@ -699,14 +702,21 @@ function UpcomingJobRow({ job }: { job: UpcomingJob }) {
   const month = MONTH_ABBR[d.getMonth()] ?? '';
   const day = String(d.getDate()).padStart(2, '0');
 
-  const rawService = job.Service_Type || job.Title || job.Name || 'Cleaning';
-  const serviceName = getServiceDisplayName(String(rawService).replace(/_/g, ' '));
+  // Primary label: sub-service type if present, else fall back to Service_Type.
+  const rawSub = job.service_subtype || job.Service_Type || 'Cleaning';
+  const primary = getServiceDisplayName(String(rawSub).replace(/_/g, ' '));
 
-  const time = job.Start_Time ? formatTime(job.Start_Time) : '';
+  // Time window: prefer the human-readable display strings; fall back to
+  // the raw Start_Time only if display is missing.
+  const timeWindow = job.Start_Time_Display && job.End_Time_Display
+    ? `${job.Start_Time_Display} — ${job.End_Time_Display}`
+    : job.Start_Time_Display
+      ? job.Start_Time_Display
+      : job.Start_Time
+        ? formatTime(job.Start_Time)
+        : '';
 
-  const cleanerCount = countCleaners(job.Assign_Cleaner);
-  const cleanerLabel =
-    cleanerCount > 0 ? `${cleanerCount} Cleaner${cleanerCount > 1 ? 's' : ''}` : 'Unassigned';
+  const jobTitle = job.Title || job.Name || '';
 
   const status = (job.status || 'pending').toLowerCase();
   const isConfirmed = ['confirmed', 'assigned', 'completed', 'in_progress'].includes(status);
@@ -714,23 +724,24 @@ function UpcomingJobRow({ job }: { job: UpcomingJob }) {
   return (
     <Link
       href={`/dashboard/jobs`}
-      className="flex items-center gap-4 py-4 hover:bg-slate-50/60 -mx-2 px-2 rounded-lg transition-colors"
+      className="flex items-start gap-4 py-4 hover:bg-slate-50/60 -mx-2 px-2 rounded-lg transition-colors"
     >
-      <div className="w-14 shrink-0 text-center">
+      <div className="w-14 shrink-0 text-center pt-0.5">
         <p className="text-[10px] font-bold text-slate-400 tracking-widest">{month}</p>
         <p className="text-lg font-extrabold text-slate-900 leading-none">{day}</p>
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-slate-900 truncate">{serviceName}</p>
-        <p className="text-xs text-slate-500 mt-0.5">
-          {time && <span>{time}</span>}
-          {time && cleanerLabel && <span className="mx-1.5">·</span>}
-          <span>{cleanerLabel}</span>
-        </p>
+        <p className="text-sm font-semibold text-slate-900 truncate">{primary}</p>
+        {timeWindow && (
+          <p className="text-xs text-slate-500 mt-0.5">{timeWindow}</p>
+        )}
+        {jobTitle && (
+          <p className="text-xs text-slate-400 mt-0.5 truncate italic">{jobTitle}</p>
+        )}
       </div>
       <span
         className={cn(
-          'inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold',
+          'inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold mt-0.5',
           isConfirmed
             ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100'
             : 'bg-amber-50 text-amber-700 ring-1 ring-amber-100'
@@ -738,7 +749,7 @@ function UpcomingJobRow({ job }: { job: UpcomingJob }) {
       >
         {isConfirmed ? 'Confirmed' : 'Pending'}
       </span>
-      <ArrowRight className="w-4 h-4 text-slate-300 shrink-0" />
+      <ArrowRight className="w-4 h-4 text-slate-300 shrink-0 mt-1.5" />
     </Link>
   );
 }
