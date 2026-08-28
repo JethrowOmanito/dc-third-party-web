@@ -10,13 +10,16 @@ import {
   CheckCircle2,
   ChevronDown,
   Clock,
+  CreditCard,
   Gift,
   LineChart,
   Loader2,
+  Percent,
   Star,
   TrendingUp,
   Trophy,
   Wallet,
+  X,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { getSupabaseClient } from '@/lib/supabase/client';
@@ -56,6 +59,7 @@ export default function DashboardPage() {
   const [upcoming, setUpcoming] = useState<UpcomingJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [firstLoadDone, setFirstLoadDone] = useState(false);
+  const [benefitsOpen, setBenefitsOpen] = useState(false);
   const supabase = getSupabaseClient();
 
   // Only depend on the fields we actually query with, so the /api/auth/me
@@ -294,12 +298,20 @@ export default function DashboardPage() {
           </div>
           <button
             type="button"
+            onClick={() => setBenefitsOpen(true)}
             className="mt-4 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 self-start"
           >
             View benefits <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </section>
+
+      {benefitsOpen && (
+        <BenefitsModal
+          user={user}
+          onClose={() => setBenefitsOpen(false)}
+        />
+      )}
 
       {/* ============ TWO COLUMN: Overview / Performance | Upcoming Jobs ============ */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
@@ -410,6 +422,116 @@ export default function DashboardPage() {
 }
 
 /* ---------- Sub-components ---------- */
+
+function BenefitsModal({
+  user,
+  onClose,
+}: {
+  user: ReturnType<typeof useAuthStore.getState>['user'];
+  onClose: () => void;
+}) {
+  const discountType = user?.company_discount_type ?? null;
+  const discountValue = Number(user?.company_discount_value ?? 0);
+  const hasDiscount = discountType && discountValue > 0;
+  const discountLabel = hasDiscount
+    ? (discountType === 'percent' ? `${discountValue}% OFF` : `S$${discountValue.toFixed(2)} OFF`)
+    : null;
+  const terms = user?.company_payment_terms ?? 'upfront';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+          aria-label="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+            <Trophy className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Your Partner Benefits</p>
+            <p className="text-base font-bold text-slate-900 truncate">{user?.company_name ?? 'Partner'}</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {/* Discount */}
+          <div className={cn(
+            'rounded-xl p-4 border',
+            hasDiscount ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
+          )}>
+            <div className="flex items-start gap-3">
+              <div className={cn(
+                'w-9 h-9 rounded-lg flex items-center justify-center shrink-0',
+                hasDiscount ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-400'
+              )}>
+                <Percent className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Discount</p>
+                {hasDiscount ? (
+                  <>
+                    <p className="text-2xl font-black text-emerald-700 mt-0.5">{discountLabel}</p>
+                    <p className="text-xs text-emerald-800/80 mt-1 leading-relaxed">
+                      Applied automatically to every booking made under {user?.company_name ?? 'your company'}.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-base font-bold text-slate-500 mt-0.5">No discount set</p>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      Contact admin if a partner discount should be applied to your bookings.
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Payment terms */}
+          <div className={cn(
+            'rounded-xl p-4 border',
+            terms === 'upfront' ? 'bg-sky-50 border-sky-100' : 'bg-amber-50 border-amber-100'
+          )}>
+            <div className="flex items-start gap-3">
+              <div className={cn(
+                'w-9 h-9 rounded-lg flex items-center justify-center shrink-0',
+                terms === 'upfront' ? 'bg-sky-100 text-sky-600' : 'bg-amber-100 text-amber-600'
+              )}>
+                <CreditCard className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Payment Terms</p>
+                <p className={cn(
+                  'text-base font-bold mt-0.5',
+                  terms === 'upfront' ? 'text-sky-800' : 'text-amber-800'
+                )}>
+                  {terms === 'upfront' ? 'Upfront (Stripe)' : 'End of Month (invoiced)'}
+                </p>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                  {terms === 'upfront'
+                    ? 'You pay at booking time via Stripe. Booking is confirmed after successful payment.'
+                    : 'Bookings are confirmed immediately. We invoice at month-end for all jobs.'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-slate-400 text-center pt-1">
+            Benefits are set by Doctor Clean admin and may change. Contact us on WhatsApp with any questions.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ApprovalBanner({ status }: { status?: 'pending' | 'approved' | 'rejected' }) {
   if (!status || status === 'approved') return null;
