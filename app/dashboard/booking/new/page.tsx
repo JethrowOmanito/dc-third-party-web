@@ -991,27 +991,32 @@ export default function BookingNewPage() {
         booking_expires_at: expiresAt.toISOString(),
       };
 
-      const { data: bData, error: bError } = await supabase
-        .from('events')
-        .insert(newBooking)
-        .select('id, Ref_ID')
-        .single();
-
-      if (bError) throw bError;
-
-      await supabase.from('event_logs').insert({
-        event_id: bData.id,
-        message: `Booking created by ${user?.name || user?.username || 'Partner'}${
-          user?.company_payment_terms === 'end_of_month' ? ' — invoiced at month-end' : ''
-        }`,
+      // Route the insert through the server so partner_company_id,
+      // owned_by_third_party, Price, and payment_status can't be tampered
+      // via DevTools/client bundle. The server re-derives them from the
+      // JWT + partner_user + partner_companies rows.
+      const submitRes = await fetch('/api/bookings/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newBooking),
       });
+      const submitRaw = await submitRes.text();
+      let submitData: any = {};
+      try { submitData = submitRaw ? JSON.parse(submitRaw) : {}; }
+      catch { throw new Error(`Booking submit failed (${submitRes.status}).`); }
+      if (!submitRes.ok || !submitData.booking) {
+        throw new Error(submitData.error || `Failed to create booking (status ${submitRes.status}).`);
+      }
+      const bData = submitData.booking as { id: string; Ref_ID?: string };
+      const serverAmountCents: number = submitData.amount_cents ?? amountCents;
 
-      // End-of-month partners: no Stripe. Redirect straight to success.
-      if (user?.company_payment_terms === 'end_of_month') {
+      // End-of-month partners: server returns requiresPayment=false and
+      // marks the booking confirmed+invoice. Skip Stripe.
+      if (submitData.requiresPayment === false) {
         setCurrentBookingId(bData.id);
-        setCurrentRefId(bData.Ref_ID);
+        setCurrentRefId(bData.Ref_ID ?? null);
         router.replace(
-          `/dashboard/booking/success?id=${bData.id}&ref=${bData.Ref_ID}&invoice=1`
+          `/dashboard/booking/success?id=${bData.id}&ref=${bData.Ref_ID ?? ''}&invoice=1`
         );
         return;
       }
@@ -1021,7 +1026,9 @@ export default function BookingNewPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           // Charge the tax-inclusive amount — DB prices are ex-GST.
-          amount_cents: amountCents,
+          // Server-side create-intent will still refetch the true amount
+          // from the events row, so this value is just a hint.
+          amount_cents: serverAmountCents,
           bookingId: bData.id,
           customerEmail: email,
         }),
@@ -1037,7 +1044,7 @@ export default function BookingNewPage() {
 
       setClientSecret(data.client_secret);
       setCurrentBookingId(bData.id);
-      setCurrentRefId(bData.Ref_ID);
+      setCurrentRefId(bData.Ref_ID ?? null);
       setStep('confirm');
     } catch (err: any) {
       alert(err.message || 'Something went wrong. Please try again.');
