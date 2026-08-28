@@ -71,8 +71,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Deliver via WhatsApp. Prefer approved template if configured; fall back to plain text.
+    // For AUTHENTICATION-category templates (like partner_signup_otp) Meta requires:
+    //   - body component with a single text parameter (the code)
+    //   - button component with sub_type=url and the code again (for Copy code button)
+    // The send-whatsapp-notification edge fn passes templateParams straight through
+    // as the `components` array, so we build the full Meta structure here.
     const templateName = process.env.WHATSAPP_OTP_TEMPLATE_NAME;
-    const templateLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG ?? 'en';
+    const templateLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG ?? 'en_US';
     const waPayload = templateName
       ? {
           to: phone,
@@ -80,7 +85,18 @@ export async function POST(req: NextRequest) {
           type: 'template' as const,
           templateName,
           templateLanguage: templateLang,
-          templateParams: [code],
+          templateParams: [
+            {
+              type: 'body',
+              parameters: [{ type: 'text', text: code }],
+            },
+            {
+              type: 'button',
+              sub_type: 'url',
+              index: '0',
+              parameters: [{ type: 'text', text: code }],
+            },
+          ],
         }
       : {
           to: phone,
