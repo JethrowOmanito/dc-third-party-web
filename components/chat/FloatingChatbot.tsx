@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { 
-  MessageCircle, X, Send, Sparkles, 
+import { usePathname } from 'next/navigation';
+import {
+  MessageCircle, X, Send, Sparkles,
   Bot, User, ChevronRight, Loader2,
   Calendar, CreditCard, ShieldCheck
 } from 'lucide-react';
@@ -31,11 +32,27 @@ const SUGGESTIONS = [
 ];
 
 export function FloatingChatbot() {
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // The booking wizard has its own compact chat trigger inside the mobile
+  // navigation tray (next to "View breakdown"). Hide the floating FAB
+  // there so it doesn't overlap the tray on small screens. Desktop is
+  // unaffected — the FAB still renders at lg breakpoints.
+  const hideFabOnMobile = pathname === '/dashboard/booking/new';
+
+  // External trigger — the booking wizard dispatches this event so its
+  // inline chat button opens the same chat surface without duplicating
+  // component state.
+  useEffect(() => {
+    const onOpen = () => setIsOpen(true);
+    window.addEventListener('dc-open-chat', onOpen);
+    return () => window.removeEventListener('dc-open-chat', onOpen);
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -177,10 +194,13 @@ export function FloatingChatbot() {
         </div>
       )}
 
-      {/* Floating Button */}
-      <button 
+      {/* Floating Button — hidden on mobile inside the booking wizard */}
+      <button
         onClick={() => setIsOpen(!isOpen)}
-        className="pointer-events-auto w-14 h-14 bg-emerald-600 rounded-2xl shadow-xl hover:shadow-emerald-500/20 hover:-translate-y-1 active:scale-95 transition-all flex items-center justify-center group border-2 border-white/20"
+        className={cn(
+          "pointer-events-auto w-14 h-14 bg-emerald-600 rounded-2xl shadow-xl hover:shadow-emerald-500/20 hover:-translate-y-1 active:scale-95 transition-all flex items-center justify-center group border-2 border-white/20",
+          hideFabOnMobile && "hidden lg:flex"
+        )}
       >
         <div className="relative">
            {isOpen ? <X className="w-6 h-6 text-white" /> : <MessageCircle className="w-6 h-6 text-white" />}

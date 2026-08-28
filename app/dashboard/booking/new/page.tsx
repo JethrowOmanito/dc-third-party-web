@@ -16,7 +16,7 @@ import {
   ChevronRight, ChevronLeft, ChevronDown, CheckCircle2,
   Loader2, Clock, Send, Sparkles, X, Plus, Minus,
   Home, Sofa, Wind, Layers, Building2, ShieldCheck,
-  MapPin, Calendar as CalendarIcon, Info, Waves,
+  MapPin, Calendar as CalendarIcon, Info, Waves, MessageCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -2953,24 +2953,36 @@ export default function BookingNewPage() {
       {/* ── Mobile navigation tray ── */}
       {!['confirm', 'chat'].includes(step) && (
         <div className="lg:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-100 z-50 shadow-2xl pb-safe">
-          {/* Compact price summary — tappable to expand breakdown */}
+          {/* Compact price summary + inline chat trigger (replaces the
+              floating FAB on mobile inside this wizard so it doesn't
+              overlap the "View breakdown" tap target). */}
           {(totalPrice > 0 || selectedPricing || selectedHKPricing) && (
-            <button
-              type="button"
-              onClick={() => setShowMobileSummary(true)}
-              className="w-full flex items-center justify-between px-4 py-2 border-b border-slate-100 active:bg-slate-50 transition-colors"
-            >
-              <div className="text-left">
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total (incl. GST)</p>
-                <p className="text-base font-extrabold text-slate-900">
-                  S${((appliedPromo ? finalPrice : totalPrice) * 1.09).toFixed(2)}
-                </p>
-              </div>
-              <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
-                View breakdown
-                <ChevronRight className="w-3.5 h-3.5" />
-              </div>
-            </button>
+            <div className="w-full flex items-stretch border-b border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowMobileSummary(true)}
+                className="flex-1 flex items-center justify-between px-4 py-2 active:bg-slate-50 transition-colors"
+              >
+                <div className="text-left">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total (incl. GST)</p>
+                  <p className="text-base font-extrabold text-slate-900">
+                    S${((appliedPromo ? finalPrice : totalPrice) * 1.09).toFixed(2)}
+                  </p>
+                </div>
+                <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
+                  View breakdown
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('dc-open-chat'))}
+                aria-label="Open concierge chat"
+                className="flex items-center justify-center px-4 border-l border-slate-100 text-emerald-600 active:bg-emerald-50 transition-colors"
+              >
+                <MessageCircle className="w-5 h-5" strokeWidth={2.25} />
+              </button>
+            </div>
           )}
 
           <div className="flex items-center gap-2 px-4 py-3">
