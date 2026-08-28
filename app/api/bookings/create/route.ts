@@ -182,7 +182,8 @@ export async function POST(req: NextRequest) {
       // End-of-month partners: booking is confirmed immediately and will be
       // invoiced at month-end. No Stripe intent required.
       status: isInvoiced ? 'confirmed' : 'pending',
-      payment_status: isInvoiced ? 'invoice' : 'unpaid',
+      payment_status: isInvoiced ? 'pending' : 'unpaid',
+      payment_method: isInvoiced ? 'invoice' : null,
       owned_by_third_party: partnerUserId,
       partner_company_id: partnerRow?.company_id ?? null,
       // Unit & Size go to specific columns, not Extra_Service
