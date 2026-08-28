@@ -58,12 +58,19 @@ export function JobsList({ filter = 'all', title }: JobsListProps) {
     if (!user) return;
     setLoading(true);
     try {
+      // Company-wide filter: show every job under this partner's company,
+      // not just the ones the current employee booked. Falls back to
+      // owned_by_third_party for legacy sessions with no company_id.
+      const companyFilter = user.company_id
+        ? { column: 'partner_company_id' as const, value: user.company_id }
+        : { column: 'owned_by_third_party' as const, value: user.id };
+
       let query = supabase
         .from('events')
         .select(
           'id, Title, Start_Date, End_Date, Start_Time, End_Time, Start_Time_Display, End_Time_Display, Service_Type, service_subtype, Name, Assign_Cleaner, lifecycle_state, commission_percentage, rebate_amount, company_reference, Extra_Service'
         )
-        .eq('owned_by_third_party', user.id)
+        .eq(companyFilter.column, companyFilter.value)
         .order('Start_Date', { ascending: false });
 
       const today = new Date().toISOString().split('T')[0];

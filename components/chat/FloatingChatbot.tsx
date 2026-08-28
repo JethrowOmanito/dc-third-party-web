@@ -88,10 +88,10 @@ export function FloatingChatbot() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end gap-4 pointer-events-none">
+    <div className="fixed right-4 lg:right-6 z-[100] flex flex-col items-end gap-4 pointer-events-none bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:bottom-6">
       {/* Chat Window */}
       {isOpen && (
-        <div className="pointer-events-auto w-[350px] sm:w-[380px] h-[520px] bg-white rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 duration-500">
+        <div className="pointer-events-auto w-[calc(100vw-2rem)] max-w-[380px] h-[min(520px,calc(100vh-9rem))] bg-white rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 duration-500">
           {/* Header */}
           <div className="bg-emerald-600 p-4 pt-6 text-white relative">
             <div className="absolute top-0 right-0 p-3 flex gap-2">
