@@ -9,13 +9,16 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
+  ArrowLeft,
   Calendar,
+  Check,
   Eye,
   EyeOff,
   Hash,
   Loader2,
   Lock,
   LogIn,
+  MessageCircle,
   Search,
   Shield,
   ShieldCheck,
@@ -68,7 +71,7 @@ export default function LoginPage() {
   const { user, setUser, setGuestSession, _hasHydrated } = useAuthStore();
 
   const [activeTab, setActiveTab] = useState<'partner' | 'reference'>('partner');
-  const [partnerMode, setPartnerMode] = useState<'password' | 'whatsapp'>('password');
+  const [waStage, setWaStage] = useState<'idle' | 'phone' | 'code'>('idle');
   const [showPwd, setShowPwd] = useState(false);
   const [serverError, setServerError] = useState('');
   const [teamPhotoError, setTeamPhotoError] = useState(false);
@@ -446,96 +449,7 @@ export default function LoginPage() {
 
               {serverError && <div className="dc-error">{serverError}</div>}
 
-              {activeTab === 'partner' && (
-                <div className="dc-mode-tabs" role="tablist" aria-label="Partner login mode">
-                  <button
-                    type="button"
-                    onClick={() => { setPartnerMode('password'); setServerError(''); }}
-                    className={`dc-mode-tab${partnerMode === 'password' ? ' dc-mode-tab--active' : ''}`}
-                  >
-                    Password
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setPartnerMode('whatsapp'); setServerError(''); }}
-                    className={`dc-mode-tab${partnerMode === 'whatsapp' ? ' dc-mode-tab--active' : ''}`}
-                  >
-                    WhatsApp
-                  </button>
-                </div>
-              )}
-
-              {activeTab === 'partner' && partnerMode === 'whatsapp' ? (
-                <div className="dc-form">
-                  <div className="dc-field">
-                    <label htmlFor="wa-phone" className="dc-label">WhatsApp Phone</label>
-                    <div className="dc-input-wrap">
-                      <User className="dc-input-icon" size={18} />
-                      <input
-                        id="wa-phone"
-                        type="tel"
-                        placeholder="+65 8888 8888"
-                        autoComplete="tel"
-                        value={waPhone}
-                        disabled={waOtpSent}
-                        onChange={e => setWaPhone(e.target.value)}
-                        className="dc-input"
-                      />
-                    </div>
-                  </div>
-                  {!waOtpSent ? (
-                    <button
-                      type="button"
-                      onClick={handleWaSendOtp}
-                      disabled={waOtpSending}
-                      className="dc-btn-primary"
-                    >
-                      {waOtpSending ? (
-                        <><Loader2 size={16} className="dc-spin" />Sending…</>
-                      ) : (
-                        <><LogIn size={18} />Send Code</>
-                      )}
-                    </button>
-                  ) : (
-                    <>
-                      <div className="dc-field">
-                        <label htmlFor="wa-code" className="dc-label">6-digit code</label>
-                        <input
-                          id="wa-code"
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={6}
-                          placeholder="123456"
-                          value={waCode}
-                          onChange={e => setWaCode(e.target.value.replace(/\D/g, ''))}
-                          className="dc-input"
-                          style={{ paddingLeft: 16, letterSpacing: '0.3em', fontFamily: 'ui-monospace,monospace', fontSize: 18, textAlign: 'center' }}
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleWaLogin}
-                        disabled={waLoggingIn || waCode.length !== 6}
-                        className="dc-btn-primary"
-                      >
-                        {waLoggingIn ? (
-                          <><Loader2 size={16} className="dc-spin" />Logging In…</>
-                        ) : (
-                          <><LogIn size={18} />Verify & Sign In</>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setWaOtpSent(false); setWaCode(''); setServerError(''); }}
-                        className="dc-link"
-                        style={{ marginTop: 4 }}
-                      >
-                        Use a different number
-                      </button>
-                    </>
-                  )}
-                </div>
-              ) : activeTab === 'partner' ? (
+              {activeTab === 'partner' ? (
                 <form onSubmit={partnerForm.handleSubmit(onPartnerSubmit)} className="dc-form">
                   {/* Username */}
                   <div className="dc-field">
@@ -670,12 +584,12 @@ export default function LoginPage() {
                 </form>
               )}
 
-              {/* OAuth block (Google + Apple), only when configured */}
-              {(GOOGLE_CLIENT_ID || APPLE_SERVICES_ID) && activeTab === 'partner' && (
+              {/* OAuth block (Google + Apple + WhatsApp) */}
+              {activeTab === 'partner' && (
                 <>
                   <div className="dc-divider"><span>or</span></div>
                   <div className="dc-oauth-login">
-                    {GOOGLE_CLIENT_ID && (
+                    {GOOGLE_CLIENT_ID && waStage === 'idle' && (
                       <>
                         <div
                           id="g_id_onload"
@@ -696,7 +610,7 @@ export default function LoginPage() {
                         />
                       </>
                     )}
-                    {APPLE_SERVICES_ID && !appleLoadFailed && (
+                    {APPLE_SERVICES_ID && !appleLoadFailed && waStage === 'idle' && (
                       <button
                         type="button"
                         onClick={handleAppleClick}
@@ -708,6 +622,96 @@ export default function LoginPage() {
                         </svg>
                         {appleReady ? 'Continue with Apple' : 'Loading Apple…'}
                       </button>
+                    )}
+
+                    {waStage === 'idle' && (
+                      <button
+                        type="button"
+                        onClick={() => { setWaStage('phone'); setServerError(''); }}
+                        className="dc-btn-wa"
+                      >
+                        <MessageCircle size={16} />
+                        Continue with WhatsApp
+                      </button>
+                    )}
+
+                    {/* Inline WA flow — same width as the OAuth buttons */}
+                    {waStage === 'phone' && (
+                      <div className="dc-wa-panel">
+                        <div className="dc-wa-panel__head">
+                          <button
+                            type="button"
+                            onClick={() => { setWaStage('idle'); setWaPhone(''); setServerError(''); }}
+                            className="dc-wa-back"
+                            aria-label="Back"
+                          >
+                            <ArrowLeft size={14} />
+                          </button>
+                          <span>Sign in with WhatsApp</span>
+                        </div>
+                        <input
+                          type="tel"
+                          placeholder="+65 8888 8888"
+                          autoComplete="tel"
+                          autoFocus
+                          value={waPhone}
+                          onChange={e => setWaPhone(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleWaSendOtp(); } }}
+                          className="dc-wa-input"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => { await handleWaSendOtp(); if (!serverError) setWaStage('code'); }}
+                          disabled={waOtpSending || waPhone.trim().length < 8}
+                          className="dc-btn-wa dc-btn-wa--filled"
+                        >
+                          {waOtpSending ? (
+                            <><Loader2 size={14} className="dc-spin" />Sending code…</>
+                          ) : (
+                            <>Send code</>
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                    {waStage === 'code' && (
+                      <div className="dc-wa-panel">
+                        <div className="dc-wa-panel__head">
+                          <button
+                            type="button"
+                            onClick={() => { setWaStage('phone'); setWaCode(''); setWaOtpSent(false); setServerError(''); }}
+                            className="dc-wa-back"
+                            aria-label="Back"
+                          >
+                            <ArrowLeft size={14} />
+                          </button>
+                          <span>Enter the 6-digit code</span>
+                        </div>
+                        <p className="dc-wa-hint">Sent to <strong>{waPhone}</strong></p>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          placeholder="123456"
+                          autoFocus
+                          value={waCode}
+                          onChange={e => setWaCode(e.target.value.replace(/\D/g, ''))}
+                          onKeyDown={e => { if (e.key === 'Enter' && waCode.length === 6) { e.preventDefault(); handleWaLogin(); } }}
+                          className="dc-wa-input dc-wa-input--code"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleWaLogin}
+                          disabled={waLoggingIn || waCode.length !== 6}
+                          className="dc-btn-wa dc-btn-wa--filled"
+                        >
+                          {waLoggingIn ? (
+                            <><Loader2 size={14} className="dc-spin" />Verifying…</>
+                          ) : (
+                            <><Check size={14} />Verify &amp; Sign in</>
+                          )}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </>
@@ -961,27 +965,6 @@ const CSS = `
   box-shadow: 0 1px 3px rgba(15,23,42,0.08);
 }
 
-/* Sub-tabs within Partner Login: Password / WhatsApp */
-.dc-mode-tabs {
-  display: inline-flex; gap: 4px;
-  margin: 12px 0 8px;
-  padding: 2px;
-  background: #f1f5f9;
-  border-radius: 8px;
-}
-.dc-mode-tab {
-  height: 28px; padding: 0 12px;
-  border: none; background: transparent;
-  color: #64748b;
-  font-family: inherit; font-size: 12px; font-weight: 600;
-  cursor: pointer; border-radius: 6px;
-  transition: background 150ms ease, color 150ms ease;
-}
-.dc-mode-tab:hover:not(.dc-mode-tab--active) { color: #334155; }
-.dc-mode-tab--active {
-  background: #ffffff; color: var(--dc-navy);
-  box-shadow: 0 1px 2px rgba(15,23,42,0.08);
-}
 
 .dc-error {
   margin-top: 16px;
@@ -1141,6 +1124,73 @@ const CSS = `
 }
 .dc-btn-apple:hover:not(:disabled) { background: #1a1a1a; }
 .dc-btn-apple:disabled { opacity: 0.7; cursor: not-allowed; }
+
+/* WhatsApp option — same width as Apple/Google */
+.dc-btn-wa {
+  width: 340px; max-width: 100%; height: 38px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1; background: #fff; color: #0f172a;
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.dc-btn-wa svg { color: #25D366; }
+.dc-btn-wa:hover:not(:disabled) { background: #f8fafc; border-color: #94a3b8; }
+.dc-btn-wa:disabled { opacity: 0.6; cursor: not-allowed; }
+.dc-btn-wa--filled {
+  background: #25D366; color: #fff; border-color: #25D366;
+}
+.dc-btn-wa--filled svg { color: #fff; }
+.dc-btn-wa--filled:hover:not(:disabled) { background: #20BC5B; border-color: #20BC5B; }
+
+.dc-wa-panel {
+  width: 340px; max-width: 100%;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  display: flex; flex-direction: column; gap: 8px;
+  animation: dc-card-in 200ms ease-out both;
+}
+.dc-wa-panel__head {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 700; color: var(--dc-navy);
+  margin-bottom: 2px;
+}
+.dc-wa-back {
+  width: 22px; height: 22px;
+  background: transparent; border: none;
+  color: #64748b; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+  transition: background 120ms ease;
+}
+.dc-wa-back:hover { background: #e2e8f0; color: var(--dc-navy); }
+.dc-wa-hint {
+  margin: -2px 0 4px; font-size: 11.5px; color: #64748b;
+}
+.dc-wa-hint strong { color: var(--dc-navy); }
+.dc-wa-input {
+  width: 100%; height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--dc-border); border-radius: 8px;
+  background: #fff; color: var(--dc-navy);
+  font-family: inherit; font-size: 14px;
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.dc-wa-input:focus {
+  border-color: #25D366;
+  box-shadow: 0 0 0 3px rgba(37,211,102,0.15);
+}
+.dc-wa-input--code {
+  letter-spacing: 0.35em;
+  font-family: ui-monospace, monospace;
+  font-size: 18px;
+  text-align: center;
+  padding-left: 20px;
+}
 
 .dc-spin { animation: dc-spin 700ms linear infinite; }
 

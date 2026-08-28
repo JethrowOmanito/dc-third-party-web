@@ -101,13 +101,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Server error' }, { status: 500 });
     }
 
-    // No account for this phone → tell the client to send them to signup
+    // No account for this phone → return a signup_token so the client can
+    // continue directly into the signup wizard without asking for OTP again.
     if (!partner) {
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+        return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
+      }
+      const secret = new TextEncoder().encode(jwtSecret);
+      const signupToken = await new SignJWT({ phone, purpose: 'partner_signup' })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setExpirationTime('15m')
+        .sign(secret);
       return NextResponse.json(
         {
           needsSignup: true,
           phone,
-          message: 'No partner account registered with this WhatsApp number. Please sign up.',
+          signupToken,
+          message: 'No partner account registered with this WhatsApp number.',
         },
         { status: 200 }
       );

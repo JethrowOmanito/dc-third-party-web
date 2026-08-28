@@ -107,6 +107,13 @@ export default function SignupPage() {
   const [oauthSubject, setOauthSubject] = useState('');
   const [oauthProcessing, setOauthProcessing] = useState(false);
   const [appleReady, setAppleReady] = useState(false);
+
+  // Inline WhatsApp signup flow (mirrors login page)
+  const [waStage, setWaStage] = useState<'idle' | 'phone' | 'code'>('idle');
+  const [waPhone, setWaPhone] = useState('');
+  const [waCode, setWaCode] = useState('');
+  const [waOtpSending, setWaOtpSending] = useState(false);
+  const [waVerifying, setWaVerifying] = useState(false);
   const [appleLoadFailed, setAppleLoadFailed] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement>(null);
 
@@ -347,6 +354,80 @@ export default function SignupPage() {
     }
   }, [form, router, setUser]);
 
+  // ── WhatsApp signup handlers ─────────────────────────────
+  const handleWaSendOtp = useCallback(async () => {
+    setServerError('');
+    if (waPhone.trim().length < 8) {
+      setServerError('Enter a valid WhatsApp number.');
+      return;
+    }
+    setWaOtpSending(true);
+    try {
+      const res = await fetch('/api/auth/otp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: waPhone }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setServerError(json.error ?? 'Could not send code.');
+        return;
+      }
+      setWaStage('code');
+    } catch {
+      setServerError('Network error. Try again.');
+    } finally {
+      setWaOtpSending(false);
+    }
+  }, [waPhone]);
+
+  const handleWaVerify = useCallback(async () => {
+    setServerError('');
+    if (waCode.length !== 6) {
+      setServerError('Enter the 6-digit code.');
+      return;
+    }
+    setWaVerifying(true);
+    try {
+      const res = await fetch('/api/auth/wa-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: waPhone, code: waCode }),
+      });
+      const json = await res.json();
+
+      if (!res.ok) {
+        setServerError(json.error ?? 'Verification failed.');
+        return;
+      }
+
+      // Phone belongs to an existing partner → log them in.
+      if (json.user) {
+        setUser(json.user);
+        router.replace('/dashboard');
+        return;
+      }
+
+      // Phone verified, no account → prefill wizard + attach signup_token so
+      // /api/auth/signup accepts it without asking for OTP again.
+      if (json.needsSignup && json.signupToken) {
+        form.setValue('whatsapp_phone', waPhone);
+        setSignupToken(json.signupToken);
+        setOtpVerified(true);
+        setVerifiedPhone(waPhone);
+        setWaStage('idle');
+        setWaCode('');
+        return;
+      }
+
+      setServerError(json.error ?? 'Verification failed.');
+    } catch {
+      setServerError('Network error. Try again.');
+    } finally {
+      setWaVerifying(false);
+    }
+  }, [waPhone, waCode, form, router, setUser]);
+
   const handleAppleClick = useCallback(() => {
     if (!APPLE_SERVICES_ID) return;
     if (!window.AppleID) {
@@ -483,9 +564,9 @@ export default function SignupPage() {
               {/* STEP 1: ACCOUNT INFO */}
               {step === 0 && (
                 <>
-                  {(GOOGLE_CLIENT_ID || APPLE_SERVICES_ID) && !oauthProvider && (
+                  {!oauthProvider && (
                     <div className="dc-oauth">
-                      {GOOGLE_CLIENT_ID && (
+                      {GOOGLE_CLIENT_ID && waStage === 'idle' && (
                         <>
                           <div
                             id="g_id_onload"
@@ -506,7 +587,7 @@ export default function SignupPage() {
                           />
                         </>
                       )}
-                      {APPLE_SERVICES_ID && !appleLoadFailed && (
+                      {APPLE_SERVICES_ID && !appleLoadFailed && waStage === 'idle' && (
                         <button
                           type="button"
                           onClick={handleAppleClick}
@@ -519,7 +600,95 @@ export default function SignupPage() {
                           {appleReady ? 'Continue with Apple' : 'Loading Apple…'}
                         </button>
                       )}
-                      <div className="dc-oauth__divider"><span>or continue with email</span></div>
+                      {waStage === 'idle' && (
+                        <button
+                          type="button"
+                          onClick={() => { setWaStage('phone'); setServerError(''); }}
+                          className="dc-btn-wa"
+                        >
+                          <MessageCircle size={16} />
+                          Continue with WhatsApp
+                        </button>
+                      )}
+                      {waStage === 'phone' && (
+                        <div className="dc-wa-panel">
+                          <div className="dc-wa-panel__head">
+                            <button
+                              type="button"
+                              onClick={() => { setWaStage('idle'); setWaPhone(''); setServerError(''); }}
+                              className="dc-wa-back"
+                              aria-label="Back"
+                            >
+                              <ArrowLeft size={14} />
+                            </button>
+                            <span>Sign up with WhatsApp</span>
+                          </div>
+                          <input
+                            type="tel"
+                            placeholder="+65 8888 8888"
+                            autoComplete="tel"
+                            autoFocus
+                            value={waPhone}
+                            onChange={e => setWaPhone(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleWaSendOtp(); } }}
+                            className="dc-wa-input"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleWaSendOtp}
+                            disabled={waOtpSending || waPhone.trim().length < 8}
+                            className="dc-btn-wa dc-btn-wa--filled"
+                          >
+                            {waOtpSending ? (
+                              <><Loader2 size={14} className="dc-spin" />Sending code…</>
+                            ) : (
+                              <>Send code</>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                      {waStage === 'code' && (
+                        <div className="dc-wa-panel">
+                          <div className="dc-wa-panel__head">
+                            <button
+                              type="button"
+                              onClick={() => { setWaStage('phone'); setWaCode(''); setServerError(''); }}
+                              className="dc-wa-back"
+                              aria-label="Back"
+                            >
+                              <ArrowLeft size={14} />
+                            </button>
+                            <span>Enter the 6-digit code</span>
+                          </div>
+                          <p className="dc-wa-hint">Sent to <strong>{waPhone}</strong></p>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={6}
+                            placeholder="123456"
+                            autoFocus
+                            value={waCode}
+                            onChange={e => setWaCode(e.target.value.replace(/\D/g, ''))}
+                            onKeyDown={e => { if (e.key === 'Enter' && waCode.length === 6) { e.preventDefault(); handleWaVerify(); } }}
+                            className="dc-wa-input dc-wa-input--code"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleWaVerify}
+                            disabled={waVerifying || waCode.length !== 6}
+                            className="dc-btn-wa dc-btn-wa--filled"
+                          >
+                            {waVerifying ? (
+                              <><Loader2 size={14} className="dc-spin" />Verifying…</>
+                            ) : (
+                              <><Check size={14} />Verify &amp; continue</>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                      {waStage === 'idle' && (
+                        <div className="dc-oauth__divider"><span>or continue with email</span></div>
+                      )}
                     </div>
                   )}
 
@@ -1017,6 +1186,73 @@ const CSS = `
 }
 .dc-btn-apple:hover:not(:disabled) { background: #1a1a1a; }
 .dc-btn-apple:disabled { opacity: 0.7; cursor: not-allowed; }
+
+/* WhatsApp option — same width as Apple/Google */
+.dc-btn-wa {
+  width: 340px; max-width: 100%; height: 40px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1; background: #fff; color: #0f172a;
+  font-family: inherit; font-size: 14px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.dc-btn-wa svg { color: #25D366; }
+.dc-btn-wa:hover:not(:disabled) { background: #f8fafc; border-color: #94a3b8; }
+.dc-btn-wa:disabled { opacity: 0.6; cursor: not-allowed; }
+.dc-btn-wa--filled {
+  background: #25D366; color: #fff; border-color: #25D366;
+}
+.dc-btn-wa--filled svg { color: #fff; }
+.dc-btn-wa--filled:hover:not(:disabled) { background: #20BC5B; border-color: #20BC5B; }
+
+.dc-wa-panel {
+  width: 340px; max-width: 100%;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  display: flex; flex-direction: column; gap: 8px;
+  animation: dc-card-in 200ms ease-out both;
+}
+.dc-wa-panel__head {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 700; color: var(--dc-navy);
+  margin-bottom: 2px;
+}
+.dc-wa-back {
+  width: 22px; height: 22px;
+  background: transparent; border: none;
+  color: #64748b; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+  transition: background 120ms ease;
+}
+.dc-wa-back:hover { background: #e2e8f0; color: var(--dc-navy); }
+.dc-wa-hint {
+  margin: -2px 0 4px; font-size: 11.5px; color: #64748b;
+}
+.dc-wa-hint strong { color: var(--dc-navy); }
+.dc-wa-input {
+  width: 100%; height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--dc-border); border-radius: 8px;
+  background: #fff; color: var(--dc-navy);
+  font-family: inherit; font-size: 14px;
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.dc-wa-input:focus {
+  border-color: #25D366;
+  box-shadow: 0 0 0 3px rgba(37,211,102,0.15);
+}
+.dc-wa-input--code {
+  letter-spacing: 0.35em;
+  font-family: ui-monospace, monospace;
+  font-size: 18px;
+  text-align: center;
+  padding-left: 20px;
+}
 .dc-oauth__divider {
   display: flex; align-items: center; gap: 10px;
   margin: 8px 0 2px;
