@@ -195,7 +195,8 @@ export async function POST(req: NextRequest) {
       lifecycle_state: 'active',
       owned_by_third_party: partnerUserId,
       partner_company_id: partner.company_id,
-      source: company.company_code || 'AGT',
+      // Canonical partner source code — actual company link lives in partner_company_id.
+      source: 'ID',
     };
 
     const { data: event, error: insErr } = await admin

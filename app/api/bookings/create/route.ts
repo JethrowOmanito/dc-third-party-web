@@ -212,7 +212,8 @@ export async function POST(req: NextRequest) {
       Unit_sub_type: data.subtype || null,
       // Extra_Service is for Add-ons (Scrubbing, Blinds, etc.)
       Extra_Service: (addonsRes.data || []).map(a => a.name),
-      source: (user as any).company_code || 'AGT',
+      // Canonical partner source code — actual company link lives in partner_company_id.
+      source: 'ID',
       lifecycle_state: 'active',
     }).select().single();
     
