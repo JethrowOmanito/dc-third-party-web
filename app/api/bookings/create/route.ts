@@ -164,10 +164,31 @@ export async function POST(req: NextRequest) {
     const isInvoiced = paymentTerms === 'end_of_month';
 
     // 4. Insert Booking
+    // Parse display slot ("9:00 AM" / "14:00") → SGT wall-clock HH:MM:SS for the
+    // raw Start_Time / End_Time columns. The DB trigger trg_normalize_event_times
+    // is the safety net, but we set it explicitly so intent is clear here.
+    const toSgtTime = (t: string | undefined | null): string | null => {
+      if (!t) return null;
+      const s = t.trim();
+      const ampm = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (ampm) {
+        let h = parseInt(ampm[1], 10);
+        const m = parseInt(ampm[2], 10);
+        if (/^PM$/i.test(ampm[3]) && h !== 12) h += 12;
+        if (/^AM$/i.test(ampm[3]) && h === 12) h = 0;
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+      }
+      const h24 = s.match(/^(\d{1,2}):(\d{2})$/);
+      if (h24) return `${h24[1].padStart(2, '0')}:${h24[2]}:00`;
+      return null;
+    };
+
     const { data: event, error: insertError } = await supabase.from('events').insert({
       Title: data.contact.address,
       Service_Type: data.service,
       Start_Date: data.date,
+      Start_Time: toSgtTime(data.slot.start),
+      End_Time: toSgtTime(data.slot.end),
       Start_Time_Display: data.slot.start,
       End_Time_Display: data.slot.end,
       Name: data.contact.name,
