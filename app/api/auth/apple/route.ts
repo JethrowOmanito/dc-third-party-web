@@ -7,7 +7,11 @@ const APPLE_JWKS = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/ke
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown';
+    const ip =
+      req.headers.get('cf-connecting-ip') ??
+      req.headers.get('x-real-ip') ??
+      req.headers.get('x-forwarded-for') ??
+      'unknown';
     if (!(await checkRateLimit(`apple-signin:${ip}`, 20, 60 * 60 * 1000))) {
       return NextResponse.json({ error: 'Too many attempts. Please wait.' }, { status: 429 });
     }
@@ -49,6 +53,14 @@ export async function POST(req: NextRequest) {
       ? [body.user.name.firstName, body.user.name.lastName].filter(Boolean).join(' ')
       : undefined;
 
+    // Apple sends email_verified as a boolean OR the string "true"/"false".
+    // Normalize before trusting — an unverified email must NOT be used to
+    // link into a pre-existing password account (would enable takeover of
+    // legacy accounts by anyone claiming a matching email in Apple).
+    const emailVerified =
+      payload.email_verified === true ||
+      payload.email_verified === 'true';
+
     const db = createAdminClient();
 
     // 1. Try to match by oauth_subject
@@ -64,8 +76,12 @@ export async function POST(req: NextRequest) {
       .eq('oauth_subject', payload.sub)
       .maybeSingle();
 
-    // 2. If no match, try email (only useful when Apple exposes real email, not a relay)
-    if (!partner && email) {
+    // 2. If no match, try email — but ONLY when Apple asserts the email is
+    // verified. Otherwise anyone who registers an Apple ID configured with
+    // a victim's email could silently link into the victim's password
+    // account. Password-only rows are also refused: the user must sign in
+    // with password first and then explicitly link Apple (see below).
+    if (!partner && email && emailVerified) {
       const { data: byEmail } = await db
         .from('partner_user')
         .select(
@@ -81,6 +97,19 @@ export async function POST(req: NextRequest) {
         if (byEmail.oauth_provider && byEmail.oauth_subject && byEmail.oauth_subject !== payload.sub) {
           return NextResponse.json(
             { error: `This email is linked to a different ${byEmail.oauth_provider} account.` },
+            { status: 409 }
+          );
+        }
+        // Refuse to silently link into a password-only account — return
+        // 409 with a clear message so the user logs in with password
+        // first, then links Apple from their profile.
+        if (byEmail.password_hash && !byEmail.oauth_provider) {
+          return NextResponse.json(
+            {
+              error:
+                'An account already exists with this email. Please log in with your password first, then link Apple from your account settings.',
+              errorCode: 'password_account_exists',
+            },
             { status: 409 }
           );
         }

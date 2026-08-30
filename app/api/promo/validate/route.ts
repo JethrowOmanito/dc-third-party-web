@@ -1,12 +1,57 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { jwtVerify } from 'jose';
+import { cookies } from 'next/headers';
+import { checkRateLimit } from '@/lib/utils';
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    // Require a partner session — unauth validators let bots enumerate
+    // every valid promo code by dictionary attack.
+    const cookieStore = await cookies();
+    const token = cookieStore.get('dc_partner_session')?.value;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!process.env.JWT_SECRET) {
+      console.error('[promo/validate] CRITICAL: JWT_SECRET missing');
+      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
+    }
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+    let partnerUserId: string | undefined;
+    try {
+      const { payload } = await jwtVerify(token, secret);
+      partnerUserId = (payload as { id?: string }).id;
+    } catch {
+      return NextResponse.json({ error: 'Session expired' }, { status: 401 });
+    }
+    if (!partnerUserId) {
+      return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
+    }
+
+    // Prefer CF-Connecting-IP; fall back sanely for local/dev.
+    const ip =
+      req.headers.get('cf-connecting-ip') ??
+      req.headers.get('x-real-ip') ??
+      req.headers.get('x-forwarded-for') ??
+      'unknown';
+
+    // Per-partner + per-IP buckets — enough headroom for legitimate
+    // typo-retry but small enough to make brute-forcing impractical.
+    if (!(await checkRateLimit(`promo:partner:${partnerUserId}`, 20, 15 * 60 * 1000))) {
+      return NextResponse.json({ error: 'Too many promo attempts. Try again later.' }, { status: 429 });
+    }
+    if (!(await checkRateLimit(`promo:ip:${ip}`, 60, 15 * 60 * 1000))) {
+      return NextResponse.json({ error: 'Too many promo attempts from your network.' }, { status: 429 });
+    }
+
     const { code, totalPrice } = await req.json();
 
-    if (!code || typeof totalPrice !== 'number') {
-      return NextResponse.json({ error: 'code and totalPrice are required.' }, { status: 400 });
+    if (!code || typeof code !== 'string' || code.length > 64) {
+      return NextResponse.json({ error: 'Invalid promo code.' }, { status: 400 });
+    }
+    if (typeof totalPrice !== 'number' || totalPrice < 0 || totalPrice > 100_000) {
+      return NextResponse.json({ error: 'Invalid totalPrice.' }, { status: 400 });
     }
 
     const adminSupabase = createAdminClient();

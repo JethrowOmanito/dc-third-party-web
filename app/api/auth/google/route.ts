@@ -7,7 +7,11 @@ const GOOGLE_JWKS = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown';
+    const ip =
+      req.headers.get('cf-connecting-ip') ??
+      req.headers.get('x-real-ip') ??
+      req.headers.get('x-forwarded-for') ??
+      'unknown';
     if (!(await checkRateLimit(`google-signin:${ip}`, 20, 60 * 60 * 1000))) {
       return NextResponse.json({ error: 'Too many attempts. Please wait.' }, { status: 429 });
     }
@@ -86,6 +90,20 @@ export async function POST(req: NextRequest) {
         if (byEmail.oauth_provider && byEmail.oauth_subject && byEmail.oauth_subject !== payload.sub) {
           return NextResponse.json(
             { error: `This email is linked to a different ${byEmail.oauth_provider} account.` },
+            { status: 409 }
+          );
+        }
+        // Refuse to silently link into a password-only account — anyone
+        // who later claims a legacy corporate mailbox could otherwise
+        // take over the associated partner. Force the user to prove
+        // password ownership first, then link Google from settings.
+        if (byEmail.password_hash && !byEmail.oauth_provider) {
+          return NextResponse.json(
+            {
+              error:
+                'An account already exists with this email. Please log in with your password first, then link Google from your account settings.',
+              errorCode: 'password_account_exists',
+            },
             { status: 409 }
           );
         }

@@ -130,7 +130,9 @@ export default function DashboardPage() {
 
     const scout = async () => {
       try {
-        const res = await fetch(`/api/bookings/recent-success?userId=${user.id}`);
+        // userId is derived server-side from the JWT — no need to pass it,
+        // and passing it would be ignored anyway.
+        const res = await fetch(`/api/bookings/recent-success`);
         const data = await res.json();
 
         if (data.booking) {

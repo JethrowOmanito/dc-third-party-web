@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
+import { checkRateLimit } from '@/lib/utils';
 
 export async function GET(req: Request) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
@@ -20,6 +20,13 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Search criteria required' }, { status: 400 });
     }
 
+    // Prefer Cloudflare's connecting-IP header for rate-limit accuracy.
+    const ip =
+      req.headers.get('cf-connecting-ip') ??
+      req.headers.get('x-real-ip') ??
+      req.headers.get('x-forwarded-for') ??
+      'unknown';
+
     const supabase = createAdminClient();
     let query = supabase.from('events').select('id, status, payment_status, stripe_payment_intent_id, Ref_ID, webhook_processed, Email, owned_by_third_party');
 
@@ -28,12 +35,18 @@ export async function GET(req: Request) {
        // FORTRESS: Verify custom partner session instead of Supabase Auth
        const cookieStore = await cookies();
        const token = cookieStore.get('dc_partner_session')?.value;
-       const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'doctor-clean-partner-secret-well-change-this-soon');
-       
+       // No fallback — refuse if JWT_SECRET is missing rather than fall
+       // back to a string that lives in the repo.
+       if (!process.env.JWT_SECRET) {
+         console.error('[bookings/status] CRITICAL: JWT_SECRET missing');
+         return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
+       }
+       const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+
        if (!token) {
          return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
        }
-       
+
        let partnerUser: any;
        try {
          const { payload } = await jwtVerify(token, secret);
@@ -72,10 +85,25 @@ export async function GET(req: Request) {
        if (!guestEmail) {
          return NextResponse.json({ error: 'Email verification required' }, { status: 400 });
        }
-       
+
+       // Rate-limit this branch aggressively — Ref_IDs are short numeric
+       // strings and could otherwise be enumerated with a guessed customer
+       // email to confirm which bookings exist.
+       if (!(await checkRateLimit(`bookings-status-guest:${ip}`, 10, 15 * 60 * 1000))) {
+         return NextResponse.json(
+           { error: 'Too many attempts. Please wait 15 minutes.' },
+           { status: 429 }
+         );
+       }
+
        const { data: booking, error } = await query.eq('Ref_ID', refId).single();
-       
-       if (!booking || booking.Email.toLowerCase() !== guestEmail.toLowerCase()) {
+
+       // Null-safe compare — some bookings have Email = null (walk-in /
+       // partner bookings where the partner didn't collect one).
+       const emailMatches =
+         typeof booking?.Email === 'string' &&
+         booking.Email.toLowerCase() === guestEmail.toLowerCase();
+       if (!booking || !emailMatches) {
          return NextResponse.json({ error: 'Invalid Reference ID or Email' }, { status: 404 });
        }
        return renderSuccess(booking, 'guest_verified');

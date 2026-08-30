@@ -12,43 +12,52 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
-interface ClientBooking {
-  Title?: string;
-  Name?: string;
-  Email?: string;
-  Whatsapp_Number?: string;
-  Start_Date?: string;
-  End_Date?: string;
-  Start_Time?: string;
-  End_Time?: string;
-  Start_Time_Display?: string;
-  End_Time_Display?: string;
-  Service_Type?: string;
-  service_subtype?: string;
-  calendar_id?: string;
-  Unit_type?: string;
-  Unit_sub_type?: string;
-  duration?: string;
-  Extra_Service?: string[];
-  Note?: string;
-  Assign_Cleaner?: unknown[];
-  Price?: number;
-  final_price?: number;
-  amount_cents?: number;
-  gst_rate?: number;
-  gst_amount?: number;
-  tax_treatment?: string;
-  webhook_processed?: boolean;
-  booking_expires_at?: string;
-  // Fields the client MAY send but we always override:
-  status?: string;
-  payment_status?: string;
-  owned_by_third_party?: string;
-  partner_company_id?: string | null;
-  source?: string;
-  lifecycle_state?: string;
-}
+// Bounded shape — the client-facing wizard is trusted for the *shape*, but
+// every field has a hard cap so a compromised or scripted client can't (a)
+// bloat DB rows to break replication, (b) smuggle stored-XSS payloads that
+// render on the admin dashboard, or (c) submit unbounded arrays that hit
+// Postgres row-size limits. Every security-critical column (status,
+// payment_status, price, partner_company_id, owned_by_third_party, source,
+// lifecycle_state) is ignored here and overridden below with server truth.
+const bookingSchema = z.object({
+  Title: z.string().max(500).optional(),
+  Name: z.string().max(200).optional(),
+  Email: z.string().max(200).optional(),
+  Whatsapp_Number: z.string().max(40).optional(),
+  Start_Date: z.string().max(20).optional(),
+  End_Date: z.string().max(20).optional(),
+  Start_Time: z.string().max(20).optional(),
+  End_Time: z.string().max(20).optional(),
+  Start_Time_Display: z.string().max(40).optional(),
+  End_Time_Display: z.string().max(40).optional(),
+  Service_Type: z.string().max(64).optional(),
+  service_subtype: z.string().max(128).optional(),
+  calendar_id: z.string().max(64).optional(),
+  Unit_type: z.string().max(64).optional(),
+  Unit_sub_type: z.string().max(64).optional(),
+  duration: z.string().max(32).optional(),
+  Extra_Service: z.array(z.string().max(200)).max(50).optional(),
+  Note: z.string().max(4_000).optional(),
+  Assign_Cleaner: z.array(z.unknown()).max(0).optional(),
+  Price: z.number().min(0).max(100_000).optional(),
+  final_price: z.number().min(0).max(100_000).optional(),
+  amount_cents: z.number().int().min(0).max(10_000_000).optional(),
+  gst_rate: z.number().min(0).max(30).optional(),
+  gst_amount: z.number().min(0).max(10_000).optional(),
+  tax_treatment: z.string().max(32).optional(),
+  webhook_processed: z.boolean().optional(),
+  booking_expires_at: z.string().max(40).optional(),
+  // Fields the client MAY send but we always override server-side:
+  status: z.string().max(32).optional(),
+  payment_status: z.string().max(32).optional(),
+  owned_by_third_party: z.string().max(64).optional(),
+  partner_company_id: z.string().max(64).nullable().optional(),
+  source: z.string().max(32).optional(),
+  lifecycle_state: z.string().max(32).optional(),
+});
+type ClientBooking = z.infer<typeof bookingSchema>;
 
 export async function POST(req: NextRequest) {
   try {
@@ -135,8 +144,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Parse client body.
-    const body = (await req.json()) as ClientBooking;
+    // 4. Parse client body with zod so oversized strings, oversized
+    //    arrays, or unexpected types are rejected before we build the
+    //    INSERT payload.
+    const raw = await req.json().catch(() => null);
+    const parsed = bookingSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid booking data' }, { status: 400 });
+    }
+    const body: ClientBooking = parsed.data;
 
     // 5. Server-truth pricing. We accept the client's Price (base + addons)
     //    as a HINT but clamp negative/absurd values and always apply the

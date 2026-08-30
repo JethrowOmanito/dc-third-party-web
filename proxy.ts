@@ -122,9 +122,16 @@ export async function proxy(request: NextRequest) {
     if (isPartnerRoute || isGuestRoute) {
       const partnerToken = request.cookies.get('dc_partner_session')?.value;
       const guestToken = request.cookies.get('dc_guest_session')?.value;
-      const secret = new TextEncoder().encode(
-        process.env.JWT_SECRET || 'doctor-clean-partner-secret-well-change-this-soon'
-      );
+      // No fallback — if JWT_SECRET is missing, forcing a logout is safer
+      // than signing/verifying with a well-known string that's in git.
+      if (!process.env.JWT_SECRET) {
+        console.error('[Proxy] CRITICAL: JWT_SECRET missing — forcing logout');
+        const res = NextResponse.redirect(new URL('/login', request.url));
+        res.cookies.delete('dc_partner_session');
+        res.cookies.delete('dc_guest_session');
+        return res;
+      }
+      const secret = new TextEncoder().encode(process.env.JWT_SECRET);
 
       try {
         if (isPartnerRoute) {

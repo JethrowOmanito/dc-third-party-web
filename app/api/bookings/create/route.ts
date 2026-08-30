@@ -132,6 +132,17 @@ export async function POST(req: NextRequest) {
       .eq('id', partnerUserId)
       .maybeSingle();
 
+    // Refuse when partner_user.company_id is NULL — the DB
+    // partner_companies_consistency_trigger is defence-in-depth, but this
+    // guards even if the trigger is ever disabled. `submit/route.ts`
+    // already has the same check; keeping the two routes symmetric.
+    if (!partnerRow?.company_id) {
+      return NextResponse.json(
+        { error: 'Your account is not linked to a company. Please contact admin.' },
+        { status: 403 }
+      );
+    }
+
     const partnerCompany = partnerRow?.partner_companies as
       | { id: string; discount_type: 'percent' | 'flat' | null; discount_value: number | string | null; payment_terms: 'upfront' | 'end_of_month' | null }
       | { id: string; discount_type: 'percent' | 'flat' | null; discount_value: number | string | null; payment_terms: 'upfront' | 'end_of_month' | null }[]

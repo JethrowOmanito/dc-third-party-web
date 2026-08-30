@@ -20,7 +20,11 @@ function normalizePhone(input: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown';
+    const ip =
+      req.headers.get('cf-connecting-ip') ??
+      req.headers.get('x-real-ip') ??
+      req.headers.get('x-forwarded-for') ??
+      'unknown';
     const body = await req.json();
     const parsed = schema.safeParse(body);
     if (!parsed.success) {

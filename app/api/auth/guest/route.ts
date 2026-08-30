@@ -21,7 +21,14 @@ const NUMERIC_REGEX = /^\d+$/;
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown';
+    // Prefer Cloudflare's connecting-IP header when present — the plain
+    // x-forwarded-for header is client-settable if a request reaches the
+    // origin bypassing Cloudflare, which would defeat per-IP rate limits.
+    const ip =
+      req.headers.get('cf-connecting-ip') ??
+      req.headers.get('x-real-ip') ??
+      req.headers.get('x-forwarded-for') ??
+      'unknown';
     const body = await req.json();
 
     const parsed = schema.safeParse(body);
@@ -84,8 +91,14 @@ export async function POST(req: NextRequest) {
       referenceNumber: ref,
     };
 
-    // Create a secure session cookie
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'doctor-clean-partner-secret-well-change-this-soon');
+    // Create a secure session cookie. No fallback secret — refuse if the
+    // env var is missing, since a well-known fallback would let anyone
+    // forge guest sessions.
+    if (!process.env.JWT_SECRET) {
+      console.error('[auth/guest] CRITICAL: JWT_SECRET missing');
+      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
+    }
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     const token = await new SignJWT(sessionData)
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
