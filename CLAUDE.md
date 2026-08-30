@@ -48,9 +48,11 @@ ssh root@187.52.126.97 dc-rollback third-party-web
 - **Host:** `187.52.126.97` (Hostinger KVM 2, Kuala Lumpur)
 - **User:** `deploy` (non-root, sudo enabled), or `root` for admin ops
 - **App dir:** `/home/deploy/apps/third-party-web`
-- **pm2 name:** `third-party-web` on port `3001`
+- **pm2 names:** `third-party-web-1` (port 3001) + `third-party-web-2` (port 3011) — dual-instance behind nginx `least_conn` upstream
 - **Env file:** `/home/deploy/apps/third-party-web/.env.production.local` (chmod 600)
-- **Behind:** Cloudflare (Full strict SSL) + UFW firewall (443 open to CF IPs only)
+- **Behind:** Cloudflare (Full strict SSL, `CF-Connecting-IP` trusted for real client IP) + UFW firewall (443 open to CF IPs only)
+- **Redis:** localhost:6379 — rate limiter uses `REDIS_URL` (shared across both instances)
+- **Debug token:** `/root/backups/tpw-debug-token.txt` on VPS — used by `/api/debug/heapdump?token=...`
 
 ## Stripe webhooks
 
@@ -71,4 +73,24 @@ Stripe webhook endpoint is `https://www.securedoctorclean.com/api/webhooks/strip
 - Rollback within VPS: `ssh root@187.52.126.97 dc-rollback third-party-web`
 - Emergency Vercel fallback: change Cloudflare DNS A records for `securedoctorclean.com` back to `76.76.21.21` — Vercel serves the last-known-good frozen build in ~5 min
 - Full disaster: Hostinger weekly backup restore (~30 min RTO)
-- Debug: `/var/log/nginx/error.log` and `pm2 logs third-party-web`
+- Debug: `/var/log/nginx/error.log`, `pm2 logs third-party-web-1`, `pm2 logs third-party-web-2`, or per-request routing in `/var/log/nginx/tpw-access.log` (includes `upstream=127.0.0.1:PORT`)
+
+## Login defense (5 layers)
+
+1. **Cloudflare** — always-on DDoS at network edge
+2. **UFW** — port 443 open only to CF IP ranges
+3. **nginx `limit_req`** — 10 req/min per IP on `/api/auth/login` (burst 5) → returns 429
+4. **App limiter** — 5 attempts/15min per (ip, username) → returns 429; backed by Redis (shared across instances)
+5. **fail2ban `tpw-login` jail** — 8 failures (401\|429) in 10 min → 1-hour UFW ban
+
+## Memory-leak diagnosis
+
+If a `third-party-web-*` instance grows past ~1.5 GB:
+
+```bash
+DEBUG_TOKEN=$(ssh root@187.52.126.97 cat /root/backups/tpw-debug-token.txt)
+curl "https://www.securedoctorclean.com/api/debug/heapdump?token=$DEBUG_TOKEN"
+# Response includes filepath — scp it and open in Chrome DevTools → Memory tab
+```
+
+Old dumps auto-cleaned nightly at 04:30 (`dc-cleanup-heapdumps`).
