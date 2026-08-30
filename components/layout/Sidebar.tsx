@@ -10,6 +10,7 @@ import {
   Building2,
   BookOpen,
   Wallet,
+  BarChart3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -27,6 +28,7 @@ const navItems: NavItem[] = [
   { href: '/dashboard/check-availability', label: 'Check Availability', icon: CalendarSearch },
   { href: '/dashboard/booking/new', label: 'Book Service', icon: BookOpen, requiresApproval: true },
   { href: '/dashboard/pending-payments', label: 'Pending Payments', icon: Wallet, requiresApproval: true },
+  { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3, requiresApproval: true },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ];
 
