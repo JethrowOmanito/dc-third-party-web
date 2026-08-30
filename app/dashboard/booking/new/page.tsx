@@ -2705,6 +2705,27 @@ export default function BookingNewPage() {
                       ))}
                     </div>
 
+                    {/* Full T&C + Privacy links — always visible on mobile */}
+                    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px]">
+                      <a
+                        href="https://doctorcleanpayment.sg/terms"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-bold text-emerald-600 underline underline-offset-2 hover:text-emerald-700"
+                      >
+                        Read full Terms &amp; Conditions →
+                      </a>
+                      <span className="text-slate-300">·</span>
+                      <a
+                        href="https://doctorcleanpayment.sg/privacy"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-bold text-emerald-600 underline underline-offset-2 hover:text-emerald-700"
+                      >
+                        Privacy Policy →
+                      </a>
+                    </div>
+
                     {/* Agree checkbox */}
                     <label className={cn(
                       'flex items-center gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all select-none',
@@ -2718,7 +2739,7 @@ export default function BookingNewPage() {
                       </div>
                       <input type="checkbox" className="sr-only" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)} />
                       <p className="text-xs font-bold text-slate-700">
-                        I have read and agree to all terms &amp; conditions above.
+                        I have read and agree to the Terms &amp; Conditions and Privacy Policy.
                       </p>
                     </label>
 
