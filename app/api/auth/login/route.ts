@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const { username, password } = parsed.data;
     const rateLimitKey = `login:${ip}:${username}`;
 
-    if (!checkRateLimit(rateLimitKey, 5, 15 * 60 * 1000)) {
+    if (!(await checkRateLimit(rateLimitKey, 5, 15 * 60 * 1000))) {
       return NextResponse.json(
         { error: 'Too many failed attempts. Please wait 15 minutes.' },
         { status: 429 }
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    resetRateLimit(rateLimitKey);
+    await resetRateLimit(rateLimitKey);
 
     const company = Array.isArray(partner.company) ? partner.company[0] : partner.company;
 

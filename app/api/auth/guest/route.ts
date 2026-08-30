@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     }
 
     const key = `ref-login:${ip}`;
-    if (!checkRateLimit(key, 10, 15 * 60 * 1000)) {
+    if (!(await checkRateLimit(key, 10, 15 * 60 * 1000))) {
       return NextResponse.json(
         { error: 'Too many attempts. Please wait 15 minutes.' },
         { status: 429 }

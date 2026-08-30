@@ -30,10 +30,10 @@ export async function POST(req: NextRequest) {
     const phone = normalizePhone(parsed.data.phone);
     const code = parsed.data.code;
 
-    if (!checkRateLimit(`wa-login:${phone}`, 20, 60 * 60 * 1000)) {
+    if (!(await checkRateLimit(`wa-login:${phone}`, 20, 60 * 60 * 1000))) {
       return NextResponse.json({ error: 'Too many login attempts.' }, { status: 429 });
     }
-    if (!checkRateLimit(`wa-login-ip:${ip}`, 40, 60 * 60 * 1000)) {
+    if (!(await checkRateLimit(`wa-login-ip:${ip}`, 40, 60 * 60 * 1000))) {
       return NextResponse.json({ error: 'Too many attempts from your device.' }, { status: 429 });
     }
 

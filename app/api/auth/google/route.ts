@@ -8,7 +8,7 @@ const GOOGLE_JWKS = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth
 export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown';
-    if (!checkRateLimit(`google-signin:${ip}`, 20, 60 * 60 * 1000)) {
+    if (!(await checkRateLimit(`google-signin:${ip}`, 20, 60 * 60 * 1000))) {
       return NextResponse.json({ error: 'Too many attempts. Please wait.' }, { status: 429 });
     }
 

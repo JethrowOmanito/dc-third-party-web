@@ -35,14 +35,14 @@ export async function POST(req: NextRequest) {
     const phone = normalizePhone(parsed.data.phone);
 
     // Rate limit per phone: 3 sends per hour
-    if (!checkRateLimit(`otp:phone:${phone}`, 3, 60 * 60 * 1000)) {
+    if (!(await checkRateLimit(`otp:phone:${phone}`, 3, 60 * 60 * 1000))) {
       return NextResponse.json(
         { error: 'Too many OTP requests for this number. Please wait an hour.' },
         { status: 429 }
       );
     }
     // Rate limit per IP: 10 sends per hour
-    if (!checkRateLimit(`otp:ip:${ip}`, 10, 60 * 60 * 1000)) {
+    if (!(await checkRateLimit(`otp:ip:${ip}`, 10, 60 * 60 * 1000))) {
       return NextResponse.json(
         { error: 'Too many OTP requests from your device. Please wait an hour.' },
         { status: 429 }

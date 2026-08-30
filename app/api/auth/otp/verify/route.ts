@@ -31,10 +31,10 @@ export async function POST(req: NextRequest) {
     const code = parsed.data.code;
 
     // Rate limit verify attempts per phone: 20 per hour
-    if (!checkRateLimit(`otp:verify:${phone}`, 20, 60 * 60 * 1000)) {
+    if (!(await checkRateLimit(`otp:verify:${phone}`, 20, 60 * 60 * 1000))) {
       return NextResponse.json({ error: 'Too many verification attempts.' }, { status: 429 });
     }
-    if (!checkRateLimit(`otp:verify-ip:${ip}`, 40, 60 * 60 * 1000)) {
+    if (!(await checkRateLimit(`otp:verify-ip:${ip}`, 40, 60 * 60 * 1000))) {
       return NextResponse.json({ error: 'Too many attempts from your device.' }, { status: 429 });
     }
 

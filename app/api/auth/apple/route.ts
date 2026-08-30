@@ -8,7 +8,7 @@ const APPLE_JWKS = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/ke
 export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown';
-    if (!checkRateLimit(`apple-signin:${ip}`, 20, 60 * 60 * 1000)) {
+    if (!(await checkRateLimit(`apple-signin:${ip}`, 20, 60 * 60 * 1000))) {
       return NextResponse.json({ error: 'Too many attempts. Please wait.' }, { status: 429 });
     }
 
