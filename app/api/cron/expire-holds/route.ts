@@ -9,6 +9,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { timingSafeEqual } from 'crypto';
+import * as Sentry from '@sentry/nextjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,20 +24,31 @@ export async function GET(req: NextRequest) {
   return run(req);
 }
 
+function safeCompareSecret(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
 async function run(req: NextRequest) {
   try {
     const expected = process.env.CRON_SECRET;
     if (!expected) {
-      console.error('[cron/expire-holds] CRITICAL: CRON_SECRET missing');
+      Sentry.captureMessage('cron_secret_missing', {
+        level: 'fatal',
+        tags: { route: 'cron/expire-holds' },
+      });
       return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
     }
 
-    // Accept either header (`Authorization: Bearer <secret>`) or query
-    // (`?secret=<secret>`) — crontab tends to be easier with headers.
+    // Header-only. Previously accepted the secret in a query string
+    // (`?secret=...`) which lands verbatim in nginx access logs, defeats
+    // the point of a secret, and shows up in browser history if anyone
+    // ever pastes the URL. Crontab always uses the Authorization header.
     const bearer = req.headers.get('authorization') ?? '';
-    const provided = bearer.replace(/^Bearer\s+/i, '').trim() ||
-                     req.nextUrl.searchParams.get('secret') || '';
-    if (provided !== expected) {
+    const provided = bearer.replace(/^Bearer\s+/i, '').trim();
+    if (!provided || !safeCompareSecret(provided, expected)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -57,7 +70,7 @@ async function run(req: NextRequest) {
       .limit(MAX_BATCH);
 
     if (selErr) {
-      console.error('[cron/expire-holds] select failed:', selErr);
+      Sentry.captureException(selErr, { tags: { route: 'cron/expire-holds', op: 'select' } });
       return NextResponse.json({ error: 'select_failed' }, { status: 500 });
     }
     if (!stale || stale.length === 0) {
@@ -76,7 +89,10 @@ async function run(req: NextRequest) {
       .in('id', ids);
 
     if (updErr) {
-      console.error('[cron/expire-holds] update failed:', updErr);
+      Sentry.captureException(updErr, {
+        tags: { route: 'cron/expire-holds', op: 'update' },
+        extra: { batchSize: ids.length },
+      });
       return NextResponse.json({ error: 'update_failed' }, { status: 500 });
     }
 
@@ -93,7 +109,7 @@ async function run(req: NextRequest) {
       refIds: stale.map(r => r.Ref_ID).filter(Boolean),
     });
   } catch (err) {
-    console.error('[cron/expire-holds] unexpected:', err);
+    Sentry.captureException(err, { tags: { route: 'cron/expire-holds' } });
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
   }
 }

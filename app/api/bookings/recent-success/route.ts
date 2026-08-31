@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { checkRateLimit } from '@/lib/utils';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import Stripe from 'stripe';
+import * as Sentry from '@sentry/nextjs';
 
 export async function GET(req: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
@@ -35,6 +37,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
     }
 
+    // Per-partner throttle. Dashboard polls every 5s = 12/min; cap at 30/min
+    // so a runaway tab or a script can't amplify the Stripe fan-out below.
+    if (!(await checkRateLimit(`recent-success:${userId}`, 30, 60_000))) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    }
+
     const supabase = createAdminClient();
 
     // Look for confirmed bookings in the last 5 minutes
@@ -59,7 +67,10 @@ export async function GET(req: NextRequest) {
     }
 
     if (data && data.length > 0) {
-      return NextResponse.json({ booking: data[0] });
+      return NextResponse.json(
+        { booking: data[0] },
+        { headers: { 'Cache-Control': 'private, no-store' } }
+      );
     }
 
     // BACKGROUND SYNC FOR ASYNC PAYMENTS (e.g. PayNow)
@@ -74,7 +85,11 @@ export async function GET(req: NextRequest) {
       .gte('created_at', fifteenMinutesAgo);
 
     if (pending && pending.length > 0) {
-       for (const p of pending) {
+       // Cap the Stripe amplification. A partner with 20 abandoned intents used
+       // to trigger 20 sequential Stripe API calls per dashboard poll (every 5s);
+       // 3 is enough to sync a legitimate in-flight PayNow/GrabPay flow.
+       const capped = pending.slice(0, 3);
+       for (const p of capped) {
           try {
              const intent = await stripe.paymentIntents.retrieve(p.stripe_payment_intent_id);
              if (intent.status === 'succeeded') {
@@ -96,18 +111,26 @@ export async function GET(req: NextRequest) {
                 });
 
                 // Return this one so they get redirected to success page!
-                return NextResponse.json({ booking: { id: p.id, Ref_ID: p.Ref_ID, stripe_payment_intent_id: p.stripe_payment_intent_id } });
+                return NextResponse.json(
+                  { booking: { id: p.id, Ref_ID: p.Ref_ID, stripe_payment_intent_id: p.stripe_payment_intent_id } },
+                  { headers: { 'Cache-Control': 'private, no-store' } }
+                );
              }
-          } catch(e) {
-             console.error('Error syncing pending intent in background', e);
+          } catch (e) {
+             Sentry.captureException(e, {
+               tags: { route: 'bookings/recent-success', op: 'stripe.retrieve' },
+               extra: { intentId: p.stripe_payment_intent_id, bookingId: p.id },
+             });
           }
        }
     }
 
-    return NextResponse.json({ booking: null });
+    return NextResponse.json(
+      { booking: null },
+      { headers: { 'Cache-Control': 'private, no-store' } }
+    );
   } catch (error) {
-    console.error('Recent Success Scout Error:', error);
-    // Don't leak error internals to the client.
+    Sentry.captureException(error, { tags: { route: 'bookings/recent-success' } });
     return NextResponse.json({ error: 'Failed to check recent bookings' }, { status: 500 });
   }
 }

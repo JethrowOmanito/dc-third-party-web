@@ -1,4 +1,12 @@
 import { createClient } from '@/lib/supabase/server';
+import * as Sentry from '@sentry/nextjs';
+
+export class AvailabilityLookupError extends Error {
+  constructor(message: string, public cause?: unknown) {
+    super(message);
+    this.name = 'AvailabilityLookupError';
+  }
+}
 
 /**
  * Converts "HH:MM AM/PM" or "HH:MM:SS" to minutes since midnight for comparison.
@@ -95,7 +103,13 @@ export async function validateBookingAvailability(
     .eq('date_capacity', date)
     .eq('service', dbService);
 
-  if (capError) throw capError;
+  if (capError) {
+    Sentry.captureException(capError, {
+      tags: { fn: 'validateBookingAvailability', op: 'Capacity.select' },
+      extra: { serviceKey, date },
+    });
+    throw new AvailabilityLookupError('Capacity lookup failed', capError);
+  }
 
   if (capRecords && capRecords.length > 0) {
     const slotRecord = capRecords.find(r => {
@@ -126,7 +140,13 @@ export async function validateBookingAvailability(
     .eq('role', 'cleaner')
     .contains('service_assigned', [dbService]);
 
-  if (cleanerError) throw cleanerError;
+  if (cleanerError) {
+    Sentry.captureException(cleanerError, {
+      tags: { fn: 'validateBookingAvailability', op: 'user.select-cleaners' },
+      extra: { serviceKey, date },
+    });
+    throw new AvailabilityLookupError('Cleaner lookup failed', cleanerError);
+  }
   if (!cleaners || cleaners.length === 0) {
     // Fallback: search all cleaners if no service-specific ones found
     const { data: allCleaners } = await supabase.from('user').select('id, username').eq('role', 'cleaner');

@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
+import * as Sentry from '@sentry/nextjs';
 
 // ─── Edge-compatible rate limit store ────────────────────────────────────────
 type RLEntry = { count: number; resetAt: number };
@@ -50,8 +51,12 @@ function checkLimit(
     e.count++;
     return { ok: true, retryAfterSec: 0, remaining: max - e.count };
   } catch (err) {
-    console.error('Rate limit check failed:', err);
-    return { ok: true, retryAfterSec: 0, remaining: 1 }; // Fail open
+    // Fail open so a store bug can't take down the whole site — but
+    // Sentry-report so we notice. If this fires in prod it means the
+    // in-memory limiter is broken, which is a real degradation because
+    // Cloudflare + nginx + the app-tier limiter are still enforcing.
+    Sentry.captureException(err, { tags: { fn: 'proxy.checkLimit', key } });
+    return { ok: true, retryAfterSec: 0, remaining: 1 };
   }
 }
 
@@ -142,8 +147,8 @@ export async function proxy(request: NextRequest) {
           if (!guestToken) return NextResponse.redirect(new URL('/login', request.url));
           await jwtVerify(guestToken, secret);
         }
-      } catch (error) {
-        console.error('[Proxy] Auth Verification failed:', error);
+      } catch {
+        // Expected on expired/tampered tokens — no Sentry noise for these.
         const redirectRes = NextResponse.redirect(new URL('/login', request.url));
         if (isPartnerRoute) redirectRes.cookies.delete('dc_partner_session');
         if (isGuestRoute) redirectRes.cookies.delete('dc_guest_session');
@@ -203,8 +208,9 @@ export async function proxy(request: NextRequest) {
 
     return supabaseResponse;
   } catch (err) {
-    // Catch-all to prevent 500 MIDDLEWARE_INVOCATION_FAILED
-    console.error('Proxy Error:', err);
+    // Catch-all to prevent 500 MIDDLEWARE_INVOCATION_FAILED. Fail open on
+    // the request, but surface the error so we don't lose visibility.
+    Sentry.captureException(err, { tags: { fn: 'proxy' } });
     return NextResponse.next();
   }
 }

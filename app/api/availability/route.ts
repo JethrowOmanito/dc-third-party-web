@@ -16,8 +16,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid date.' }, { status: 400 });
   }
 
-  const selected = new Date(date + 'T00:00:00');
+  // Compare midnight-SGT to midnight-SGT explicitly. Parsing "YYYY-MM-DDT00:00:00"
+  // without a Z uses server-local TZ (UTC on Vercel/VPS), so the naïve parse can
+  // reject valid same-day bookings during the 00:00–08:00 SGT boundary window.
   const SGT_OFFSET_MS = 8 * 60 * 60 * 1000;
+  const selected = new Date(Date.UTC(dy, dm - 1, dd) - SGT_OFFSET_MS);
   const today = new Date(Math.floor((Date.now() + SGT_OFFSET_MS) / 86_400_000) * 86_400_000 - SGT_OFFSET_MS);
   const maxDate = new Date(today);
   maxDate.setMonth(maxDate.getMonth() + 3);
@@ -86,7 +89,9 @@ export async function GET(req: NextRequest) {
   type CapacityRow = { Start_Time: string | null; End_Time: string | null; capacity: number | null; booked_count: number | null };
   const slots = (rows as unknown as CapacityRow[]).map((row) => {
     const meta = slotMeta[row.Start_Time ?? ''];
-    const available = (row.booked_count ?? 0) < (row.capacity ?? 999);
+    // Fail closed on null capacity — a misconfigured slot must NOT accept
+    // unlimited bookings. Ops should see the slot as unavailable and fix it.
+    const available = (row.booked_count ?? 0) < (row.capacity ?? 0);
     const rawStart = row.Start_Time ?? '';
     const rawEnd = row.End_Time ?? '';
     return {

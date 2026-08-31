@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { checkRateLimit } from '@/lib/utils';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
+import * as Sentry from '@sentry/nextjs';
 
 export async function POST(req: Request) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
@@ -39,6 +41,17 @@ export async function POST(req: Request) {
     const partnerUserId = user.id as string | undefined;
     if (!partnerUserId) {
       return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
+    }
+
+    // Per-partner throttle before we hit Stripe. Each call creates or
+    // retrieves a PaymentIntent (billable API); a runaway client shouldn't
+    // be able to spam and rack up Stripe usage. 10/min is well above a
+    // human clicking Pay a couple times on a slow network.
+    if (!(await checkRateLimit(`create-intent:${partnerUserId}`, 10, 60_000))) {
+      return NextResponse.json(
+        { error: 'Too many payment attempts. Please wait a minute.' },
+        { status: 429 }
+      );
     }
     const _admin = createAdminClient();
     const { data: liveStatus } = await _admin
@@ -145,15 +158,17 @@ export async function POST(req: Request) {
         },
       });
     } catch (stripeErr: any) {
-      console.error('[Stripe Intent] paymentIntents.create failed:', {
-        bookingId,
-        secureAmount,
-        stripeType: stripeErr?.type,
-        stripeCode: stripeErr?.code,
-        stripeMessage: stripeErr?.message,
+      Sentry.captureException(stripeErr, {
+        tags: { route: 'checkout/create-intent', op: 'paymentIntents.create' },
+        extra: {
+          bookingId,
+          secureAmount,
+          stripeType: stripeErr?.type,
+          stripeCode: stripeErr?.code,
+        },
       });
       return NextResponse.json(
-        { error: `Stripe: ${stripeErr?.message || 'payment initialization failed.'}` },
+        { error: 'Payment initialization failed. Please try again.' },
         { status: 500 }
       );
     }
@@ -165,9 +180,21 @@ export async function POST(req: Request) {
       .eq('id', bookingId);
 
     if (linkError) {
-      console.error('[Stripe Intent] DB Link Error:', linkError);
-      // Best-effort cancel so we don't leak an unlinked intent
-      try { await stripe.paymentIntents.cancel(paymentIntent.id); } catch {}
+      Sentry.captureException(linkError, {
+        tags: { route: 'checkout/create-intent', op: 'link-intent' },
+        extra: { bookingId, paymentIntentId: paymentIntent.id },
+      });
+      // Best-effort cancel so we don't leak an unlinked intent. Report the
+      // cancel failure too — it means an orphan intent exists in Stripe.
+      try {
+        await stripe.paymentIntents.cancel(paymentIntent.id);
+      } catch (cancelErr) {
+        Sentry.captureMessage('orphan_payment_intent', {
+          level: 'error',
+          tags: { route: 'checkout/create-intent' },
+          extra: { bookingId, paymentIntentId: paymentIntent.id, cancelErr: String(cancelErr) },
+        });
+      }
       return NextResponse.json({ error: 'Failed to initialize payment. Please try again.' }, { status: 500 });
     }
 
@@ -176,13 +203,9 @@ export async function POST(req: Request) {
       id: paymentIntent.id,
     });
   } catch (error: any) {
-    console.error('[Stripe Intent] Unhandled error:', {
-      message: error?.message,
-      name: error?.name,
-      stack: error?.stack,
-    });
+    Sentry.captureException(error, { tags: { route: 'checkout/create-intent', op: 'unhandled' } });
     return NextResponse.json(
-      { error: error?.message ? `Init failed: ${error.message}` : 'Payment initialization failed. Please try again.' },
+      { error: 'Payment initialization failed. Please try again.' },
       { status: 500 }
     );
   }

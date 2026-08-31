@@ -39,15 +39,21 @@ Sentry.init({
     /doubleclick\.net/i,
   ],
 
-  // Drop events with anonymous top frames (browser-extension-injected script signature)
+  // Drop events with an anonymous top frame ONLY when the stack shows no
+  // trace of our own bundle. Browser-extension-injected scripts typically
+  // have a very short stack with no reference to /_next/ chunks; real
+  // vendor errors (Stripe.js, jose) still keep our app frames underneath.
   beforeSend(event) {
     const frames = event.exception?.values?.[0]?.stacktrace?.frames;
-    if (frames && frames.length > 0) {
-      const top = frames[frames.length - 1];
-      if (!top.filename || top.filename === "<anonymous>") {
-        return null;
-      }
-    }
-    return event;
+    if (!frames || frames.length === 0) return event;
+    const top = frames[frames.length - 1];
+    const topIsAnon = !top.filename || top.filename === "<anonymous>";
+    if (!topIsAnon) return event;
+    const hasAppFrame = frames.some((f) => {
+      const fn = f.filename ?? "";
+      return fn.includes("/_next/") || fn.includes("securedoctorclean");
+    });
+    if (hasAppFrame) return event;
+    return null;
   },
 });

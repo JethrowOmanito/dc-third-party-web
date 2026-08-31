@@ -9,10 +9,12 @@
 // legacy /api/bookings/create route.
 
 import { createAdminClient } from '@/lib/supabase/admin';
+import { checkRateLimit } from '@/lib/utils';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import * as Sentry from '@sentry/nextjs';
 
 // Bounded shape — the client-facing wizard is trusted for the *shape*, but
 // every field has a hard cap so a compromised or scripted client can't (a)
@@ -82,6 +84,15 @@ export async function POST(req: NextRequest) {
     const partnerUserId = jwtUser.id;
     if (!partnerUserId) {
       return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
+    }
+
+    // Per-partner insert cap. Symmetric with /api/bookings/create so a
+    // partner can't route around one endpoint's limit by hitting the other.
+    if (!(await checkRateLimit(`booking-create:${partnerUserId}`, 20, 60 * 60 * 1000))) {
+      return NextResponse.json(
+        { error: 'Too many bookings created recently. Please wait a bit.' },
+        { status: 429 }
+      );
     }
 
     // 2. Refetch partner + company from DB (JWT payload is not authoritative).
@@ -154,6 +165,16 @@ export async function POST(req: NextRequest) {
     }
     const body: ClientBooking = parsed.data;
 
+    // Idempotency key from header. Client sends the same UUID for a
+    // double-click/retry; the DB unique index on
+    // (owned_by_third_party, client_request_id) turns the second insert
+    // into a 23505 that we handle by returning the ORIGINAL booking.
+    // Requires migration 20260831010000_booking_idempotency_key.sql.
+    const clientRequestId = req.headers.get('x-idempotency-key');
+    if (clientRequestId && !/^[0-9a-f-]{16,64}$/i.test(clientRequestId)) {
+      return NextResponse.json({ error: 'Invalid idempotency key' }, { status: 400 });
+    }
+
     // 5. Server-truth pricing. We accept the client's Price (base + addons)
     //    as a HINT but clamp negative/absurd values and always apply the
     //    server-known discount + GST from scratch.
@@ -213,16 +234,52 @@ export async function POST(req: NextRequest) {
       partner_company_id: partner.company_id,
       // Canonical partner source code — actual company link lives in partner_company_id.
       source: 'ID',
+      // NULL when either the client didn't send one OR the migration
+      // hasn't run yet (INSERT of a NULL to a non-existent column throws
+      // — see catch below).
+      ...(clientRequestId ? { client_request_id: clientRequestId } : {}),
     };
 
-    const { data: event, error: insErr } = await admin
+    let { data: event, error: insErr } = await admin
       .from('events')
       .insert(row)
       .select('id, "Ref_ID"')
       .single();
 
+    // 23505 = unique_violation on the (owned_by_third_party, client_request_id)
+    // index → this is a legitimate retry, return the original booking so the
+    // client's payment flow continues seamlessly.
+    if (insErr && (insErr as any).code === '23505' && clientRequestId) {
+      const { data: existing } = await admin
+        .from('events')
+        .select('id, "Ref_ID"')
+        .eq('owned_by_third_party', partnerUserId)
+        .eq('client_request_id', clientRequestId)
+        .maybeSingle();
+      if (existing) {
+        event = existing as typeof event;
+        insErr = null;
+      }
+    }
+
+    // 42703 = undefined_column → migration hasn't been applied yet.
+    // Retry the insert without the idempotency column so bookings still work.
+    if (insErr && (insErr as any).code === '42703' && clientRequestId) {
+      Sentry.captureMessage('client_request_id_column_missing', {
+        level: 'warning',
+        tags: { route: 'bookings/submit' },
+      });
+      const { client_request_id: _skip, ...rowNoKey } = row as any;
+      const retry = await admin.from('events').insert(rowNoKey).select('id, "Ref_ID"').single();
+      event = retry.data as typeof event;
+      insErr = retry.error;
+    }
+
     if (insErr || !event) {
-      console.error('[bookings/submit] insert failed:', insErr);
+      Sentry.captureException(insErr, {
+        tags: { route: 'bookings/submit', op: 'events.insert' },
+        extra: { partnerUserId },
+      });
       return NextResponse.json({ error: 'Failed to create booking' }, { status: 500 });
     }
 
@@ -244,7 +301,7 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (err) {
-    console.error('[bookings/submit] unexpected:', err);
+    Sentry.captureException(err, { tags: { route: 'bookings/submit' } });
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
   }
 }

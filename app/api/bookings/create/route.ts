@@ -1,10 +1,12 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { checkRateLimit } from '@/lib/utils';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateBookingAvailability } from '@/lib/api/availability-check';
+import * as Sentry from '@sentry/nextjs';
 
 const bookingSchema = z.object({
   service: z.string(),
@@ -54,6 +56,16 @@ export async function POST(req: NextRequest) {
     if (!partnerUserId) {
       return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
     }
+
+    // Per-partner insert cap — 20/hour is 5x a realistic burst. Blocks
+    // a compromised or scripted partner from filling `events` (which fans
+    // out to email/WhatsApp downstream).
+    if (!(await checkRateLimit(`booking-create:${partnerUserId}`, 20, 60 * 60 * 1000))) {
+      return NextResponse.json(
+        { error: 'Too many bookings created recently. Please wait a bit.' },
+        { status: 429 }
+      );
+    }
     const { data: liveStatus } = await (await createClient())
       .from('partner_user')
       .select('approval_status, force_logout')
@@ -84,6 +96,15 @@ export async function POST(req: NextRequest) {
     const parsed = bookingSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid booking data', details: parsed.error.format() }, { status: 400 });
+    }
+
+    // Idempotency key — same pattern as /api/bookings/submit. Requires
+    // migration 20260831010000_booking_idempotency_key.sql; if the
+    // migration hasn't run, the retry-without-column fallback below
+    // keeps bookings working.
+    const clientRequestId = req.headers.get('x-idempotency-key');
+    if (clientRequestId && !/^[0-9a-f-]{16,64}$/i.test(clientRequestId)) {
+      return NextResponse.json({ error: 'Invalid idempotency key' }, { status: 400 });
     }
 
     const data = parsed.data;
@@ -194,7 +215,11 @@ export async function POST(req: NextRequest) {
       return null;
     };
 
-    const { data: event, error: insertError } = await supabase.from('events').insert({
+    // NOTE: `.select('id, "Ref_ID"')` below returns only the minimum the
+    // client needs — the caller uses the id to link the Stripe intent and
+    // the Ref_ID for display. Returning the whole row would leak internal
+    // columns (webhook_processed, stripe_payment_intent_id, payment_status).
+    const insertRow: any = {
       Title: data.contact.address,
       Service_Type: data.service,
       Start_Date: data.date,
@@ -226,8 +251,42 @@ export async function POST(req: NextRequest) {
       // Canonical partner source code — actual company link lives in partner_company_id.
       source: 'ID',
       lifecycle_state: 'active',
-    }).select().single();
-    
+    };
+    if (clientRequestId) insertRow.client_request_id = clientRequestId;
+
+    let { data: event, error: insertError } = await supabase
+      .from('events')
+      .insert(insertRow)
+      .select('id, "Ref_ID"')
+      .single();
+
+    // 23505 = unique_violation on (owned_by_third_party, client_request_id)
+    // — legit retry, return the original.
+    if (insertError && (insertError as any).code === '23505' && clientRequestId) {
+      const { data: existing } = await supabase
+        .from('events')
+        .select('id, "Ref_ID"')
+        .eq('owned_by_third_party', partnerUserId)
+        .eq('client_request_id', clientRequestId)
+        .maybeSingle();
+      if (existing) {
+        event = existing as typeof event;
+        insertError = null;
+      }
+    }
+
+    // 42703 = undefined_column — migration hasn't run. Retry without the key.
+    if (insertError && (insertError as any).code === '42703' && clientRequestId) {
+      Sentry.captureMessage('client_request_id_column_missing', {
+        level: 'warning',
+        tags: { route: 'bookings/create' },
+      });
+      const { client_request_id: _skip, ...rowNoKey } = insertRow;
+      const retry = await supabase.from('events').insert(rowNoKey).select('id, "Ref_ID"').single();
+      event = retry.data as typeof event;
+      insertError = retry.error;
+    }
+
     if (event) {
        // Log the creation for the History tab
        const supabaseAdmin = createAdminClient(); // Need admin to bypass RLS for logs usually
@@ -238,7 +297,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (insertError) {
-      console.error('Booking insertion error:', insertError);
+      Sentry.captureException(insertError, {
+        tags: { route: 'bookings/create', op: 'events.insert' },
+        extra: { partnerUserId },
+      });
       return NextResponse.json({ error: 'Failed to create booking' }, { status: 500 });
     }
 
@@ -248,7 +310,7 @@ export async function POST(req: NextRequest) {
     );
 
   } catch (err) {
-    console.error('Booking API Error:', err);
+    Sentry.captureException(err, { tags: { route: 'bookings/create' } });
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }
 }

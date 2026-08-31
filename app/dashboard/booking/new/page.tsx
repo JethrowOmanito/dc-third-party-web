@@ -1015,9 +1015,22 @@ export default function BookingNewPage() {
       // owned_by_third_party, Price, and payment_status can't be tampered
       // via DevTools/client bundle. The server re-derives them from the
       // JWT + partner_user + partner_companies rows.
+      //
+      // Idempotency key: same UUID for the whole click → the server
+      // returns the ORIGINAL booking on retry instead of inserting a
+      // duplicate. `isSubmitting.current` prevents in-flight double-click
+      // but doesn't protect against network retries / page refresh
+      // reloading a cached POST — this does.
+      const idempotencyKey =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const submitRes = await fetch('/api/bookings/submit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Idempotency-Key': idempotencyKey,
+        },
         body: JSON.stringify(newBooking),
       });
       const submitRaw = await submitRes.text();
@@ -1113,27 +1126,33 @@ export default function BookingNewPage() {
     try {
       const fullAddress = [fetchedAddress, unitNumber ? `#${unitNumber}` : '', `Singapore ${postalCode}`]
         .filter(Boolean).join(', ');
-      const { data, error } = await supabase
-        .from('events')
-        .insert({
+
+      // Route through the server so Price/status/source/owned_by_third_party
+      // /partner_company_id can't be tampered from the browser bundle.
+      const res = await fetch('/api/bookings/inquiry-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           Title: `[INQUIRY] ${fullAddress}`,
-          Name: name, Email: email, Whatsapp_Number: phone,
+          Name: name,
+          Email: email,
+          Whatsapp_Number: phone,
           Start_Date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null,
           Service_Type: serviceDbName,
-          status: 'pending', lifecycle_state: 'active',
-          source: user?.company_code || 'AGT',
-          owned_by_third_party: user?.id,
-          Assign_Cleaner: [],
           Note: `Inquiry. ${notes}`,
-          Price: 0,
-        })
-        .select('id').single();
+        }),
+      });
+      const raw = await res.text();
+      let data: any = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch { /* keep empty */ }
+      if (!res.ok || !data.id) {
+        throw new Error(data.error || `Failed to initialize chat (status ${res.status}).`);
+      }
 
-      if (error) throw error;
       setCurrentBookingId(data.id);
       setStep('chat');
     } catch (err: any) {
-      alert('Failed to initialize chat: ' + err.message);
+      alert('Failed to initialize chat: ' + (err?.message ?? 'Unknown error'));
     } finally {
       setSubmitting(false);
     }

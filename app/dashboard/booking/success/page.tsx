@@ -28,7 +28,22 @@ export default function BookingSuccessPage() {
 
   useEffect(() => {
     setMounted(true);
-    
+
+    // Strip payment_intent_client_secret from the URL BEFORE any 3rd-party
+    // beacon fires (Sentry replay, analytics, etc.). The client_secret
+    // permits confirming/retrieving the PaymentIntent from the browser —
+    // it must never end up in a Referer header sent to a 3rd party.
+    // We keep payment_intent (needed for the sync poll) but drop the secret.
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('payment_intent_client_secret')) {
+        url.searchParams.delete('payment_intent_client_secret');
+        // Also drop redirect_status — informational and cluttering.
+        url.searchParams.delete('redirect_status');
+        window.history.replaceState({}, '', url.toString());
+      }
+    }
+
     // HOME-FIRST PROTOCOL: Check if this is the original tab where the session marker was set.
     // sessionStorage is unique per tab, so the new Stripe-opened tab will NOT have this.
     const alphaMarker = sessionStorage.getItem('is_alpha_tab');

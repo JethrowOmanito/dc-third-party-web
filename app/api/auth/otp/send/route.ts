@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/utils';
 import bcrypt from 'bcryptjs';
+import { randomInt } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -19,7 +20,8 @@ function normalizePhone(input: string): string {
 }
 
 function generateCode(): string {
-  const n = Math.floor(Math.random() * 1_000_000);
+  // CSPRNG — Math.random is predictable and unfit for authentication codes.
+  const n = randomInt(0, 1_000_000);
   return String(n).padStart(6, '0');
 }
 

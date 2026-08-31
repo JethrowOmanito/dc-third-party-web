@@ -53,7 +53,11 @@ const APPLE_SERVICES_ID = process.env.NEXT_PUBLIC_APPLE_SERVICES_ID ?? '';
 // Only set to '1' for local dev to skip OTP verification during testing.
 // When set, the OTP verification step is hidden and considered auto-passed on the client.
 // Backend enforces via PARTNER_SIGNUP_BYPASS_OTP (must match).
-const BYPASS_OTP = process.env.NEXT_PUBLIC_PARTNER_SIGNUP_BYPASS_OTP === '1';
+// Belt-and-braces: never accept the client-side bypass in a production build,
+// even if NEXT_PUBLIC_PARTNER_SIGNUP_BYPASS_OTP was accidentally set at build time.
+const BYPASS_OTP =
+  process.env.NODE_ENV !== 'production' &&
+  process.env.NEXT_PUBLIC_PARTNER_SIGNUP_BYPASS_OTP === '1';
 
 const LOGO_URL =
   'https://agyzvknaqnamaoczxgsb.supabase.co/storage/v1/object/public/doctor-clean-files/uploads/doctor_clean_logo.542c4621e2b4379e4d95.png';

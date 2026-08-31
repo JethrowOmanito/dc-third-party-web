@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     }
 
     const passwordValid = partner.password_hash
-      ? bcrypt.compareSync(password, partner.password_hash)
+      ? await bcrypt.compare(password, partner.password_hash)
       : false;
 
     if (!passwordValid) {

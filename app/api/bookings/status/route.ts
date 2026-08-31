@@ -4,6 +4,36 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { checkRateLimit } from '@/lib/utils';
+import * as Sentry from '@sentry/nextjs';
+
+// Shared JWT verification for the two authenticated gates. Returns the
+// partner id on success, or a NextResponse (401/500) on failure that the
+// caller should return directly.
+async function requirePartner(): Promise<
+  | { partnerId: string }
+  | NextResponse
+> {
+  if (!process.env.JWT_SECRET) {
+    console.error('[bookings/status] CRITICAL: JWT_SECRET missing');
+    return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
+  }
+  const cookieStore = await cookies();
+  const token = cookieStore.get('dc_partner_session')?.value;
+  if (!token) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+  try {
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+    const partnerId = (payload as { id?: string }).id;
+    if (!partnerId) {
+      return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
+    }
+    return { partnerId };
+  } catch {
+    return NextResponse.json({ error: 'Session expired' }, { status: 401 });
+  }
+}
 
 export async function GET(req: Request) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
@@ -31,34 +61,32 @@ export async function GET(req: Request) {
     let query = supabase.from('events').select('id, status, payment_status, stripe_payment_intent_id, Ref_ID, webhook_processed, Email, owned_by_third_party');
 
     // --- SECURITY GATE 1: AUTHENTICATED UUID LOOKUP ---
+    // Precedence: if the caller sent both `id` and `payment_intent`, fall
+    // through to Gate 3 which runs the fuller Stripe sync. The success page
+    // is the primary caller of that combined shape.
     if (bookingId && !refId && !intentIdFromUrl) {
-       // FORTRESS: Verify custom partner session instead of Supabase Auth
-       const cookieStore = await cookies();
-       const token = cookieStore.get('dc_partner_session')?.value;
-       // No fallback — refuse if JWT_SECRET is missing rather than fall
-       // back to a string that lives in the repo.
-       if (!process.env.JWT_SECRET) {
-         console.error('[bookings/status] CRITICAL: JWT_SECRET missing');
-         return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
-       }
-       const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+       const auth = await requirePartner();
+       if (auth instanceof NextResponse) return auth;
 
-       if (!token) {
-         return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+       // Per-partner throttle. Success page polls this endpoint every 2s
+       // until confirmed — cap at 60/min so a stuck loop or a compromised
+       // cookie can't hammer Stripe + DB indefinitely.
+       if (!(await checkRateLimit(`bookings-status-auth:${auth.partnerId}`, 60, 60_000))) {
+         return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
        }
 
-       let partnerUser: any;
-       try {
-         const { payload } = await jwtVerify(token, secret);
-         partnerUser = payload;
-       } catch (err) {
-         return NextResponse.json({ error: 'Session expired' }, { status: 401 });
-       }
-       
        query = query.eq('id', bookingId);
        const { data: booking, error } = await query.single();
-       
-       if (!booking || booking.owned_by_third_party !== partnerUser.id) {
+
+       // Return the same 403 for both "not found" and "not yours" so the
+       // endpoint can't be used to enumerate booking UUIDs. Log the
+       // Supabase-side error separately so real DB failures still surface
+       // in Sentry instead of being masked as an access denial.
+       if (error && (error as any).code !== 'PGRST116') {
+         Sentry.captureException(error, { tags: { route: 'bookings/status', gate: '1' } });
+         return NextResponse.json({ error: 'Internal system error' }, { status: 500 });
+       }
+       if (!booking || booking.owned_by_third_party !== auth.partnerId) {
          return NextResponse.json({ error: 'Access Denied' }, { status: 403 });
        }
 
@@ -110,14 +138,33 @@ export async function GET(req: Request) {
     }
 
     // --- SECURITY GATE 3: STRIPE REDIRECT (Instant Sync) ---
+    // Authenticated + owner-scoped. Previously accepted an unauth caller
+    // with a valid payment_intent id — anyone who scraped a pi_... from
+    // logs/Referer could then force-flip a booking to `paid`. Now we
+    // require the partner cookie and verify booking ownership.
     if (intentIdFromUrl) {
-       const { data: booking, error: bError } = await query.eq('stripe_payment_intent_id', intentIdFromUrl).single();
-       
-       if (!booking) {
-          console.error(`[Status API] No booking found for intent ${intentIdFromUrl}`);
-          return NextResponse.json({ error: 'Payment intent not linked' }, { status: 404 });
+       const auth = await requirePartner();
+       if (auth instanceof NextResponse) return auth;
+
+       // Same throttle as Gate 1 — the success page hits both branches
+       // during a redirect. Keyed per-partner so a legitimate partner
+       // with two open tabs doesn't 429 themselves.
+       if (!(await checkRateLimit(`bookings-status-auth:${auth.partnerId}`, 60, 60_000))) {
+         return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
        }
-       
+
+       const { data: booking, error: bError } = await query.eq('stripe_payment_intent_id', intentIdFromUrl).single();
+
+       if (bError && (bError as any).code !== 'PGRST116') {
+         Sentry.captureException(bError, { tags: { route: 'bookings/status', gate: '3' } });
+         return NextResponse.json({ error: 'Internal system error' }, { status: 500 });
+       }
+       if (!booking || booking.owned_by_third_party !== auth.partnerId) {
+         // 404 for both "unknown intent" and "not your intent" so callers
+         // can't distinguish valid-but-not-mine from truly-unknown.
+         return NextResponse.json({ error: 'Payment intent not linked' }, { status: 404 });
+       }
+
        // Instant Sync with Stripe
        const intent = await stripe.paymentIntents.retrieve(intentIdFromUrl, {
          expand: ['latest_charge']
@@ -210,18 +257,25 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
 
   } catch (error: any) {
-    console.error('Status Check Error:', error);
+    Sentry.captureException(error, { tags: { route: 'bookings/status' } });
     return NextResponse.json({ error: 'Internal system error' }, { status: 500 });
   }
 }
 
+// Cache-Control: private, no-store on every PII-bearing response so a
+// misconfigured CDN or origin cache never serves one partner's booking
+// state to another. Cloudflare defaults don't cache Set-Cookie or POST
+// responses, but this GET can be cached if someone toggles the rules.
 function renderSuccess(booking: any, source: string) {
-  return NextResponse.json({ 
-    id: booking.id,
-    status: booking.status,
-    payment_status: booking.payment_status,
-    Ref_ID: booking.Ref_ID,
-    processed: booking.webhook_processed,
-    source: source
-  });
+  return NextResponse.json(
+    {
+      id: booking.id,
+      status: booking.status,
+      payment_status: booking.payment_status,
+      Ref_ID: booking.Ref_ID,
+      processed: booking.webhook_processed,
+      source: source,
+    },
+    { headers: { 'Cache-Control': 'private, no-store' } }
+  );
 }

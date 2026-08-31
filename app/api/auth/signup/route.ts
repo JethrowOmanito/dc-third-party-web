@@ -58,8 +58,13 @@ export async function POST(req: NextRequest) {
 
     const normalizedPhone = normalizePhone(whatsapp_phone);
 
-    // Skip OTP requirement in dev if BYPASS_OTP=1 for testing
-    const bypassOtp = process.env.PARTNER_SIGNUP_BYPASS_OTP === '1';
+    // Skip OTP requirement in dev if BYPASS_OTP=1 for testing.
+    // Belt-and-braces: even if the env var is somehow set in prod (misconfig,
+    // leftover from a rollback, or an attacker who reaches the VPS shell),
+    // NODE_ENV gates it off. The bypass is a dev-only convenience.
+    const bypassOtp =
+      process.env.NODE_ENV !== 'production' &&
+      process.env.PARTNER_SIGNUP_BYPASS_OTP === '1';
     if (!bypassOtp) {
       if (!signup_token) {
         return NextResponse.json(
@@ -115,7 +120,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Selected company is not available.' }, { status: 400 });
     }
 
-    const password_hash = password ? bcrypt.hashSync(password, 10) : null;
+    const password_hash = password ? await bcrypt.hash(password, 12) : null;
     const now = new Date().toISOString();
 
     const { data: inserted, error: insErr } = await supabase

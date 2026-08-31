@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { checkRateLimit } from '@/lib/utils';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
@@ -24,6 +25,13 @@ export async function GET(_req: NextRequest) {
     const partnerId = payload.id as string | undefined;
     if (!partnerId) {
       return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
+    }
+
+    // Per-partner throttle — each call runs a Supabase join + rotates the JWT.
+    // 30/min is well above legitimate use (dashboard polls ~1/5s = 12/min);
+    // a compromised cookie or runaway client can't amplify beyond this.
+    if (!(await checkRateLimit(`me:${partnerId}`, 30, 60_000))) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 
     // Absolute session lifetime: refuse to refresh sessions that were
@@ -103,7 +111,10 @@ export async function GET(_req: NextRequest) {
       .setExpirationTime('24h')
       .sign(secret);
 
-    const response = NextResponse.json({ user }, { status: 200 });
+    const response = NextResponse.json(
+      { user },
+      { status: 200, headers: { 'Cache-Control': 'private, no-store' } }
+    );
     response.cookies.set('dc_partner_session', newToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

@@ -53,10 +53,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Too many address lookups from your network.' }, { status: 429 });
   }
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
   try {
     const res = await fetch(
       `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${postal}&returnGeom=N&getAddrDetails=Y&pageNum=1`,
-      { headers: { Accept: 'application/json' }, next: { revalidate: 0 } }
+      {
+        headers: { Accept: 'application/json' },
+        next: { revalidate: 0 },
+        signal: controller.signal,
+      }
     );
 
     if (!res.ok) {
@@ -65,7 +71,16 @@ export async function GET(req: NextRequest) {
 
     const data = await res.json();
     return NextResponse.json(data);
-  } catch {
-    return NextResponse.json({ found: 0, error: 'Failed to fetch address' }, { status: 500 });
+  } catch (err) {
+    // AbortError on timeout → 504. Everything else → 500. Either way the
+    // request returns quickly instead of stalling the worker on a hung
+    // upstream, which was the pre-fix behaviour.
+    const isAbort = (err as { name?: string } | null)?.name === 'AbortError';
+    return NextResponse.json(
+      { found: 0, error: isAbort ? 'Address lookup timed out' : 'Failed to fetch address' },
+      { status: isAbort ? 504 : 500 }
+    );
+  } finally {
+    clearTimeout(timer);
   }
 }
