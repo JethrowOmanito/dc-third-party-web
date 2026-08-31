@@ -215,6 +215,7 @@ export default function LoginPage() {
         return;
       }
       if (json.user) {
+        try { sessionStorage.setItem('dc-show-benefit', '1'); } catch { /* private mode ok */ }
         setUser(json.user);
         router.replace('/dashboard');
       }
@@ -238,6 +239,7 @@ export default function LoginPage() {
         setServerError(json.error ?? 'Login failed.');
         return;
       }
+      try { sessionStorage.setItem('dc-show-benefit', '1'); } catch { /* private mode ok */ }
       setUser(json.user);
       router.replace('/dashboard');
     } catch {
@@ -282,6 +284,7 @@ export default function LoginPage() {
         return;
       }
       if (json.user) {
+        try { sessionStorage.setItem('dc-show-benefit', '1'); } catch { /* private mode ok */ }
         setUser(json.user);
         router.replace('/dashboard');
         return;
@@ -350,6 +353,7 @@ export default function LoginPage() {
           return;
         }
         if (json.user) {
+          try { sessionStorage.setItem('dc-show-benefit', '1'); } catch { /* private mode ok */ }
           setUser(json.user);
           router.replace('/dashboard');
           return;

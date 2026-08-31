@@ -4,6 +4,7 @@ import { TopBar } from '@/components/layout/TopBar';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { AuthGuard } from '@/components/layout/AuthGuard';
 import { FloatingChatbot } from '@/components/chat/FloatingChatbot';
+import { BenefitModal } from '@/components/BenefitModal';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -26,6 +27,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Global Assistant */}
         <FloatingChatbot />
+
+        {/* Post-login benefits modal — reads sessionStorage flag set by
+            login handlers; user can dismiss forever per-partner-id. */}
+        <BenefitModal />
       </div>
     </AuthGuard>
   );
