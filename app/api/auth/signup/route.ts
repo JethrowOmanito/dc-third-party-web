@@ -137,6 +137,22 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (insErr || !inserted) {
+      // TOCTOU: two concurrent signups can both pass the username/email
+      // pre-checks then race the insert — Postgres unique constraints
+      // then reject one with error code 23505. Surface a friendly 409
+      // instead of leaking the raw error or returning a 500.
+      const pgCode = (insErr as { code?: string } | null)?.code;
+      const msg = String((insErr as { message?: string } | null)?.message ?? '');
+      if (pgCode === '23505') {
+        const isEmail = /email/i.test(msg);
+        const isUser = /username/i.test(msg);
+        const isPhone = /whatsapp/i.test(msg) || /phone/i.test(msg);
+        const which = isEmail ? 'email' : isUser ? 'username' : isPhone ? 'WhatsApp number' : 'account';
+        return NextResponse.json(
+          { error: `This ${which} is already registered.` , errorCode: 'duplicate' },
+          { status: 409 }
+        );
+      }
       console.error('[signup] insert error:', insErr);
       return NextResponse.json({ error: 'Failed to create account. Please try again.' }, { status: 500 });
     }
@@ -157,7 +173,8 @@ export async function POST(req: NextRequest) {
     };
 
     const secret = new TextEncoder().encode(jwtSecret);
-    const token = await new SignJWT({ ...safeUser })
+    const loginAt = Math.floor(Date.now() / 1000);
+    const token = await new SignJWT({ ...safeUser, login_at: loginAt })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
       .setExpirationTime('24h')

@@ -103,7 +103,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'System configuration error' }, { status: 500 });
     }
     const secret = new TextEncoder().encode(jwtSecret);
-    const token = await new SignJWT({ ...safeUser })
+    // Stamp login_at so /api/auth/me can enforce an absolute 7-day
+    // lifetime across refreshes, not a rolling forever-session.
+    const loginAt = Math.floor(Date.now() / 1000);
+    const token = await new SignJWT({ ...safeUser, login_at: loginAt })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
       .setExpirationTime('24h')

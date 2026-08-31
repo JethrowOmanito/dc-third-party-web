@@ -26,6 +26,25 @@ export async function GET(_req: NextRequest) {
       return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
     }
 
+    // Absolute session lifetime: refuse to refresh sessions that were
+    // first issued more than 7 days ago. Otherwise the /me refresh loop
+    // extends the JWT by 24h on every call → an active user's session
+    // could live forever, defeating the point of an expiry.
+    // Legacy tokens without login_at fall back to their iat claim so
+    // they cap out roughly on the same window from their original login.
+    const SEVEN_DAYS_SEC = 7 * 24 * 60 * 60;
+    const loginAt =
+      (typeof payload.login_at === 'number' ? payload.login_at : undefined) ??
+      (typeof payload.iat === 'number' ? payload.iat : undefined);
+    if (loginAt && Math.floor(Date.now() / 1000) - loginAt > SEVEN_DAYS_SEC) {
+      const res = NextResponse.json(
+        { error: 'Session expired. Please log in again.', errorCode: 'session_max_age' },
+        { status: 401 }
+      );
+      res.cookies.delete('dc_partner_session');
+      return res;
+    }
+
     // Always fetch fresh state from the DB so approval flips propagate without
     // requiring a re-login. Also refreshes company_discount and company_name.
     const db = createAdminClient();
@@ -74,7 +93,11 @@ export async function GET(_req: NextRequest) {
     // Rotate the JWT so subsequent requests carry the fresh approval_status.
     // This means /api/bookings/create and /api/checkout/create-intent will see
     // the updated state without needing the client to re-authenticate.
-    const newToken = await new SignJWT({ ...user })
+    // Preserve `login_at` from the previous token so the absolute
+    // 7-day cap enforced above continues to count from the ORIGINAL
+    // login, not from each refresh.
+    const preservedLoginAt = loginAt ?? Math.floor(Date.now() / 1000);
+    const newToken = await new SignJWT({ ...user, login_at: preservedLoginAt })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
       .setExpirationTime('24h')

@@ -168,7 +168,8 @@ export async function POST(req: NextRequest) {
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
     const secret = new TextEncoder().encode(jwtSecret);
-    const token = await new SignJWT({ ...safeUser })
+    const loginAt = Math.floor(Date.now() / 1000);
+    const token = await new SignJWT({ ...safeUser, login_at: loginAt })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
       .setExpirationTime('24h')

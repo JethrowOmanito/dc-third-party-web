@@ -93,14 +93,16 @@ export default function JobChatPage({ params }: { params: Promise<{ id: string }
     setSending(true);
     setInput('');
     try {
-      await supabase.from('event_chats').insert({
-        event_id: jobId,
-        user: user.username,
-        user_id: user.id,
-        message: text,
-        sender_role: 'thirdparty',
-        is_read: false,
+      // Server route stamps user_id + sender_role from the JWT and
+      // checks event ownership. Previously this insert ran with the
+      // anon key from the browser, letting anyone impersonate any user
+      // in any event's chat thread.
+      const res = await fetch('/api/chat/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: jobId, message: text }),
       });
+      if (!res.ok) throw new Error('send failed');
     } catch {
       setInput(text); // restore on error
     } finally {

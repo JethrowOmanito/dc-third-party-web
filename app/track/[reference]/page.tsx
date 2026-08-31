@@ -67,14 +67,21 @@ export default function GuestTrackPage({ params }: { params: Promise<{ reference
       data  = rpcRows && rpcRows.length > 0 ? rpcRows[0] : null;
       error = rpcErr;
     } else {
-      // UUID or company_reference text fallback
-      const res = await supabase
-        .from('events')
-        .select('id, "Ref_ID", Title, Start_Date, Start_Time_Display, End_Time_Display, Service_Type, service_subtype, Name, Assign_Cleaner, lifecycle_state, Note, on_my_way_eta, on_my_way_sent_by_name')
-        .or(`company_reference.eq.${reference},id.eq.${UUID_RE.test(reference) ? reference : '00000000-0000-0000-0000-000000000000'}`)
-        .maybeSingle();
-      data  = res.data;
-      error = res.error;
+      // UUID → id lookup, otherwise company_reference lookup. Split into
+      // two typed .eq() queries so a crafted `reference` path segment
+      // can't escape into a PostgREST .or() filter (e.g. a percent-
+      // encoded comma could inject `id.eq.<victim_uuid>` alongside the
+      // company_reference match and surface unrelated bookings).
+      const cols = 'id, "Ref_ID", Title, Start_Date, Start_Time_Display, End_Time_Display, Service_Type, service_subtype, Name, Assign_Cleaner, lifecycle_state, Note, on_my_way_eta, on_my_way_sent_by_name';
+      if (UUID_RE.test(reference)) {
+        const res = await supabase.from('events').select(cols).eq('id', reference).maybeSingle();
+        data = res.data;
+        error = res.error;
+      } else {
+        const res = await supabase.from('events').select(cols).eq('company_reference', reference).maybeSingle();
+        data = res.data;
+        error = res.error;
+      }
     }
 
     if (error || !data) {
