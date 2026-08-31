@@ -699,12 +699,43 @@ export default function LoginPage() {
                           autoFocus
                           value={waPhone}
                           onChange={e => setWaPhone(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleWaSendOtp(); } }}
+                          onKeyDown={e => {
+                            // Enter must ALSO advance the stage — the previous
+                            // Enter handler only fired the send, leaving the
+                            // user staring at the phone input after the code
+                            // was already delivered.
+                            if (e.key !== 'Enter') return;
+                            e.preventDefault();
+                            if (waOtpSending) return;
+                            if (waPhone.trim().length < 8) {
+                              setServerError('Enter a valid WhatsApp number.');
+                              return;
+                            }
+                            setWaStage('code');
+                            void handleWaSendOtp();
+                          }}
                           className="dc-wa-input"
                         />
                         <button
                           type="button"
-                          onClick={async () => { await handleWaSendOtp(); if (!serverError) setWaStage('code'); }}
+                          onClick={() => {
+                            // Advance to the code panel synchronously before the
+                            // network round-trip. Previous version awaited the
+                            // fetch and then read `serverError` from the closure
+                            // — on mobile browsers this sometimes never advances
+                            // the UI, so the user is stuck on the phone input
+                            // even though the OTP was actually delivered.
+                            // Any error is reported inside the code panel.
+                            if (waOtpSending) return;
+                            if (waPhone.trim().length < 8) {
+                              setServerError('Enter a valid WhatsApp number.');
+                              return;
+                            }
+                            setWaStage('code');
+                            // Fire the send; state updates flow through the
+                            // existing handler (waOtpSending / serverError).
+                            void handleWaSendOtp();
+                          }}
                           disabled={waOtpSending || waPhone.trim().length < 8}
                           className="dc-btn-wa dc-btn-wa--filled"
                         >
