@@ -23,41 +23,48 @@ import * as Sentry from '@sentry/nextjs';
 // Postgres row-size limits. Every security-critical column (status,
 // payment_status, price, partner_company_id, owned_by_third_party, source,
 // lifecycle_state) is ignored here and overridden below with server truth.
+// Every field uses .nullish() (accepts null OR undefined) because the booking
+// wizard commonly sends explicit `null` for optional slots (e.g.
+// `service_subtype: subtype || null`, `duration: ... : null`,
+// `Start_Time: convertTo24Hour(slot?.start)` — which returns null).
+// Zod v4's plain `.optional()` accepts undefined only and rejects null,
+// which used to bomb the whole submit with "Invalid booking data" and
+// no user-actionable message.
 const bookingSchema = z.object({
-  Title: z.string().max(500).optional(),
-  Name: z.string().max(200).optional(),
-  Email: z.string().max(200).optional(),
-  Whatsapp_Number: z.string().max(40).optional(),
-  Start_Date: z.string().max(20).optional(),
-  End_Date: z.string().max(20).optional(),
-  Start_Time: z.string().max(20).optional(),
-  End_Time: z.string().max(20).optional(),
-  Start_Time_Display: z.string().max(40).optional(),
-  End_Time_Display: z.string().max(40).optional(),
-  Service_Type: z.string().max(64).optional(),
-  service_subtype: z.string().max(128).optional(),
-  calendar_id: z.string().max(64).optional(),
-  Unit_type: z.string().max(64).optional(),
-  Unit_sub_type: z.string().max(64).optional(),
-  duration: z.string().max(32).optional(),
-  Extra_Service: z.array(z.string().max(200)).max(50).optional(),
-  Note: z.string().max(4_000).optional(),
-  Assign_Cleaner: z.array(z.unknown()).max(0).optional(),
-  Price: z.number().min(0).max(100_000).optional(),
-  final_price: z.number().min(0).max(100_000).optional(),
-  amount_cents: z.number().int().min(0).max(10_000_000).optional(),
-  gst_rate: z.number().min(0).max(30).optional(),
-  gst_amount: z.number().min(0).max(10_000).optional(),
-  tax_treatment: z.string().max(32).optional(),
-  webhook_processed: z.boolean().optional(),
-  booking_expires_at: z.string().max(40).optional(),
+  Title: z.string().max(500).nullish(),
+  Name: z.string().max(200).nullish(),
+  Email: z.string().max(200).nullish(),
+  Whatsapp_Number: z.string().max(40).nullish(),
+  Start_Date: z.string().max(20).nullish(),
+  End_Date: z.string().max(20).nullish(),
+  Start_Time: z.string().max(20).nullish(),
+  End_Time: z.string().max(20).nullish(),
+  Start_Time_Display: z.string().max(40).nullish(),
+  End_Time_Display: z.string().max(40).nullish(),
+  Service_Type: z.string().max(64).nullish(),
+  service_subtype: z.string().max(128).nullish(),
+  calendar_id: z.string().max(64).nullish(),
+  Unit_type: z.string().max(64).nullish(),
+  Unit_sub_type: z.string().max(64).nullish(),
+  duration: z.string().max(32).nullish(),
+  Extra_Service: z.array(z.string().max(200)).max(50).nullish(),
+  Note: z.string().max(4_000).nullish(),
+  Assign_Cleaner: z.array(z.unknown()).max(0).nullish(),
+  Price: z.number().min(0).max(100_000).nullish(),
+  final_price: z.number().min(0).max(100_000).nullish(),
+  amount_cents: z.number().int().min(0).max(10_000_000).nullish(),
+  gst_rate: z.number().min(0).max(30).nullish(),
+  gst_amount: z.number().min(0).max(10_000).nullish(),
+  tax_treatment: z.string().max(32).nullish(),
+  webhook_processed: z.boolean().nullish(),
+  booking_expires_at: z.string().max(40).nullish(),
   // Fields the client MAY send but we always override server-side:
-  status: z.string().max(32).optional(),
-  payment_status: z.string().max(32).optional(),
-  owned_by_third_party: z.string().max(64).optional(),
-  partner_company_id: z.string().max(64).nullable().optional(),
-  source: z.string().max(32).optional(),
-  lifecycle_state: z.string().max(32).optional(),
+  status: z.string().max(32).nullish(),
+  payment_status: z.string().max(32).nullish(),
+  owned_by_third_party: z.string().max(64).nullish(),
+  partner_company_id: z.string().max(64).nullish(),
+  source: z.string().max(32).nullish(),
+  lifecycle_state: z.string().max(32).nullish(),
 });
 type ClientBooking = z.infer<typeof bookingSchema>;
 
@@ -161,6 +168,19 @@ export async function POST(req: NextRequest) {
     const raw = await req.json().catch(() => null);
     const parsed = bookingSchema.safeParse(raw);
     if (!parsed.success) {
+      // Sentry-report the exact failing field so we don't have to guess
+      // which one exploded — "Invalid booking data" alone is useless.
+      Sentry.captureMessage('bookings_submit_invalid_body', {
+        level: 'warning',
+        tags: { route: 'bookings/submit' },
+        extra: {
+          issues: parsed.error.issues.slice(0, 10).map((i) => ({
+            path: i.path.join('.'),
+            code: i.code,
+            message: i.message,
+          })),
+        },
+      });
       return NextResponse.json({ error: 'Invalid booking data' }, { status: 400 });
     }
     const body: ClientBooking = parsed.data;
