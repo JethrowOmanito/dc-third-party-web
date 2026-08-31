@@ -18,8 +18,12 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      // Google Identity Services (Sign in with Google) + Apple ID SDK + Cloudflare Insights
-      "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com https://challenges.cloudflare.com https://accounts.google.com https://appleid.cdn-apple.com https://static.cloudflareinsights.com",
+      // Google Identity Services (Sign in with Google) + Apple ID SDK + Cloudflare Insights.
+      // 'unsafe-eval' dropped — Stripe.js v3, GSI, Apple ID JS and Turnstile
+      // have all been eval-free for years. 'unsafe-inline' is retained
+      // because Next.js hydration + Sentry inject inline scripts (moving
+      // to nonce-based CSP would be a wider refactor).
+      "script-src 'self' 'unsafe-inline' https://js.stripe.com https://challenges.cloudflare.com https://accounts.google.com https://appleid.cdn-apple.com https://static.cloudflareinsights.com",
       "style-src 'self' 'unsafe-inline' https://accounts.google.com",
       "img-src 'self' blob: data: https://agyzvknaqnamaoczxgsb.supabase.co https://*.stripe.com https://*.googleusercontent.com https://accounts.google.com",
       "font-src 'self'",

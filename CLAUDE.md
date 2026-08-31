@@ -88,9 +88,25 @@ Stripe webhook endpoint is `https://www.securedoctorclean.com/api/webhooks/strip
 If a `third-party-web-*` instance grows past ~1.5 GB:
 
 ```bash
-DEBUG_TOKEN=$(ssh root@187.52.126.97 cat /root/backups/tpw-debug-token.txt)
-curl "https://www.securedoctorclean.com/api/debug/heapdump?token=$DEBUG_TOKEN"
+# Must be run FROM the VPS itself — heapdump endpoint is loopback-only
+# even with the token, to prevent a leaked token from exfiltrating memory.
+ssh root@187.52.126.97
+DEBUG_TOKEN=$(cat /root/backups/tpw-debug-token.txt)
+curl "http://127.0.0.1:3001/api/debug/heapdump?token=$DEBUG_TOKEN"
 # Response includes filepath — scp it and open in Chrome DevTools → Memory tab
 ```
 
 Old dumps auto-cleaned nightly at 04:30 (`dc-cleanup-heapdumps`).
+
+## System cron
+
+Add to `sudo crontab -e` on the VPS so unpaid partner booking holds
+release capacity 30 minutes after the wizard was abandoned:
+
+```cron
+# Expire unpaid partner booking holds every 10 minutes
+*/10 * * * * curl -sS -H "Authorization: Bearer $(cat /root/backups/tpw-cron-secret.txt)" https://www.securedoctorclean.com/api/cron/expire-holds >> /var/log/dc-cron-expire-holds.log 2>&1
+```
+
+`CRON_SECRET` must be present in `.env.production.local` and match the
+file at `/root/backups/tpw-cron-secret.txt`.
