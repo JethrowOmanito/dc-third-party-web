@@ -118,12 +118,40 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify(waPayload),
     });
 
+    // The edge function returns HTTP 200 even when it SKIPS a send (dedup
+    // window, monthly cap hit, template disabled, kill switch). Without
+    // inspecting the body we'd tell the user "sent!" while nothing left the
+    // system — this is what caused users to sit on the code panel waiting
+    // for an OTP that never arrived. Parse the body and surface skip
+    // reasons as a real error.
+    const waBody = await waRes.json().catch(() => ({}));
+
     if (!waRes.ok) {
-      const waErr = await waRes.json().catch(() => ({}));
-      console.error('[otp/send] WA delivery failed:', waErr);
+      console.error('[otp/send] WA delivery failed:', waBody);
       return NextResponse.json(
         { error: 'Could not send WhatsApp OTP. Check the number or contact admin.' },
         { status: 502 }
+      );
+    }
+
+    if (waBody && waBody.skipped === true) {
+      const reason = String(waBody.reason ?? 'unknown');
+      const userMsg =
+        reason === 'duplicate_recent'
+          ? 'A code was sent to your WhatsApp recently. Please check WhatsApp, or wait up to 10 minutes before requesting a new one.'
+          : reason === 'wa_globally_disabled'
+          ? 'WhatsApp sending is temporarily disabled. Please contact admin.'
+          : reason === 'template_disabled'
+          ? 'OTP sending is temporarily unavailable. Please contact admin.'
+          : reason.startsWith('wa_cap_reached')
+          ? 'Our WhatsApp quota for this month is exhausted. Please contact admin.'
+          : `Could not send WhatsApp OTP (${reason}).`;
+      // 429 for the dedup case so the client can render it as a soft retry
+      // hint, 503 for the harder failures.
+      const status = reason === 'duplicate_recent' ? 429 : 503;
+      return NextResponse.json(
+        { error: userMsg, errorCode: reason },
+        { status }
       );
     }
 
