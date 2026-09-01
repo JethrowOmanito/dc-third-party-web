@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { normalizePhone } from '@/lib/phone';
 import { checkRateLimit } from '@/lib/utils';
 import bcrypt from 'bcryptjs';
 import { SignJWT } from 'jose';
@@ -9,14 +10,6 @@ const schema = z.object({
   phone: z.string().min(8).max(20).regex(/^[+0-9\s\-()]+$/),
   code: z.string().length(6).regex(/^\d{6}$/),
 });
-
-function normalizePhone(input: string): string {
-  const cleaned = input.replace(/[\s\-()]/g, '');
-  if (cleaned.startsWith('+')) return cleaned;
-  if (/^65\d{8}$/.test(cleaned)) return `+${cleaned}`;
-  if (/^[89]\d{7}$/.test(cleaned)) return `+65${cleaned}`;
-  return cleaned;
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,6 +25,12 @@ export async function POST(req: NextRequest) {
     }
 
     const phone = normalizePhone(parsed.data.phone);
+    if (!phone) {
+      return NextResponse.json(
+        { error: 'Include your country code, e.g. +65 8888 8888 or +91 99558 32189.' },
+        { status: 400 }
+      );
+    }
     const code = parsed.data.code;
 
     if (!(await checkRateLimit(`wa-login:${phone}`, 20, 60 * 60 * 1000))) {
@@ -93,7 +92,7 @@ export async function POST(req: NextRequest) {
       .from('partner_user')
       .select(
         `id, username, email, full_name, whatsapp_phone,
-         company_id, approval_status, force_logout,
+         company_id, approval_status, force_logout, partner_role,
          company:partner_companies!company_id (
            name, company_code, company_type, discount_type, discount_value, payment_terms
          )`
@@ -158,6 +157,7 @@ export async function POST(req: NextRequest) {
       company_discount_value: Number(company?.discount_value ?? 0),
       company_payment_terms: (company?.payment_terms ?? null) as 'upfront' | 'end_of_month' | null,
       approval_status: partner.approval_status as 'pending' | 'approved' | 'rejected',
+      partner_role: (partner.partner_role ?? null) as 'interior_designer' | 'agent' | 'other' | null,
     };
 
     const jwtSecret = process.env.JWT_SECRET;

@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { normalizePhone } from '@/lib/phone';
 import { checkRateLimit } from '@/lib/utils';
 import bcrypt from 'bcryptjs';
 import { SignJWT } from 'jose';
@@ -9,14 +10,6 @@ const schema = z.object({
   phone: z.string().min(8).max(20).regex(/^[+0-9\s\-()]+$/),
   code: z.string().length(6).regex(/^\d{6}$/),
 });
-
-function normalizePhone(input: string): string {
-  const cleaned = input.replace(/[\s\-()]/g, '');
-  if (cleaned.startsWith('+')) return cleaned;
-  if (/^65\d{8}$/.test(cleaned)) return `+${cleaned}`;
-  if (/^[89]\d{7}$/.test(cleaned)) return `+65${cleaned}`;
-  return cleaned;
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,6 +25,12 @@ export async function POST(req: NextRequest) {
     }
 
     const phone = normalizePhone(parsed.data.phone);
+    if (!phone) {
+      return NextResponse.json(
+        { error: 'Include your country code, e.g. +65 8888 8888 or +91 99558 32189.' },
+        { status: 400 }
+      );
+    }
     const code = parsed.data.code;
 
     // Rate limit verify attempts per phone: 20 per hour

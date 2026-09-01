@@ -25,11 +25,11 @@ export const useAuthStore = create<AuthState>()(
       setHasHydrated: (v) => set({ _hasHydrated: v }),
     }),
     {
-      // v2: bumped after the partner_user schema split. Old sessions had a User shape
-      // missing approval_status/company_id — treating them as valid would let legacy
-      // sessions bypass the booking gate. Bumping the persist name forces a fresh
-      // /api/auth/me → fresh JWT with the new shape.
-      name: 'dc-partner-auth-v2',
+      // v3: added partner_role to the User shape. Bumping forces a fresh /api/auth/me
+      // so the booking-page subcategory filter has a role to read on returning sessions.
+      // v2 history: split partner_user schema; missing approval_status/company_id would
+      // have let legacy sessions bypass the booking gate.
+      name: 'dc-partner-auth-v3',
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },

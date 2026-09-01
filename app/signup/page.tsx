@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import {
   ArrowLeft,
   ArrowRight,
+  Briefcase,
   Building2,
   Check,
   CheckCircle2,
@@ -13,10 +14,12 @@ import {
   Eye,
   EyeOff,
   FileText,
+  Handshake,
   Loader2,
   Lock,
   Mail,
   MessageCircle,
+  Palette,
   Phone,
   Send,
   Shield,
@@ -163,9 +166,16 @@ export default function SignupPage() {
       email: '',
       whatsapp_phone: '',
       company_id: '',
+      partner_role: undefined,
       tnc_accepted: undefined,
     },
   });
+
+  const ROLE_OPTIONS: { value: 'interior_designer' | 'agent' | 'other'; label: string; hint: string; icon: typeof Palette }[] = [
+    { value: 'interior_designer', label: 'Interior Designer', hint: 'ID / renovation projects',        icon: Palette },
+    { value: 'agent',             label: 'Real Estate Agent', hint: 'Move-in/out, listings, tenants', icon: Handshake },
+    { value: 'other',             label: 'Other',             hint: 'Everything else',                 icon: Briefcase },
+  ];
 
   useEffect(() => {
     (async () => {
@@ -472,7 +482,7 @@ export default function SignupPage() {
   const goNext = async () => {
     setServerError('');
     if (step === 0) {
-      const fieldsToCheck: Array<keyof SignupInput> = ['full_name', 'email', 'whatsapp_phone', 'username'];
+      const fieldsToCheck: Array<keyof SignupInput> = ['partner_role', 'full_name', 'email', 'whatsapp_phone', 'username'];
       if (!oauthProvider) fieldsToCheck.push('password');
       const ok = await form.trigger(fieldsToCheck);
       if (!ok) return;
@@ -719,6 +729,38 @@ export default function SignupPage() {
                   )}
 
                   <div className="dc-field">
+                    <label className="dc-label">What best describes you?</label>
+                    <Controller
+                      control={form.control}
+                      name="partner_role"
+                      render={({ field }) => (
+                        <div className="dc-role-grid">
+                          {ROLE_OPTIONS.map(opt => {
+                            const Icon = opt.icon;
+                            const selected = field.value === opt.value;
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => field.onChange(opt.value)}
+                                className={`dc-role-tile${selected ? ' dc-role-tile--selected' : ''}`}
+                                aria-pressed={selected}
+                              >
+                                <Icon size={20} />
+                                <span className="dc-role-tile__label">{opt.label}</span>
+                                <span className="dc-role-tile__hint">{opt.hint}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    />
+                    {form.formState.errors.partner_role && (
+                      <p className="dc-field__error">{form.formState.errors.partner_role.message}</p>
+                    )}
+                  </div>
+
+                  <div className="dc-field">
                     <label htmlFor="signup-name" className="dc-label">Full Name</label>
                     <div className="dc-input-wrap">
                       <User className="dc-input-icon" size={18} />
@@ -762,7 +804,7 @@ export default function SignupPage() {
                           id="signup-phone"
                           {...form.register('whatsapp_phone')}
                           type="tel"
-                          placeholder="+65 8888 8888"
+                          placeholder="+65 8888 8888 or +91 99558 32189"
                           autoComplete="tel"
                           disabled={otpVerified && !BYPASS_OTP}
                           className={`dc-input${form.formState.errors.whatsapp_phone ? ' dc-input--error' : ''}${otpVerified && !BYPASS_OTP ? ' dc-input--verified' : ''}`}
@@ -830,7 +872,7 @@ export default function SignupPage() {
                         ? 'Admin will use this number to send you approval updates via WhatsApp.'
                         : otpVerified
                           ? '✓ WhatsApp number verified.'
-                          : 'We\'ll send a 6-digit code to your WhatsApp. Verification is required.'}
+                          : 'Include your country code. We\'ll send a 6-digit code to your WhatsApp.'}
                     </p>
                   </div>
 
@@ -987,6 +1029,7 @@ export default function SignupPage() {
                   <div className="dc-summary">
                     <h3 className="dc-summary__title">Review Your Details</h3>
                     <dl className="dc-summary__list">
+                      <div><dt>Role</dt><dd>{ROLE_OPTIONS.find(r => r.value === form.getValues('partner_role'))?.label ?? '—'}</dd></div>
                       <div><dt>Full name</dt><dd>{form.getValues('full_name')}</dd></div>
                       <div><dt>Username</dt><dd>{form.getValues('username')}</dd></div>
                       <div><dt>Email</dt><dd>{form.getValues('email')}</dd></div>
@@ -1393,6 +1436,37 @@ const CSS = `
 }
 .dc-eye:hover { color: #64748b; background: #f1f5f9; }
 .dc-field__error { margin: 2px 0 0 4px; font-size: 12px; color: #ef4444; }
+
+/* Role picker */
+.dc-role-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.dc-role-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 12px 8px;
+  border: 1.5px solid var(--dc-border); border-radius: 12px;
+  background: #fff; color: var(--dc-navy);
+  font-family: inherit; cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+  text-align: center;
+}
+.dc-role-tile svg { color: #94a3b8; transition: color 150ms ease; }
+.dc-role-tile:hover { border-color: #b8c4d3; background: #f8fafc; }
+.dc-role-tile--selected {
+  border-color: var(--dc-green);
+  background: var(--dc-green-soft);
+  box-shadow: 0 0 0 3px rgba(19,170,137,0.10);
+}
+.dc-role-tile--selected svg { color: var(--dc-green); }
+.dc-role-tile__label { font-size: 13px; font-weight: 700; }
+.dc-role-tile__hint { font-size: 11px; color: var(--dc-muted); line-height: 1.3; }
+@media (max-width: 480px) {
+  .dc-role-grid { grid-template-columns: 1fr; }
+  .dc-role-tile { flex-direction: row; justify-content: flex-start; text-align: left; gap: 12px; padding: 10px 14px; }
+  .dc-role-tile__hint { display: block; }
+}
 
 /* Company picker */
 .dc-company-picker { position: relative; }

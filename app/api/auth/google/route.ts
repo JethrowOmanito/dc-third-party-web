@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     let { data: partner } = await db
       .from('partner_user')
       .select(
-        `id, username, password_hash, email, full_name, whatsapp_phone, company_id, approval_status, force_logout,
+        `id, username, password_hash, email, full_name, whatsapp_phone, company_id, approval_status, force_logout, partner_role,
          company:partner_companies!company_id (
            id, name, company_code, company_type, discount_type, discount_value, is_active
          )`
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       const { data: byEmail } = await db
         .from('partner_user')
         .select(
-          `id, username, password_hash, email, full_name, whatsapp_phone, company_id, approval_status, force_logout, oauth_provider, oauth_subject,
+          `id, username, password_hash, email, full_name, whatsapp_phone, company_id, approval_status, force_logout, oauth_provider, oauth_subject, partner_role,
            company:partner_companies!company_id (
              id, name, company_code, company_type, discount_type, discount_value, is_active
            )`
@@ -163,6 +163,7 @@ export async function POST(req: NextRequest) {
       company_discount_type: (company?.discount_type ?? null) as 'percent' | 'flat' | null,
       company_discount_value: Number(company?.discount_value ?? 0),
       approval_status: partner.approval_status as 'pending' | 'approved' | 'rejected',
+      partner_role: ((partner as { partner_role?: string | null }).partner_role ?? null) as 'interior_designer' | 'agent' | 'other' | null,
     };
 
     const jwtSecret = process.env.JWT_SECRET;

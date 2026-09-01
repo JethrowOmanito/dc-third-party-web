@@ -478,8 +478,17 @@ export default function BookingNewPage() {
   const subcategoryOptions = useMemo(() => {
     const seen = new Set<string>();
     const result: { key: string; label: string }[] = [];
-    // Partner portal restricts deep-cleaning subtypes to Post-Renovation only.
-    const PARTNER_DEEP_CLEANING_ALLOWLIST = new Set(['renovation', 'post_reno']);
+    // Deep-cleaning subcategory visibility depends on partner_role:
+    //   interior_designer  → renovation only (their business is post-reno)
+    //   agent / other      → all subcategories (renovation, tenancy, spring, hip)
+    //   null (legacy)      → falls through to all; the migration backfilled
+    //                        interior_design-company users to interior_designer
+    //                        so the current restricted view is preserved.
+    const partnerRole = (user as { partner_role?: string | null } | null)?.partner_role;
+    const deepCleaningAllowlist: Set<string> | null =
+      partnerRole === 'interior_designer'
+        ? new Set(['renovation', 'post_reno'])
+        : null;
     for (const row of pricingRows) {
       if (row.subcategory && !seen.has(row.subcategory)) {
         // Exclude addon/bundle pricing rows from subcategory selection options (mirror booking-web).
@@ -495,8 +504,8 @@ export default function BookingNewPage() {
         if (service === 'upholstery' && row.category === 'curtain') continue;
         // Deep cleaning: curtain rows are loaded for bundle pricing only — exclude from subtype list
         if (service === 'deep_cleaning' && row.category === 'curtain') continue;
-        // Partner portal: only expose Post-Renovation for deep cleaning
-        if (service === 'deep_cleaning' && !PARTNER_DEEP_CLEANING_ALLOWLIST.has(row.subcategory)) continue;
+        // Role-gated: interior designers see renovation only; agent/other see all.
+        if (service === 'deep_cleaning' && deepCleaningAllowlist && !deepCleaningAllowlist.has(row.subcategory)) continue;
         const label = row.subcategory_label || row.subcategory;
         if (ALA_CARTE_KEYWORDS.some(kw => label.toLowerCase().includes(kw))) continue;
         if (service === 'curtain' && label.toLowerCase().includes('steam')) continue;
@@ -517,7 +526,7 @@ export default function BookingNewPage() {
     if (result.length > 0) return result;
     return service ? (FALLBACK_SUBTYPES[service] || []) : [];
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pricingRows, service]);
+  }, [pricingRows, service, user]);
 
   // ─── Filtered size rows ───────────────────────────────────────────────────
 

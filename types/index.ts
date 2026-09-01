@@ -12,6 +12,7 @@ export interface User {
   company_discount_value?: number;
   company_payment_terms?: 'upfront' | 'end_of_month' | null;
   approval_status?: 'pending' | 'approved' | 'rejected';
+  partner_role?: 'interior_designer' | 'agent' | 'other' | null;
 }
 
 export interface Job {

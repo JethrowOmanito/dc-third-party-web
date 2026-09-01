@@ -60,7 +60,7 @@ export async function GET(_req: NextRequest) {
       .from('partner_user')
       .select(
         `id, username, email, full_name, whatsapp_phone,
-         company_id, approval_status, force_logout,
+         company_id, approval_status, force_logout, partner_role,
          company:partner_companies!company_id (
            name, company_code, company_type, discount_type, discount_value, payment_terms
          )`
@@ -96,6 +96,7 @@ export async function GET(_req: NextRequest) {
       company_discount_value: Number(company?.discount_value ?? 0),
       company_payment_terms: (company?.payment_terms ?? null) as 'upfront' | 'end_of_month' | null,
       approval_status: partner.approval_status as 'pending' | 'approved' | 'rejected',
+      partner_role: (partner.partner_role ?? null) as 'interior_designer' | 'agent' | 'other' | null,
     };
 
     // Rotate the JWT so subsequent requests carry the fresh approval_status.

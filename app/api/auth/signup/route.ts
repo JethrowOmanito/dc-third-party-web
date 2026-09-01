@@ -1,17 +1,10 @@
+import { normalizePhone } from '@/lib/phone';
 import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/utils';
 import { signupSchema } from '@/lib/validations/auth.schema';
 import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { NextRequest, NextResponse } from 'next/server';
-
-function normalizePhone(input: string): string {
-  const cleaned = input.replace(/[\s\-()]/g, '');
-  if (cleaned.startsWith('+')) return cleaned;
-  if (/^65\d{8}$/.test(cleaned)) return `+${cleaned}`;
-  if (/^[89]\d{7}$/.test(cleaned)) return `+65${cleaned}`;
-  return cleaned;
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,6 +33,7 @@ export async function POST(req: NextRequest) {
       email,
       whatsapp_phone,
       company_id,
+      partner_role,
       signup_token,
       oauth_provider,
       oauth_subject,
@@ -57,6 +51,12 @@ export async function POST(req: NextRequest) {
     if (!jwtSecret) return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
 
     const normalizedPhone = normalizePhone(whatsapp_phone);
+    if (!normalizedPhone) {
+      return NextResponse.json(
+        { error: 'Include your country code, e.g. +65 8888 8888 or +91 99558 32189.' },
+        { status: 400 }
+      );
+    }
 
     // Skip OTP requirement in dev if BYPASS_OTP=1 for testing.
     // Belt-and-braces: even if the env var is somehow set in prod (misconfig,
@@ -132,13 +132,14 @@ export async function POST(req: NextRequest) {
         full_name: full_name.trim(),
         whatsapp_phone: normalizedPhone,
         company_id,
+        partner_role,
         approval_status: 'pending',
         tnc_accepted_at: now,
         wa_verified_at: bypassOtp ? null : now,
         oauth_provider: oauth_provider ?? null,
         oauth_subject: oauth_subject ?? null,
       })
-      .select('id, username, email, full_name, whatsapp_phone, company_id, approval_status')
+      .select('id, username, email, full_name, whatsapp_phone, company_id, approval_status, partner_role')
       .single();
 
     if (insErr || !inserted) {
@@ -175,6 +176,7 @@ export async function POST(req: NextRequest) {
       company_discount_type: (company.discount_type ?? null) as 'percent' | 'flat' | null,
       company_discount_value: Number(company.discount_value ?? 0),
       approval_status: 'pending' as const,
+      partner_role: (inserted.partner_role ?? partner_role) as 'interior_designer' | 'agent' | 'other',
     };
 
     const secret = new TextEncoder().encode(jwtSecret);

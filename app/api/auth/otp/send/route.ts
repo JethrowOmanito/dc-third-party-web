@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { normalizePhone } from '@/lib/phone';
 import { checkRateLimit } from '@/lib/utils';
 import bcrypt from 'bcryptjs';
 import { randomInt } from 'crypto';
@@ -8,16 +9,6 @@ import { z } from 'zod';
 const schema = z.object({
   phone: z.string().min(8).max(20).regex(/^[+0-9\s\-()]+$/),
 });
-
-// Normalize a phone number for consistent matching / storage.
-// Handles: +65 88656751, 8865 6751, 6588656751, +6588656751, 88656751
-function normalizePhone(input: string): string {
-  const cleaned = input.replace(/[\s\-()]/g, '');
-  if (cleaned.startsWith('+')) return cleaned;
-  if (/^65\d{8}$/.test(cleaned)) return `+${cleaned}`;         // 65 prefix without +
-  if (/^[89]\d{7}$/.test(cleaned)) return `+65${cleaned}`;      // 8-digit SG
-  return cleaned;
-}
 
 function generateCode(): string {
   // CSPRNG — Math.random is predictable and unfit for authentication codes.
@@ -39,6 +30,12 @@ export async function POST(req: NextRequest) {
     }
 
     const phone = normalizePhone(parsed.data.phone);
+    if (!phone) {
+      return NextResponse.json(
+        { error: 'Include your country code, e.g. +65 8888 8888 or +91 99558 32189.' },
+        { status: 400 }
+      );
+    }
 
     // Rate limit per phone: 3 sends per hour
     if (!(await checkRateLimit(`otp:phone:${phone}`, 3, 60 * 60 * 1000))) {

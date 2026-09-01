@@ -48,6 +48,8 @@ export const signupSchema = z.object({
   company_id: z
     .string()
     .uuid('Please select a company'),
+  partner_role: z
+    .enum(['interior_designer', 'agent', 'other'], { message: 'Please select what best describes you' }),
   tnc_accepted: z
     .literal(true, { message: 'You must accept the Terms & Conditions' }),
   signup_token: z
