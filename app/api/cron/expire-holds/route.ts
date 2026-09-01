@@ -33,6 +33,17 @@ function safeCompareSecret(provided: string, expected: string): boolean {
 
 async function run(req: NextRequest) {
   try {
+    // Header-only. Previously accepted the secret in a query string
+    // (`?secret=...`) which lands verbatim in nginx access logs, defeats
+    // the point of a secret, and shows up in browser history if anyone
+    // ever pastes the URL. Crontab always uses the Authorization header.
+    // Auth check runs before env check so scanner probes can't trigger
+    // fatal Sentry alerts.
+    const bearer = req.headers.get('authorization') ?? '';
+    const provided = bearer.replace(/^Bearer\s+/i, '').trim();
+    if (!provided) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const expected = process.env.CRON_SECRET;
     if (!expected) {
       Sentry.captureMessage('cron_secret_missing', {
@@ -41,14 +52,7 @@ async function run(req: NextRequest) {
       });
       return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
     }
-
-    // Header-only. Previously accepted the secret in a query string
-    // (`?secret=...`) which lands verbatim in nginx access logs, defeats
-    // the point of a secret, and shows up in browser history if anyone
-    // ever pastes the URL. Crontab always uses the Authorization header.
-    const bearer = req.headers.get('authorization') ?? '';
-    const provided = bearer.replace(/^Bearer\s+/i, '').trim();
-    if (!provided || !safeCompareSecret(provided, expected)) {
+    if (!safeCompareSecret(provided, expected)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

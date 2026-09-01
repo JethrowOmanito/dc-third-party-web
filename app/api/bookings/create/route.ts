@@ -275,8 +275,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 42703 = undefined_column — migration hasn't run. Retry without the key.
-    if (insertError && (insertError as any).code === '42703' && clientRequestId) {
+    // Column missing → migration hasn't run OR PostgREST schema cache stale.
+    //   42703  → raw Postgres undefined_column
+    //   PGRST204 → PostgREST schema cache miss
+    if (
+      insertError &&
+      clientRequestId &&
+      ((insertError as any).code === '42703' ||
+        (insertError as any).code === 'PGRST204' ||
+        /schema cache/i.test((insertError as any).message ?? ''))
+    ) {
       Sentry.captureMessage('client_request_id_column_missing', {
         level: 'warning',
         tags: { route: 'bookings/create' },

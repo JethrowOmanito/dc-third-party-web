@@ -545,7 +545,7 @@ export async function POST(req: Request) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
 
   const body = await req.text();
-  const signature = (await headers()).get('stripe-signature') as string;
+  const signature = (await headers()).get('stripe-signature');
 
   let event: Stripe.Event;
 
@@ -556,9 +556,21 @@ export async function POST(req: Request) {
     });
   }
 
+  // Bare probe with no signature header — scanner / uptime check, not Stripe.
+  // Reject silently (no Sentry) since anyone can hit a public webhook URL.
+  if (!signature) {
+    return NextResponse.json({ error: 'Missing signature' }, { status: 400 });
+  }
+
   try {
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (err: any) {
+    // Signature verification failures are almost always unauth probes with a
+    // bogus signature header. Real Stripe delivery failures would come in
+    // volume (Stripe retries aggressively); a single mismatch is noise.
+    if (err instanceof Stripe.errors.StripeSignatureVerificationError) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+    }
     Sentry.captureException(err, {
       tags: { route: 'webhooks/stripe', op: 'signature-verify' },
     });

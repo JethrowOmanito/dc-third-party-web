@@ -282,9 +282,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 42703 = undefined_column → migration hasn't been applied yet.
-    // Retry the insert without the idempotency column so bookings still work.
-    if (insErr && (insErr as any).code === '42703' && clientRequestId) {
+    // Column missing → migration hasn't been applied yet OR PostgREST schema
+    // cache is stale after a fresh migration. Retry the insert without the
+    // idempotency column so bookings still work.
+    //   42703  → raw Postgres undefined_column
+    //   PGRST204 → PostgREST schema cache miss (typical when a column was
+    //              added after the connection pool warmed up)
+    if (
+      insErr &&
+      clientRequestId &&
+      ((insErr as any).code === '42703' ||
+        (insErr as any).code === 'PGRST204' ||
+        /schema cache/i.test((insErr as any).message ?? ''))
+    ) {
       Sentry.captureMessage('client_request_id_column_missing', {
         level: 'warning',
         tags: { route: 'bookings/submit' },

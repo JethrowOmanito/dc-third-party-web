@@ -56,6 +56,12 @@ export async function GET(req: NextRequest) {
 
 async function run(req: NextRequest) {
   try {
+    // Auth check first so scanners / unauth probes can't trigger fatal Sentry alerts.
+    const bearer = req.headers.get('authorization') ?? '';
+    const provided = bearer.replace(/^Bearer\s+/i, '').trim();
+    if (!provided) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const expected = process.env.CRON_SECRET;
     if (!expected) {
       Sentry.captureMessage('cron_secret_missing', {
@@ -64,9 +70,7 @@ async function run(req: NextRequest) {
       });
       return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
     }
-    const bearer = req.headers.get('authorization') ?? '';
-    const provided = bearer.replace(/^Bearer\s+/i, '').trim();
-    if (!provided || !safeCompareSecret(provided, expected)) {
+    if (!safeCompareSecret(provided, expected)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
