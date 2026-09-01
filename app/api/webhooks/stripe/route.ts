@@ -613,15 +613,21 @@ export async function POST(req: Request) {
     const { bookingId } = paymentIntent.metadata;
 
     if (!bookingId) {
-      // create-intent always writes bookingId; a PI without it means someone
-      // created the intent out-of-band. Not a retryable condition, but we
-      // want visibility so orphan intents don't silently accumulate.
-      Sentry.captureMessage('webhook_missing_booking_metadata', {
-        level: 'error',
-        tags: { route: 'webhooks/stripe', event: 'payment_intent.succeeded' },
-        extra: { paymentIntentId: paymentIntent.id },
-      });
-      return NextResponse.json({ error: 'Missing Metadata' }, { status: 400 });
+      // Xero invoice payments share the same Stripe account and fan out to
+      // this endpoint. They carry Xero-flavored metadata (Invoice number /
+      // OrgCode) instead of bookingId — ack silently, they're not ours.
+      const md = paymentIntent.metadata || {};
+      const isXeroInvoice = Boolean(md['Invoice number'] || md['invoice'] || md['OrgCode']);
+      if (!isXeroInvoice) {
+        // Truly orphan intent — surface for triage but still 2xx so Stripe
+        // stops retrying (nothing about this event is retryable).
+        Sentry.captureMessage('webhook_missing_booking_metadata', {
+          level: 'warning',
+          tags: { route: 'webhooks/stripe', event: 'payment_intent.succeeded' },
+          extra: { paymentIntentId: paymentIntent.id, metadata: md },
+        });
+      }
+      return NextResponse.json({ received: true, ignored: 'no_booking_metadata' });
     }
 
     // Detect payment method more robustly
