@@ -113,6 +113,15 @@ function tooManyRequests(retryAfterSec: number, limit: number): NextResponse {
 // ─── Proxy (Successor to Middleware in Next.js 16) ──────────────────────────────
 export async function proxy(request: NextRequest) {
   try {
+    // HEAD requests (uptime monitors) hit a Next.js 16 + turbopack bug where
+    // the client reference manifest for redirect-only routes doesn't exist,
+    // producing InvariantError in Sentry on every uptime check. Short-circuit
+    // before App Router touches the request — HEAD is spec-defined as
+    // idempotent and body-less, so returning bare 200 is a valid response.
+    if (request.method === 'HEAD') {
+      return new NextResponse(null, { status: 200 });
+    }
+
     const { pathname } = request.nextUrl;
     const ip = getClientIp(request);
     const ua = request.headers.get('user-agent');
