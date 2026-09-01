@@ -121,6 +121,11 @@ export default function SignupPage() {
   const [waCode, setWaCode] = useState('');
   const [waOtpSending, setWaOtpSending] = useState(false);
   const [waVerifying, setWaVerifying] = useState(false);
+  // Tracks whether the phone was verified via the WA panel (Continue with
+  // WhatsApp) rather than the inline "Send code" button next to the phone
+  // field. Used to show a dedicated success banner explaining that the
+  // rest of the form still needs to be filled.
+  const [verifiedViaWaPanel, setVerifiedViaWaPanel] = useState(false);
   const [appleLoadFailed, setAppleLoadFailed] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement>(null);
   // Measure the OAuth container so we can render Google's fixed-pixel button
@@ -245,6 +250,7 @@ export default function SignupPage() {
       setSignupToken('');
       setOtpSent(false);
       setOtpCode('');
+      setVerifiedViaWaPanel(false);
     }
   }, [phoneValue, otpVerified, verifiedPhone]);
 
@@ -443,6 +449,7 @@ export default function SignupPage() {
         setSignupToken(json.signupToken);
         setOtpVerified(true);
         setVerifiedPhone(waPhone);
+        setVerifiedViaWaPanel(true);
         setWaStage('idle');
         setWaCode('');
         return;
@@ -507,6 +514,14 @@ export default function SignupPage() {
 
   const onSubmit = async (data: SignupInput) => {
     setServerError('');
+    // Belt-and-braces: the Zod schema already refuses to submit without a
+    // role, but a client hack that bypasses the client validator would
+    // still be caught here (and by the server's own signupSchema.safeParse).
+    if (!data.partner_role) {
+      setServerError('Please select what best describes you.');
+      setStep(0);
+      return;
+    }
     if (!otpVerified) {
       setServerError('Please verify your WhatsApp number before submitting.');
       setStep(0);
@@ -728,8 +743,20 @@ export default function SignupPage() {
                     </div>
                   )}
 
+                  {verifiedViaWaPanel && !oauthProvider && (
+                    <div className="dc-oauth-banner dc-oauth-banner--wa">
+                      <CheckCircle2 size={16} />
+                      <span>
+                        <strong>WhatsApp verified</strong> ({verifiedPhone}). Almost done — just fill in the fields below to finish creating your account.
+                      </span>
+                    </div>
+                  )}
+
                   <div className="dc-field">
-                    <label className="dc-label">What best describes you?</label>
+                    <label className="dc-label">
+                      What best describes you? <span className="dc-required" aria-hidden>*</span>
+                      <span className="sr-only"> (required)</span>
+                    </label>
                     <Controller
                       control={form.control}
                       name="partner_role"
@@ -1346,6 +1373,18 @@ const CSS = `
   font-size: 13px;
 }
 .dc-oauth-banner svg { color: var(--dc-green); flex-shrink: 0; }
+.dc-oauth-banner strong { color: var(--dc-navy); font-weight: 700; }
+.dc-oauth-banner--wa {
+  background: rgba(37,211,102,0.10);
+  border-color: rgba(37,211,102,0.30);
+}
+.dc-oauth-banner--wa svg { color: #128C7E; }
+.dc-required { color: #ef4444; font-weight: 800; margin-left: 3px; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0;
+  margin: -1px; overflow: hidden; clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
+}
 
 /* OTP row */
 .dc-otp-row {
