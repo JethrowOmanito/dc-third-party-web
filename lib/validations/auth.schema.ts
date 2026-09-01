@@ -1,11 +1,14 @@
 import { z } from 'zod';
 
 export const loginSchema = z.object({
+  // Accepts either username (a-z0-9_.-) or an email address (contains @).
+  // The server-side login route decides which lookup to run based on the
+  // presence of an @ in the string.
   username: z
     .string()
-    .min(3, 'Username must be at least 3 characters')
-    .max(50, 'Username too long')
-    .regex(/^[a-zA-Z0-9_.-]+$/, 'Username contains invalid characters'),
+    .min(3, 'Enter your username or email')
+    .max(200, 'Too long')
+    .regex(/^[a-zA-Z0-9_.@+-]+$/, 'Invalid characters in username or email'),
   password: z
     .string()
     .min(6, 'Password must be at least 6 characters')

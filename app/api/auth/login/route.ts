@@ -5,8 +5,11 @@ import { SignJWT } from 'jose';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
+// Login accepts either username OR email in the `username` field. The
+// regex here mirrors lib/validations/auth.schema.ts loginSchema so a
+// client-side edit can't smuggle in extra characters.
 const schema = z.object({
-  username: z.string().min(3).max(50).regex(/^[a-zA-Z0-9_.-]+$/),
+  username: z.string().min(3).max(200).regex(/^[a-zA-Z0-9_.@+-]+$/),
   password: z.string().min(6).max(128),
 });
 
@@ -39,7 +42,12 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createClient();
 
-    const { data: partner, error } = await supabase
+    // Users often forget their username but remember their email — accept
+    // either. If the input contains an `@`, look up by email (case-insensitive);
+    // otherwise treat it as a username (case-sensitive, mirrors signup).
+    const identifier = username.trim();
+    const isEmail = identifier.includes('@');
+    const partnerQuery = supabase
       .from('partner_user')
       .select(
         `id, username, password_hash, email, full_name, whatsapp_phone,
@@ -47,9 +55,11 @@ export async function POST(req: NextRequest) {
          company:partner_companies!company_id (
            id, name, company_code, company_type, discount_type, discount_value, payment_terms, is_active
          )`
-      )
-      .eq('username', username.trim())
-      .single();
+      );
+    const { data: partner, error } = await (isEmail
+      ? partnerQuery.ilike('email', identifier)
+      : partnerQuery.eq('username', identifier)
+    ).single();
 
     if (error || !partner) {
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });

@@ -546,7 +546,7 @@ export default function SignupPage() {
         return;
       }
       setUser(json.user);
-      router.replace('/dashboard');
+      router.replace('/signup/success');
     } catch {
       setServerError('Network error. Please try again.');
     }

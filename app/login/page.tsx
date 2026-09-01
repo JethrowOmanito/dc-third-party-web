@@ -497,16 +497,16 @@ export default function LoginPage() {
 
               {activeTab === 'partner' ? (
                 <form onSubmit={partnerForm.handleSubmit(onPartnerSubmit)} className="dc-form">
-                  {/* Username */}
+                  {/* Username or email */}
                   <div className="dc-field">
-                    <label htmlFor="tp-username" className="dc-label">Username</label>
+                    <label htmlFor="tp-username" className="dc-label">Username or email</label>
                     <div className="dc-input-wrap">
                       <User className="dc-input-icon" size={18} />
                       <input
                         id="tp-username"
                         {...partnerForm.register('username')}
                         type="text"
-                        placeholder="Enter your username"
+                        placeholder="Enter your username or email"
                         autoComplete="username"
                         autoCapitalize="none"
                         autoCorrect="off"
@@ -549,14 +549,9 @@ export default function LoginPage() {
                     )}
                   </div>
 
-                  {/* Forgot link */}
+                  {/* Forgot link — self-serve WhatsApp OTP reset */}
                   <div className="dc-form__row dc-form__row--end">
-                    <a
-                      href="https://wa.me/6588656751?text=Hello%2C%20I%20forgot%20my%20Doctor%20Clean%20Partner%20password.%20Please%20help%20me%20reset%20it."
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="dc-link"
-                    >
+                    <a href="/forgot-password" className="dc-link">
                       Forgot password?
                     </a>
                   </div>
