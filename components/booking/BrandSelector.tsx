@@ -38,7 +38,7 @@ const BRAND_CARDS: {
     key: 'tcc',
     title: 'The Cleaning Crew',
     subtitle: 'powered by Doctor Clean',
-    tagline: 'Standard cleaning + renovation',
+    tagline: 'Standard cleaning',
     Icon: Sparkles,
     accent: {
       ring: 'ring-slate-100',
@@ -123,6 +123,9 @@ export default function BrandSelector({ selected, onSelect }: BrandSelectorProps
                 </p>
                 <p className="text-xs text-slate-500 leading-relaxed mt-2">
                   {card.tagline}
+                </p>
+                <p className="mt-1 text-[10px] italic text-slate-400">
+                  Prices subject to 9% GST
                 </p>
                 {isSelected ? (
                   <span
