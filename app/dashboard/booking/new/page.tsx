@@ -30,6 +30,7 @@ import CheckoutForm from '@/components/booking/CheckoutForm';
 import RealtimeSummary from '@/components/booking/RealtimeSummary';
 import JobChatContent from '@/components/booking/JobChatContent';
 import BrandSelector from '@/components/booking/BrandSelector';
+import PartnerScopeOfWork from '@/components/booking/PartnerScopeOfWork';
 import { cn, convertTo24Hour, isServiceablePostal } from '@/lib/utils';
 import { bookingContactSchema } from '@/lib/validations/booking.schema';
 import { getSupabaseClient } from '@/lib/supabase/client';
@@ -72,7 +73,7 @@ const SERVICE_DB_MAP: Record<string, string> = {
 };
 
 const SERVICE_META: Record<string, { iconBg: string; iconText: string; description: string }> = {
-  deep_cleaning:        { iconBg: 'bg-emerald-50', iconText: 'text-emerald-600', description: 'Thorough cleaning for your entire space, top to bottom.' },
+  deep_cleaning:        { iconBg: 'bg-emerald-50', iconText: 'text-emerald-600', description: 'Post-renovation surface cleaning for your entire space.' },
   housekeeping:         { iconBg: 'bg-sky-50',     iconText: 'text-sky-600',     description: 'Regular maintenance cleaning to keep your space fresh.' },
   office:               { iconBg: 'bg-violet-50',  iconText: 'text-violet-600',  description: 'Professional cleaning for offices and commercial spaces.' },
   upholstery:           { iconBg: 'bg-amber-50',   iconText: 'text-amber-600',   description: 'Specialized cleaning for sofas, mattresses and carpets.' },
@@ -1961,6 +1962,12 @@ export default function BookingNewPage() {
                 {/* PROPERTY */}
                 {step === 'property' && (
                   <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-3">
+                    {/* Branded scope-of-work card (TCC + Doctor Clean). Appears
+                        immediately after service selection so partners see the
+                        included / excluded items before picking a unit tier. */}
+                    {isBrandedIdFlow && (partnerBrand === 'tcc' || partnerBrand === 'doctor_clean_id') && (
+                      <PartnerScopeOfWork brand={partnerBrand} />
+                    )}
                     {/* Move-In / Move-Out selector — tenancy only (must pick before property type) */}
                     {selectedSubcategoryKey === 'tenancy' && (
                       <div className="space-y-2 mb-2">
