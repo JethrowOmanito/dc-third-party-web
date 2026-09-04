@@ -782,8 +782,21 @@ export default function BookingNewPage() {
   const progress = ((stepIndex + 1) / STEP_ORDER.length) * 100;
 
   const goBack = () => {
-    if (stepIndex > 0) setStep(STEP_ORDER[stepIndex - 1]);
-    else router.back();
+    if (stepIndex > 0) {
+      setStep(STEP_ORDER[stepIndex - 1]);
+      return;
+    }
+    // At step 0 in branded ID flow → back to BrandSelector, not dashboard.
+    // Property_manager (agents) or first-step retail flow → fall back to
+    // dashboard via browser history.
+    if (isBrandedIdFlow) {
+      bookingStore.setPartnerBrand(null);
+      setSelectedTccIdRowId(null);
+      setSelectedTccIdTier(null);
+      setTccIdAlaCarteAddons({});
+      return;
+    }
+    router.back();
   };
 
   const stepTitle = (s: Step): string => ({
