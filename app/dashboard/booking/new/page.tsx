@@ -511,14 +511,18 @@ export default function BookingNewPage() {
 
   // Company (partner) discount — applied automatically for approved partners.
   // Order: company discount first, then promo code on the discounted amount.
+  // Branded ID flow (TCC / Doctor Clean ID) uses catalogue prices that ALREADY
+  // encode the brand-specific rebate — never stack company-level discount on top,
+  // else IDs get double-discounted.
   const companyDiscountAmount = useMemo(() => {
+    if (isBrandedIdFlow) return 0;
     if (user?.approval_status !== 'approved') return 0;
     const type = user.company_discount_type;
     const value = Number(user.company_discount_value ?? 0);
     if (!type || value <= 0) return 0;
     if (type === 'percent') return (totalPrice * value) / 100;
     return Math.min(value, totalPrice);
-  }, [user, totalPrice]);
+  }, [isBrandedIdFlow, user, totalPrice]);
 
   // Recompute finalPrice whenever totalPrice or discounts change.
   useEffect(() => {
