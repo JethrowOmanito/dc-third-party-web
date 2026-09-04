@@ -52,7 +52,7 @@ const BRAND_CARDS: {
   },
   {
     key: 'doctor_clean_id',
-    title: 'Doctor Clean ID',
+    title: 'Doctor Clean',
     subtitle: 'Interior Designer Pricelist',
     tagline: 'Deep cleaning + renovation, 10% ID rebate',
     Icon: Palette,
@@ -156,7 +156,7 @@ export default function BrandSelector({ selected, onSelect }: BrandSelectorProps
 
       <p className="text-[11px] text-slate-400 text-center leading-relaxed px-4">
         Not sure which one to pick? Choose{' '}
-        <span className="font-semibold text-slate-500">Doctor Clean ID</span> for interior
+        <span className="font-semibold text-slate-500">Doctor Clean</span> for interior
         designer projects that qualify for the 10% rebate.
       </p>
     </div>

@@ -135,7 +135,7 @@ export default function RealtimeSummary({
   const brandBadgeText = brandedLineItem
     ? brandedLineItem.brand === 'tcc'
       ? 'The Cleaning Crew'
-      : 'Doctor Clean ID'
+      : 'Doctor Clean'
     : null;
 
   return (

@@ -1642,7 +1642,9 @@ export default function BookingNewPage() {
                               <Icon className="w-6 h-6" strokeWidth={1.75} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-base font-bold text-slate-900 leading-tight">{s.label}</p>
+                              <p className="text-base font-bold text-slate-900 leading-tight">
+                                {partnerBrand === 'tcc' && s.key === 'deep_cleaning' ? 'Standard Cleaning' : s.label}
+                              </p>
                               <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-1">{s.sub}</p>
                               <p className="text-xs text-slate-500 leading-relaxed mt-2">{meta.description}</p>
                               {isSelected && (
