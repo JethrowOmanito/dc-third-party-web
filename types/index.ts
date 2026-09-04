@@ -212,3 +212,33 @@ export type BookingStep =
   | 'contact'
   | 'terms'
   | 'confirm';
+
+// Partner brand — drives which pricing catalog the booking wizard reads.
+//   tcc            → tcc_pricing (The Cleaning Crew — ID users, standard)
+//   doctor_clean_id→ id_pricing  (Doctor Clean ID — ID users, deep + rebate)
+//   agents         → service_pricing.partner_price (property_manager flow)
+export type PartnerBrand = 'tcc' | 'doctor_clean_id' | 'agents';
+
+// TCC / ID pricing table row (identical schema for tcc_pricing and id_pricing).
+export interface TccIdPricingRow {
+  id: number;
+  section: 'post_renovation_hdb' | 'post_renovation_condo' | 'ala_carte_first_wash' | string;
+  subgroup: string | null;
+  unit_label: string;
+  sqft_label: string | null;
+  ala_carte_price: number | string | null;
+  scrubbing_price: number | string | null;
+  scrubbing_formaldehyde_price: number | string | null;
+  is_tbq: boolean;
+  sort_order: number;
+  is_active: boolean;
+}
+
+// One of the three tiers a user can pick per HDB/Condo unit type.
+export type TccIdTier = 'ala_carte' | 'scrubbing' | 'scrubbing_formaldehyde';
+
+export interface TccIdSelection {
+  row: TccIdPricingRow;
+  tier: TccIdTier;
+  price: number;
+}

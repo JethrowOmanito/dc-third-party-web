@@ -29,12 +29,16 @@ import Script from 'next/script';
 import CheckoutForm from '@/components/booking/CheckoutForm';
 import RealtimeSummary from '@/components/booking/RealtimeSummary';
 import JobChatContent from '@/components/booking/JobChatContent';
+import BrandSelector from '@/components/booking/BrandSelector';
 import { cn, convertTo24Hour, isServiceablePostal } from '@/lib/utils';
 import { bookingContactSchema } from '@/lib/validations/booking.schema';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useBookingStore } from '@/store/bookingStore';
-import type { ServiceKey, PricingRow, AddonRow, BookingSlot, HousekeepingPricingRow, PromoCode, AdditionalService } from '@/types';
+import type {
+  ServiceKey, PricingRow, AddonRow, BookingSlot, HousekeepingPricingRow,
+  PromoCode, AdditionalService, PartnerBrand, TccIdPricingRow, TccIdTier,
+} from '@/types';
 
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
@@ -270,6 +274,29 @@ export default function BookingNewPage() {
   const [isChatInquiry, setIsChatInquiry]       = useState(false);
   const [submitting, setSubmitting]             = useState(false);
 
+  // ── Partner brand (ID users pick TCC vs Doctor Clean ID upfront;
+  //    property_manager / agents auto-map to 'agents' below). ──
+  // Derived from company_type in the /me payload — interior_design partners
+  // must explicitly pick before the wizard renders any service.
+  const isInteriorDesignPartner = user?.company_type === 'interior_design';
+  const partnerBrand = bookingStore.partnerBrand;
+  const [selectedTccIdRowId, setSelectedTccIdRowId] = useState<number | null>(null);
+  const [selectedTccIdTier, setSelectedTccIdTier]   = useState<TccIdTier | null>(null);
+  const [tccIdRows, setTccIdRows]                   = useState<TccIdPricingRow[]>([]);
+  const [tccIdAlaCarteAddons, setTccIdAlaCarteAddons] = useState<Record<number, TccIdPricingRow>>({});
+  const [loadingTccIdPricing, setLoadingTccIdPricing] = useState(false);
+  const isBrandedIdFlow = partnerBrand === 'tcc' || partnerBrand === 'doctor_clean_id';
+
+  // property_manager (Agents) never sees the brand step — auto-seed the
+  // store the first time we know their type so downstream code + persisted
+  // events.partner_brand are consistent.
+  useEffect(() => {
+    if (user?.company_type === 'property_manager' && bookingStore.partnerBrand !== 'agents') {
+      bookingStore.setPartnerBrand('agents');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.company_type]);
+
   // ─── Derived ─────────────────────────────────────────────────────────────
 
   const serviceLabel = useMemo(() => SERVICES.find(s => s.key === service)?.label || '', [service]);
@@ -384,21 +411,103 @@ export default function BookingNewPage() {
     Object.values(blindsQuantities).reduce((s, q) => s + (q || 0), 0),
   [blindsQuantities]);
 
-  const totalPrice = useMemo(() =>
-    basePrice +
-    Object.values(selectedAddons).reduce((s, a) => s + (a.price ?? 0), 0) +
-    Object.values(selectedAddonServices).reduce((s, r) => s + effectivePrice(r), 0) +
-    additionalServicesTotal +
-    bundleUpholsteryPrice +
-    bundleCurtainSteamPrice +
-    upholsteryAddonTotal +
-    (upholsteryLShape ? UPHOLSTERY_LSHAPE_PRICE : 0) +
-    (coatingScrubbingRow ? effectivePrice(coatingScrubbingRow) : 0) +
-    blindsTotal +
-    (slot?.additionalFee ?? 0) +
-    (highCeilingAddon === '4_5m' ? 100 : 0),
+  // ─── TCC / Doctor Clean ID derived memos ──────────────────────────────────
+  // Placed HERE (above totalPrice) so the totalPrice useMemo can consume
+  // selectedTccIdPrice + tccIdAddonsTotal without the "used before declaration"
+  // TS error. The pricing FETCH effect lives below in the effects section
+  // (useEffects don't need to be topologically ordered).
+  const tccIdUnitTypeRows = useMemo(() => {
+    if (!isBrandedIdFlow) return [];
+    const section = propertyType === 'hdb'
+      ? 'post_renovation_hdb'
+      : propertyType === 'condo'
+        ? 'post_renovation_condo'
+        : null;
+    if (!section) return [];
+    return tccIdRows
+      .filter((r) => r.section === section)
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  }, [isBrandedIdFlow, tccIdRows, propertyType]);
+
+  const tccIdAlaCarteRows = useMemo(() => {
+    if (!isBrandedIdFlow) return [];
+    return tccIdRows
+      .filter((r) => r.section === 'ala_carte_first_wash')
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  }, [isBrandedIdFlow, tccIdRows]);
+
+  const selectedTccIdRow = useMemo<TccIdPricingRow | null>(() => {
+    if (!isBrandedIdFlow || selectedTccIdRowId == null) return null;
+    return tccIdRows.find((r) => r.id === selectedTccIdRowId) ?? null;
+  }, [isBrandedIdFlow, tccIdRows, selectedTccIdRowId]);
+
+  const selectedTccIdPrice = useMemo(() => {
+    if (!selectedTccIdRow || !selectedTccIdTier) return 0;
+    const raw =
+      selectedTccIdTier === 'ala_carte'
+        ? selectedTccIdRow.ala_carte_price
+        : selectedTccIdTier === 'scrubbing'
+          ? selectedTccIdRow.scrubbing_price
+          : selectedTccIdRow.scrubbing_formaldehyde_price;
+    const n = raw == null ? 0 : Number(raw);
+    return Number.isFinite(n) ? n : 0;
+  }, [selectedTccIdRow, selectedTccIdTier]);
+
+  const tccIdAddonsTotal = useMemo(() => {
+    if (!isBrandedIdFlow) return 0;
+    return Object.values(tccIdAlaCarteAddons).reduce((s, row) => {
+      const n = row.ala_carte_price == null ? 0 : Number(row.ala_carte_price);
+      return s + (Number.isFinite(n) ? n : 0);
+    }, 0);
+  }, [isBrandedIdFlow, tccIdAlaCarteAddons]);
+
+  // Shape for RealtimeSummary — one primary row + optional ala-carte add-on
+  // list, tagged with the brand so the summary can render the badge.
+  const brandedLineItem = useMemo(() => {
+    if (!isBrandedIdFlow || !selectedTccIdRow || !selectedTccIdTier) return null;
+    const brand = partnerBrand as 'tcc' | 'doctor_clean_id';
+    const tierSuffix = selectedTccIdTier === 'ala_carte'
+      ? 'Ala-Carte'
+      : selectedTccIdTier === 'scrubbing'
+        ? '+ Scrubbing'
+        : '+ Scrubbing + Formaldehyde';
+    return {
+      primaryLabel: `${selectedTccIdRow.unit_label}${selectedTccIdRow.sqft_label ? ` (${selectedTccIdRow.sqft_label})` : ''} — ${tierSuffix}`,
+      primaryPrice: selectedTccIdPrice,
+      addons: Object.values(tccIdAlaCarteAddons).map((r) => ({
+        id: r.id,
+        label: r.unit_label,
+        price: r.ala_carte_price == null ? 0 : Number(r.ala_carte_price),
+      })),
+      brand,
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [basePrice, selectedAddons, selectedAddonServices, additionalServicesTotal, bundleUpholsteryPrice, bundleCurtainSteamPrice, upholsteryAddonTotal, upholsteryLShape, UPHOLSTERY_LSHAPE_PRICE, coatingScrubbingRow, blindsTotal, slot, highCeilingAddon]);
+  }, [isBrandedIdFlow, selectedTccIdRow, selectedTccIdTier, selectedTccIdPrice, tccIdAlaCarteAddons, partnerBrand]);
+
+  const totalPrice = useMemo(() => {
+    // Branded ID flow: TCC / Doctor Clean ID uses its own catalog. All
+    // service_pricing derived numbers are ignored (they were never fetched
+    // for this flow) — only the picked tier + ala-carte add-ons apply, plus
+    // the shared slot night fee.
+    if (isBrandedIdFlow) {
+      return selectedTccIdPrice + tccIdAddonsTotal + (slot?.additionalFee ?? 0);
+    }
+    return (
+      basePrice +
+      Object.values(selectedAddons).reduce((s, a) => s + (a.price ?? 0), 0) +
+      Object.values(selectedAddonServices).reduce((s, r) => s + effectivePrice(r), 0) +
+      additionalServicesTotal +
+      bundleUpholsteryPrice +
+      bundleCurtainSteamPrice +
+      upholsteryAddonTotal +
+      (upholsteryLShape ? UPHOLSTERY_LSHAPE_PRICE : 0) +
+      (coatingScrubbingRow ? effectivePrice(coatingScrubbingRow) : 0) +
+      blindsTotal +
+      (slot?.additionalFee ?? 0) +
+      (highCeilingAddon === '4_5m' ? 100 : 0)
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBrandedIdFlow, selectedTccIdPrice, tccIdAddonsTotal, basePrice, selectedAddons, selectedAddonServices, additionalServicesTotal, bundleUpholsteryPrice, bundleCurtainSteamPrice, upholsteryAddonTotal, upholsteryLShape, UPHOLSTERY_LSHAPE_PRICE, coatingScrubbingRow, blindsTotal, slot, highCeilingAddon]);
 
   // Company (partner) discount — applied automatically for approved partners.
   // Order: company discount first, then promo code on the discounted amount.
@@ -645,7 +754,11 @@ export default function BookingNewPage() {
       return steps;
     }
 
-    if (service === 'upholstery' || service === 'curtain') {
+    // Branded TCC / Doctor Clean ID: catalog is post-renovation only, so no
+    // subtype step. Order is service → property → size → datetime → addons.
+    if (isBrandedIdFlow) {
+      steps.push('property', 'size', 'datetime', 'addons');
+    } else if (service === 'upholstery' || service === 'curtain') {
       steps.push('subtype', 'size', 'datetime');
     } else if (service === 'window_cleaning') {
       steps.push('property', 'size', 'datetime');
@@ -659,7 +772,7 @@ export default function BookingNewPage() {
 
     steps.push('contact', 'terms', 'confirm');
     return steps;
-  }, [service, isStandaloneService, isPerPieceService]);
+  }, [service, isStandaloneService, isPerPieceService, isBrandedIdFlow]);
 
   const stepIndex = STEP_ORDER.indexOf(step);
   const progress = ((stepIndex + 1) / STEP_ORDER.length) * 100;
@@ -798,6 +911,42 @@ export default function BookingNewPage() {
     setLoadingPricing(false);
   };
 
+  // ─── TCC / Doctor Clean ID pricing fetch ──────────────────────────────────
+  // Runs only when the partner picked a branded catalog. The rest of the
+  // wizard continues to read the shared service_pricing table via
+  // fetchPricing above; the branded flow simply overlays its own rows.
+  useEffect(() => {
+    if (!isBrandedIdFlow) {
+      setTccIdRows([]);
+      setTccIdAlaCarteAddons({});
+      return;
+    }
+    const controller = new AbortController();
+    (async () => {
+      setLoadingTccIdPricing(true);
+      try {
+        const res = await fetch(`/api/pricing?brand=${partnerBrand}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error(`brand pricing ${res.status}`);
+        const json = await res.json();
+        const rows = ((json?.rows ?? []) as TccIdPricingRow[]).filter(
+          (r) => r.is_active !== false,
+        );
+        setTccIdRows(rows);
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          console.error('[tcc/id pricing] fetch failed:', err);
+          setTccIdRows([]);
+        }
+      } finally {
+        setLoadingTccIdPricing(false);
+      }
+    })();
+    return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partnerBrand, isBrandedIdFlow]);
+
   // ─── Addon service rows (unit-specific: scrubbing/coating/formaldehyde) ──────
 
   useEffect(() => {
@@ -923,13 +1072,16 @@ export default function BookingNewPage() {
     if (step === 'property') return !propertyType;
     if (step === 'size') {
       if (service === 'blinds') return blindsCount === 0;
+      // Branded ID flow uses tcc/id catalog — user must pick a unit type
+      // AND one of the three tiers (ala-carte / +scrubbing / +formaldehyde).
+      if (isBrandedIdFlow) return !selectedTccIdRow || !selectedTccIdTier;
       return !selectedPricing;
     }
     if (step === 'datetime') return !selectedDate || !slot;
     if (step === 'contact') return !name || !phone || !postalCode || !fetchedAddress;
     if (step === 'terms') return !termsAccepted;
     return false;
-  }, [step, service, bookingMode, postalCode, postalStatus, fetchedAddress, selectedHKPricing, selectedSubcategoryKey, subtype, propertyType, selectedPricing, selectedDate, slot, name, phone, termsAccepted]);
+  }, [step, service, bookingMode, postalCode, postalStatus, fetchedAddress, selectedHKPricing, selectedSubcategoryKey, subtype, propertyType, selectedPricing, selectedDate, slot, name, phone, termsAccepted, isBrandedIdFlow, selectedTccIdRow, selectedTccIdTier, blindsCount]);
 
   // ─── Submit helpers ───────────────────────────────────────────────────────
 
@@ -954,6 +1106,21 @@ export default function BookingNewPage() {
       const totalWithGst = effectiveFinal + gstAmount;
       const amountCents = Math.round(totalWithGst * 100);
 
+      // Derive the effective partner brand for this booking:
+      //   • interior_design + selection → 'tcc' or 'doctor_clean_id'
+      //   • property_manager           → 'agents'
+      //   • legacy / unset             → 'agents' (safe default; matches pre-brand behavior)
+      const effectivePartnerBrand: PartnerBrand = partnerBrand ??
+        (user?.company_type === 'property_manager' ? 'agents' : 'agents');
+
+      const tierLabel = selectedTccIdTier === 'ala_carte'
+        ? 'Ala-Carte'
+        : selectedTccIdTier === 'scrubbing'
+          ? 'Ala-Carte + Scrubbing'
+          : selectedTccIdTier === 'scrubbing_formaldehyde'
+            ? 'Ala-Carte + Scrubbing + Formaldehyde'
+            : null;
+
       const newBooking = {
         Title: fullAddress,
         Name: name,
@@ -968,34 +1135,51 @@ export default function BookingNewPage() {
         Service_Type: serviceDbName,
         // Pass the chosen subtype (e.g., "Post-Renovation") so downstream
         // WhatsApp templates and dashboard summaries show the specific
-        // service instead of the generic Service_Type.
-        service_subtype: subtype || null,
+        // service instead of the generic Service_Type. For TCC/ID branded
+        // flows the "subtype" is really the tier name (Ala-Carte / +Scrubbing
+        // / +Scrubbing + Formaldehyde) so admins can see at a glance.
+        service_subtype: isBrandedIdFlow
+          ? (tierLabel ?? 'Post-Renovation')
+          : (subtype || null),
         calendar_id: calendarId,
         Unit_type: propertyType === 'hdb' ? 'HDB' : propertyType === 'landed' ? 'Landed' : propertyType === 'commercial' ? 'Commercial' : 'Condo/APT',
-        Unit_sub_type: selectedHKPricing ? selectedHKPricing.label : selectedPricing?.unit_label,
+        Unit_sub_type: isBrandedIdFlow
+          ? (selectedTccIdRow?.unit_label ?? null)
+          : (selectedHKPricing ? selectedHKPricing.label : selectedPricing?.unit_label),
         duration: selectedHKPricing
           ? `${selectedHKPricing.hours} hrs`
           : selectedPricing?.duration_hours ? `${selectedPricing.duration_hours} hrs` : null,
-        Extra_Service: [
-          ...Object.values(selectedAddons).map(a => a.unit_label),
-          ...Object.values(selectedAddonServices).map(r => r.subcategory_label || r.unit_label),
-          ...Array.from(selectedAdditionalServices)
-            .map((id) => additionalServiceRows.find((r) => r.id === id)?.name)
-            .filter((n): n is string => typeof n === 'string' && n.length > 0),
-          ...(bundleUpholsteryPieces > 0 ? [`Upholstery Bundle (${bundleUpholsteryPieces} pcs) — $${bundleUpholsteryPrice}`] : []),
-          ...(bundleCurtainSteam ? [`Curtain Steam Bundle — $${bundleCurtainSteamPrice}`] : []),
-          ...(upholsteryLShape ? [`L-Shape Sofa Upcharge — $${UPHOLSTERY_LSHAPE_PRICE}`] : []),
-          ...(upholsteryAddonCurtainSteam ? [`Curtain Steam Add-on — $${UPHOLSTERY_ADDON_CURTAIN_STEAM_PRICE}`] : []),
-          ...(upholsteryAddonDisinfect ? [`Disinfectant Misting Add-on — $${UPHOLSTERY_ADDON_DISINFECT_PRICE}`] : []),
-          ...(highCeilingAddon === '4_5m' ? ['High Ceiling (4-5m) — $100'] : []),
-          ...(coatingScrubbingRow ? [`Coating Scrubbing — $${effectivePrice(coatingScrubbingRow)}`] : []),
-          ...(springHipSqftBand ? [`Size Band: ${springHipSqftBand}`] : []),
-          ...(tenancyMoveType ? [`Move Type: ${tenancyMoveType === 'move_in' ? 'Move-In' : 'Move-Out'}`] : []),
-          ...(service === 'blinds' ? pricingRows
-            .filter(r => r.category === 'blinds' && (blindsQuantities[r.id] ?? 0) > 0)
-            .map(r => `${r.unit_label} × ${blindsQuantities[r.id]} — $${(blindsQuantities[r.id] ?? 0) * (r.partner_price ?? r.price ?? 0)}`)
-            : []),
-        ],
+        Extra_Service: isBrandedIdFlow
+          ? [
+              // Branded flow: keep the audit trail tight — tier + each picked
+              // ala-carte add-on. The shared service_pricing add-ons don't
+              // apply here.
+              ...(tierLabel ? [`Tier: ${tierLabel}`] : []),
+              ...Object.values(tccIdAlaCarteAddons).map(
+                (r) => `${r.unit_label} — $${r.ala_carte_price}`,
+              ),
+            ]
+          : [
+              ...Object.values(selectedAddons).map(a => a.unit_label),
+              ...Object.values(selectedAddonServices).map(r => r.subcategory_label || r.unit_label),
+              ...Array.from(selectedAdditionalServices)
+                .map((id) => additionalServiceRows.find((r) => r.id === id)?.name)
+                .filter((n): n is string => typeof n === 'string' && n.length > 0),
+              ...(bundleUpholsteryPieces > 0 ? [`Upholstery Bundle (${bundleUpholsteryPieces} pcs) — $${bundleUpholsteryPrice}`] : []),
+              ...(bundleCurtainSteam ? [`Curtain Steam Bundle — $${bundleCurtainSteamPrice}`] : []),
+              ...(upholsteryLShape ? [`L-Shape Sofa Upcharge — $${UPHOLSTERY_LSHAPE_PRICE}`] : []),
+              ...(upholsteryAddonCurtainSteam ? [`Curtain Steam Add-on — $${UPHOLSTERY_ADDON_CURTAIN_STEAM_PRICE}`] : []),
+              ...(upholsteryAddonDisinfect ? [`Disinfectant Misting Add-on — $${UPHOLSTERY_ADDON_DISINFECT_PRICE}`] : []),
+              ...(highCeilingAddon === '4_5m' ? ['High Ceiling (4-5m) — $100'] : []),
+              ...(coatingScrubbingRow ? [`Coating Scrubbing — $${effectivePrice(coatingScrubbingRow)}`] : []),
+              ...(springHipSqftBand ? [`Size Band: ${springHipSqftBand}`] : []),
+              ...(tenancyMoveType ? [`Move Type: ${tenancyMoveType === 'move_in' ? 'Move-In' : 'Move-Out'}`] : []),
+              ...(service === 'blinds' ? pricingRows
+                .filter(r => r.category === 'blinds' && (blindsQuantities[r.id] ?? 0) > 0)
+                .map(r => `${r.unit_label} × ${blindsQuantities[r.id]} — $${(blindsQuantities[r.id] ?? 0) * (r.partner_price ?? r.price ?? 0)}`)
+                : []),
+            ],
+        partner_brand: effectivePartnerBrand,
         Note: [
           notes,
           appliedPromo?.code ? `Promo: ${appliedPromo.code}` : null,
@@ -1190,6 +1374,13 @@ export default function BookingNewPage() {
     setName(''); setPhone(''); setEmail(''); setNotes('');
     setTermsAccepted(false); setAppliedPromo(null); setFinalPrice(0);
     setContactErrors({}); setClientSecret(null); setCurrentBookingId(null);
+    // Wipe TCC/ID selection and re-fetched catalog rows, but preserve the
+    // brand picker for interior_design users (they'll want to keep working
+    // within the same brand across bookings). property_manager gets re-seeded
+    // to 'agents' by the effect above.
+    setSelectedTccIdRowId(null);
+    setSelectedTccIdTier(null);
+    setTccIdAlaCarteAddons({});
     isSubmitting.current = false;
     bookingStore.reset();
     setStep('service');
@@ -1220,9 +1411,62 @@ export default function BookingNewPage() {
 
   const superStep = getSuperStep(step);
 
+  // Gate: interior_design partners MUST pick a brand before the wizard opens.
+  // This runs above the wizard grid so we don't have to fork the whole layout.
+  // Rendering here (not as a new STEP) keeps STEP_ORDER + the 5-step tracker
+  // untouched — which matters because the tracker is derived from the current
+  // `step` and every stepper transition assumes service/subtype/size/etc.
+  if (isInteriorDesignPartner && !partnerBrand) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] -mt-4 sm:-mt-6 pb-16">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-10">
+          <div className="bg-white rounded-3xl ring-1 ring-slate-100 shadow-sm p-5 sm:p-8">
+            <BrandSelector
+              selected={partnerBrand}
+              onSelect={(brand) => bookingStore.setPartnerBrand(brand)}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f8fafc] -mt-4 sm:-mt-6 pb-32 lg:pb-0">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-3 space-y-2 lg:space-y-3">
+
+        {/* Brand chip for ID users — reminds them which catalog is active
+            and lets them switch without going through Clear. */}
+        {isInteriorDesignPartner && partnerBrand && partnerBrand !== 'agents' && (
+          <div className="flex items-center justify-between px-3 py-2 rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Pricing
+              </span>
+              <span className={cn(
+                'text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full',
+                partnerBrand === 'tcc'
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : 'bg-orange-50 text-orange-700'
+              )}>
+                {partnerBrand === 'tcc' ? 'The Cleaning Crew' : 'Doctor Clean ID'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                bookingStore.setPartnerBrand(null);
+                setSelectedTccIdRowId(null);
+                setSelectedTccIdTier(null);
+                setTccIdAlaCarteAddons({});
+                setStep('service');
+              }}
+              className="text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700"
+            >
+              Change
+            </button>
+          </div>
+        )}
 
         {/* ── 5-step tracker ── */}
         <nav className="rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm px-3 lg:px-6 py-2 lg:py-2">
@@ -1336,7 +1580,10 @@ export default function BookingNewPage() {
                 {step === 'service' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {SERVICES.map((s) => {
+                      {(isBrandedIdFlow
+                        ? SERVICES.filter((s) => s.key === 'deep_cleaning')
+                        : SERVICES
+                      ).map((s) => {
                         const Icon = s.icon;
                         const meta = SERVICE_META[s.key] ?? { iconBg: 'bg-slate-50', iconText: 'text-slate-600', description: '' };
                         const isSelected = service === s.key;
@@ -1350,7 +1597,16 @@ export default function BookingNewPage() {
                               setSubtype(''); setSelectedSubcategoryKey('');
                               setPropertyType(null); setSelectedPricing(null);
                               setSelectedHKPricing(null); setSelectedAddons({});
-                              if (isHKOrOffice) {
+                              // Branded TCC / Doctor Clean ID flow: no
+                              // subtype step (catalog is post-renovation only)
+                              // and no service_pricing add-ons. Jump straight
+                              // to property so the size step can render the
+                              // matching HDB/Condo tier grid.
+                              if (isBrandedIdFlow) {
+                                setSubtype('Post-Renovation');
+                                setSelectedSubcategoryKey('post_reno');
+                                setStep('property');
+                              } else if (isHKOrOffice) {
                                 setStep('type_selection');
                               } else if (['scrubbing_machine','formaldehyde_removal','coating','disinfection'].includes(s.key)) {
                                 setStep('size');
@@ -1791,11 +2047,112 @@ export default function BookingNewPage() {
                 {/* SIZE */}
                 {step === 'size' && (
                   <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    {loadingPricing ? (
+                    {loadingPricing || (isBrandedIdFlow && loadingTccIdPricing) ? (
                       <div className="py-20 flex flex-col items-center opacity-30">
                         <Loader2 className="w-8 h-8 animate-spin text-emerald-500 mb-3" />
                         <p className="text-xs font-bold">Loading rates...</p>
                       </div>
+                    ) : isBrandedIdFlow ? (
+                      // ── Branded TCC / Doctor Clean ID size step ──
+                      // Each row is one HDB/Condo unit type with three tier
+                      // buttons: Ala-Carte / +Scrubbing / +Scrubbing+Formaldehyde.
+                      // Picking a tier both marks the row selected AND advances.
+                      tccIdUnitTypeRows.length === 0 ? (
+                        <div className="py-16 text-center space-y-2 opacity-60">
+                          <p className="text-sm font-bold text-slate-600">
+                            No {partnerBrand === 'tcc' ? 'TCC' : 'Doctor Clean ID'} pricing available for this property type.
+                          </p>
+                          <p className="text-xs text-slate-400">Please contact admin for a custom quote.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <p className="text-[11px] text-slate-500">
+                            Pick a unit type, then choose one of the three cleaning tiers.
+                            {partnerBrand === 'doctor_clean_id' && ' Doctor Clean ID pricing includes the 10% ID rebate.'}
+                          </p>
+                          {tccIdUnitTypeRows.map((row) => {
+                            const isSelectedRow = selectedTccIdRowId === row.id;
+                            const alaPrice = row.ala_carte_price == null ? null : Number(row.ala_carte_price);
+                            const scrubPrice = row.scrubbing_price == null ? null : Number(row.scrubbing_price);
+                            const formalPrice = row.scrubbing_formaldehyde_price == null ? null : Number(row.scrubbing_formaldehyde_price);
+                            const tiers: { key: TccIdTier; label: string; price: number | null }[] = [
+                              { key: 'ala_carte',              label: 'Ala-Carte',                    price: alaPrice },
+                              { key: 'scrubbing',              label: '+ Scrubbing',                  price: scrubPrice },
+                              { key: 'scrubbing_formaldehyde', label: '+ Scrubbing + Formaldehyde',   price: formalPrice },
+                            ];
+                            return (
+                              <div
+                                key={row.id}
+                                className={cn(
+                                  'p-4 rounded-2xl border-2 transition-all',
+                                  isSelectedRow ? 'border-emerald-500 bg-emerald-50/40 shadow-md' : 'border-slate-100 bg-white'
+                                )}
+                              >
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-black text-slate-900">{row.unit_label}</p>
+                                    {row.sqft_label && (
+                                      <p className="text-[10px] font-semibold text-slate-500 mt-0.5">{row.sqft_label}</p>
+                                    )}
+                                  </div>
+                                  {row.is_tbq && (
+                                    <span className="text-[9px] font-black text-amber-700 bg-amber-50 ring-1 ring-amber-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                      Quote on Request
+                                    </span>
+                                  )}
+                                </div>
+                                {row.is_tbq ? (
+                                  <a
+                                    href={`https://wa.me/6588656751?text=${encodeURIComponent(`Hi Doctor Clean! I'd like a quote for ${row.unit_label} post-renovation cleaning (${partnerBrand === 'tcc' ? 'TCC' : 'Doctor Clean ID'} pricing).`)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block w-full text-center py-2 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 text-[11px] font-black text-amber-700 uppercase tracking-widest hover:bg-amber-100"
+                                  >
+                                    Chat Admin for Quote →
+                                  </a>
+                                ) : (
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                    {tiers.map((t) => {
+                                      const isActiveTier = isSelectedRow && selectedTccIdTier === t.key;
+                                      const disabled = t.price == null;
+                                      return (
+                                        <button
+                                          key={t.key}
+                                          type="button"
+                                          disabled={disabled}
+                                          onClick={() => {
+                                            setSelectedTccIdRowId(row.id);
+                                            setSelectedTccIdTier(t.key);
+                                            setTimeout(() => {
+                                              const next = STEP_ORDER[STEP_ORDER.indexOf('size') + 1];
+                                              if (next) setStep(next);
+                                            }, 300);
+                                          }}
+                                          className={cn(
+                                            'flex flex-col items-start p-3 rounded-xl border-2 transition-all text-left active:scale-[0.98]',
+                                            isActiveTier
+                                              ? 'bg-emerald-500 border-emerald-500 text-white shadow'
+                                              : disabled
+                                                ? 'bg-slate-50 border-slate-100 opacity-40 cursor-not-allowed'
+                                                : 'bg-white border-slate-100 hover:border-emerald-300'
+                                          )}
+                                        >
+                                          <span className={cn('text-[10px] font-black uppercase tracking-widest', isActiveTier ? 'text-emerald-50' : 'text-slate-400')}>
+                                            {t.label}
+                                          </span>
+                                          <span className={cn('text-base font-black tracking-tight mt-1', isActiveTier ? 'text-white' : 'text-slate-900')}>
+                                            {disabled ? '—' : `S$${t.price}`}
+                                          </span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )
                     ) : service === 'blinds' ? (
                       <div className="space-y-3">
                         <p className="text-[11px] text-slate-500">Enter the quantity for each blind type. Total updates automatically.</p>
@@ -2226,6 +2583,82 @@ export default function BookingNewPage() {
                 {step === 'addons' && (
                   <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-4">
 
+                    {/* Branded TCC / Doctor Clean ID add-ons — ala-carte first-wash
+                        items grouped by subgroup (Individual / Combo / Surcharge).
+                        This REPLACES the shared service_pricing add-on section
+                        below; we return early so nothing from the old catalog
+                        renders alongside. */}
+                    {isBrandedIdFlow ? (
+                      <>
+                        {tccIdAlaCarteRows.length === 0 ? (
+                          <div className="py-12 text-center opacity-50">
+                            <p className="text-xs font-bold text-slate-500">
+                              No add-ons available for this brand.
+                            </p>
+                          </div>
+                        ) : (
+                          Object.entries(
+                            tccIdAlaCarteRows.reduce((acc, r) => {
+                              const g = r.subgroup ?? 'Add-ons';
+                              if (!acc[g]) acc[g] = [];
+                              acc[g].push(r);
+                              return acc;
+                            }, {} as Record<string, TccIdPricingRow[]>),
+                          ).map(([groupLabel, rows]) => (
+                            <div key={groupLabel}>
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                                {groupLabel}
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {rows.map((row) => {
+                                  const isSelected = Boolean(tccIdAlaCarteAddons[row.id]);
+                                  const price = row.ala_carte_price == null ? 0 : Number(row.ala_carte_price);
+                                  return (
+                                    <button
+                                      key={row.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setTccIdAlaCarteAddons((prev) =>
+                                          isSelected
+                                            ? (({ [row.id]: _drop, ...rest }) => rest)(prev)
+                                            : { ...prev, [row.id]: row },
+                                        );
+                                      }}
+                                      className={cn(
+                                        'flex items-center justify-between p-3 rounded-xl border-2 text-left transition-all active:scale-[0.98]',
+                                        isSelected
+                                          ? 'bg-emerald-500 border-emerald-500 text-white shadow-md'
+                                          : 'bg-white border-slate-100 hover:border-emerald-200',
+                                      )}
+                                    >
+                                      <p className={cn('text-[11px] font-bold truncate', isSelected ? 'text-white' : 'text-slate-800')}>
+                                        {row.unit_label}
+                                      </p>
+                                      <div className="flex items-center gap-2 flex-shrink-0">
+                                        <p className={cn('text-sm font-black', isSelected ? 'text-white' : 'text-emerald-600')}>
+                                          +S${price}
+                                        </p>
+                                        {isSelected && <CheckCircle2 className="w-4 h-4 text-white" />}
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                        <div className="pt-2 border-t border-slate-50">
+                          <Button
+                            onClick={handleNext}
+                            className="w-full h-12 rounded-2xl font-black text-sm bg-slate-100 hover:bg-emerald-600 hover:text-white text-slate-500 transition-all shadow-none active:scale-95"
+                          >
+                            <span className="flex items-center gap-2">Skip / Continue <ChevronRight className="w-4 h-4" /></span>
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+
                     {/* Size band picker for Spring / HIP (add-on prices vary by sqft range) */}
                     {(selectedSubcategoryKey === 'spring' || selectedSubcategoryKey === 'hip') && (
                       <div>
@@ -2619,6 +3052,8 @@ export default function BookingNewPage() {
                         <span className="flex items-center gap-2">Skip / Continue <ChevronRight className="w-4 h-4" /></span>
                       </Button>
                     </div>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -2831,48 +3266,74 @@ export default function BookingNewPage() {
                         <div>
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Order Breakdown</p>
                           <div className="space-y-2">
-                            <div className="flex justify-between items-start bg-slate-50 p-3 rounded-xl">
-                              <div>
-                                <p className="text-sm font-black text-slate-800">
-                                  {selectedHKPricing ? selectedHKPricing.label : (subtype || serviceLabel)}
-                                </p>
-                                <p className="text-xs text-slate-400 mt-0.5">
-                                  {selectedHKPricing
-                                    ? `${selectedHKPricing.hours} hour${selectedHKPricing.hours !== 1 ? 's' : ''}`
-                                    : service === 'blinds'
-                                      ? `${blindsCount} piece${blindsCount === 1 ? '' : 's'}`
-                                      : selectedPricing?.unit_label ?? '—'}
-                                </p>
-                              </div>
-                              <span className="text-sm font-black text-slate-900 flex-shrink-0 ml-4">
-                                {selectedHKPricing
-                                  ? `S$${selectedHKPricing.price}`
-                                  : service === 'blinds'
-                                    ? `S$${blindsTotal}`
-                                    : selectedPricing ? `S$${effectivePrice(selectedPricing)}` : 'TBD'}
-                              </span>
-                            </div>
-                            {service === 'blinds' && pricingRows
-                              .filter(r => r.category === 'blinds' && (blindsQuantities[r.id] ?? 0) > 0)
-                              .map(r => (
-                                <div key={r.id} className="flex justify-between px-3 text-xs text-slate-500">
-                                  <span>+ {r.unit_label} × {blindsQuantities[r.id]}</span>
-                                  <span className="font-bold text-emerald-600">S${(blindsQuantities[r.id] ?? 0) * (r.partner_price ?? r.price ?? 0)}</span>
+                            {isBrandedIdFlow && brandedLineItem ? (
+                              <>
+                                <div className="flex justify-between items-start bg-slate-50 p-3 rounded-xl">
+                                  <div>
+                                    <p className="text-sm font-black text-slate-800">
+                                      {brandedLineItem.primaryLabel}
+                                    </p>
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                      {partnerBrand === 'tcc' ? 'The Cleaning Crew' : 'Doctor Clean ID'}
+                                    </p>
+                                  </div>
+                                  <span className="text-sm font-black text-slate-900 flex-shrink-0 ml-4">
+                                    S${brandedLineItem.primaryPrice}
+                                  </span>
                                 </div>
-                              ))
-                            }
-                            {Object.values(selectedAddons).map(a => (
-                              <div key={a.id} className="flex justify-between px-3 text-xs text-slate-500">
-                                <span>+ {a.addon_group_label}</span>
-                                <span className="font-bold text-emerald-600">+S${a.price}</span>
-                              </div>
-                            ))}
-                            {Object.values(selectedAddonServices).map(r => (
-                              <div key={r.id} className="flex justify-between px-3 text-xs text-slate-500">
-                                <span>+ {r.subcategory_label || r.unit_label}</span>
-                                <span className="font-bold text-emerald-600">+S${effectivePrice(r)}</span>
-                              </div>
-                            ))}
+                                {brandedLineItem.addons.map((it) => (
+                                  <div key={`c-brand-${it.id}`} className="flex justify-between px-3 text-xs text-slate-500">
+                                    <span>+ {it.label}</span>
+                                    <span className="font-bold text-emerald-600">+S${it.price}</span>
+                                  </div>
+                                ))}
+                              </>
+                            ) : (
+                              <>
+                                <div className="flex justify-between items-start bg-slate-50 p-3 rounded-xl">
+                                  <div>
+                                    <p className="text-sm font-black text-slate-800">
+                                      {selectedHKPricing ? selectedHKPricing.label : (subtype || serviceLabel)}
+                                    </p>
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                      {selectedHKPricing
+                                        ? `${selectedHKPricing.hours} hour${selectedHKPricing.hours !== 1 ? 's' : ''}`
+                                        : service === 'blinds'
+                                          ? `${blindsCount} piece${blindsCount === 1 ? '' : 's'}`
+                                          : selectedPricing?.unit_label ?? '—'}
+                                    </p>
+                                  </div>
+                                  <span className="text-sm font-black text-slate-900 flex-shrink-0 ml-4">
+                                    {selectedHKPricing
+                                      ? `S$${selectedHKPricing.price}`
+                                      : service === 'blinds'
+                                        ? `S$${blindsTotal}`
+                                        : selectedPricing ? `S$${effectivePrice(selectedPricing)}` : 'TBD'}
+                                  </span>
+                                </div>
+                                {service === 'blinds' && pricingRows
+                                  .filter(r => r.category === 'blinds' && (blindsQuantities[r.id] ?? 0) > 0)
+                                  .map(r => (
+                                    <div key={r.id} className="flex justify-between px-3 text-xs text-slate-500">
+                                      <span>+ {r.unit_label} × {blindsQuantities[r.id]}</span>
+                                      <span className="font-bold text-emerald-600">S${(blindsQuantities[r.id] ?? 0) * (r.partner_price ?? r.price ?? 0)}</span>
+                                    </div>
+                                  ))
+                                }
+                                {Object.values(selectedAddons).map(a => (
+                                  <div key={a.id} className="flex justify-between px-3 text-xs text-slate-500">
+                                    <span>+ {a.addon_group_label}</span>
+                                    <span className="font-bold text-emerald-600">+S${a.price}</span>
+                                  </div>
+                                ))}
+                                {Object.values(selectedAddonServices).map(r => (
+                                  <div key={r.id} className="flex justify-between px-3 text-xs text-slate-500">
+                                    <span>+ {r.subcategory_label || r.unit_label}</span>
+                                    <span className="font-bold text-emerald-600">+S${effectivePrice(r)}</span>
+                                  </div>
+                                ))}
+                              </>
+                            )}
                             {(slot?.additionalFee ?? 0) > 0 && (
                               <div className="flex justify-between items-center px-3 py-1">
                                 <span className="text-xs text-orange-600 italic">+ Night/Peak Surcharge</span>
@@ -2957,6 +3418,7 @@ export default function BookingNewPage() {
                 slot={slot}
                 pricing={selectedPricing}
                 housekeepingPricing={selectedHKPricing}
+                brandedLineItem={brandedLineItem}
                 addons={selectedAddons}
                 addonServices={Object.values(selectedAddonServices)}
                 scrubMachineType={scrubMachineType}
@@ -3091,6 +3553,7 @@ export default function BookingNewPage() {
                 slot={slot}
                 pricing={selectedPricing}
                 housekeepingPricing={selectedHKPricing}
+                brandedLineItem={brandedLineItem}
                 addons={selectedAddons}
                 addonServices={Object.values(selectedAddonServices)}
                 scrubMachineType={scrubMachineType}

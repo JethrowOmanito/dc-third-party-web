@@ -65,6 +65,11 @@ const bookingSchema = z.object({
   partner_company_id: z.string().max(64).nullish(),
   source: z.string().max(32).nullish(),
   lifecycle_state: z.string().max(32).nullish(),
+  // Partner brand — client hint used for audit/reporting. Server still
+  // re-derives from company_type below to prevent an ID-company partner
+  // from labelling a booking as 'agents' (or vice versa) and skirting the
+  // downstream rebate logic.
+  partner_brand: z.enum(['tcc', 'doctor_clean_id', 'agents']).nullish(),
 });
 type ClientBooking = z.infer<typeof bookingSchema>;
 
@@ -137,10 +142,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Load company for discount + payment terms + company_code.
+    // 3. Load company for discount + payment terms + company_code + type.
+    // company_type drives partner_brand server-side truthing below so a
+    // property_manager can't submit partner_brand='doctor_clean_id' to
+    // claim the ID rebate on a normal Agents booking.
     const { data: company } = await admin
       .from('partner_companies')
-      .select('id, name, company_code, discount_type, discount_value, payment_terms, is_active')
+      .select('id, name, company_code, company_type, discount_type, discount_value, payment_terms, is_active')
       .eq('id', partner.company_id)
       .single();
     if (!company || company.is_active === false) {
@@ -215,6 +223,24 @@ export async function POST(req: NextRequest) {
     // 6. Payment routing.
     const isInvoiced = company.payment_terms === 'end_of_month';
 
+    // Server-truth partner_brand. property_manager companies are ALWAYS
+    // 'agents' regardless of what the client sent; interior_design
+    // companies accept 'tcc' or 'doctor_clean_id' and default to 'agents'
+    // (safe) if the client somehow sent something else. Anything else
+    // (unknown/null company_type) also defaults to 'agents'.
+    const clientBrand = (body as any).partner_brand as
+      | 'tcc' | 'doctor_clean_id' | 'agents' | null | undefined;
+    let partnerBrand: 'tcc' | 'doctor_clean_id' | 'agents';
+    if (company.company_type === 'property_manager') {
+      partnerBrand = 'agents';
+    } else if (company.company_type === 'interior_design') {
+      partnerBrand = clientBrand === 'tcc' || clientBrand === 'doctor_clean_id'
+        ? clientBrand
+        : 'agents';
+    } else {
+      partnerBrand = 'agents';
+    }
+
     // 7. Build the row — server owns every security-relevant column.
     const row = {
       Title: body.Title ?? null,
@@ -252,6 +278,7 @@ export async function POST(req: NextRequest) {
       lifecycle_state: 'active',
       owned_by_third_party: partnerUserId,
       partner_company_id: partner.company_id,
+      partner_brand: partnerBrand,
       // Canonical partner source code — actual company link lives in partner_company_id.
       source: 'ID',
       // NULL when either the client didn't send one OR the migration

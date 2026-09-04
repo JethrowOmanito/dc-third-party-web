@@ -1,7 +1,7 @@
 'use client';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { ServiceKey, BookingStep, PricingRow, AddonRow, BookingSlot, HousekeepingPricingRow } from '@/types';
+import type { ServiceKey, BookingStep, PricingRow, AddonRow, BookingSlot, HousekeepingPricingRow, PartnerBrand } from '@/types';
 
 interface BookingState {
   step: BookingStep;
@@ -22,6 +22,7 @@ interface BookingState {
   contactPhone: string;
   contactEmail: string;
   contactNotes: string;
+  partnerBrand: PartnerBrand | null;
   setStep: (step: BookingStep) => void;
   setService: (s: ServiceKey) => void;
   setBookingMode: (m: 'general' | 'deep' | null) => void;
@@ -34,6 +35,7 @@ interface BookingState {
   setSelectedAddons: (addons: Record<string, AddonRow>) => void;
   setPostal: (code: string, address: string, unit?: string) => void;
   setContact: (fields: Partial<Pick<BookingState, 'contactName' | 'contactPhone' | 'contactEmail' | 'contactNotes'>>) => void;
+  setPartnerBrand: (brand: PartnerBrand | null) => void;
   reset: () => void;
 }
 
@@ -56,6 +58,7 @@ const initialState = {
   contactPhone: '',
   contactEmail: '',
   contactNotes: '',
+  partnerBrand: null as PartnerBrand | null,
 };
 
 export const useBookingStore = create<BookingState>()(
@@ -74,10 +77,13 @@ export const useBookingStore = create<BookingState>()(
       setSelectedAddons: (selectedAddons) => set({ selectedAddons }),
       setPostal: (postalCode, fetchedAddress, unitNumber = '') => set({ postalCode, fetchedAddress, unitNumber }),
       setContact: (fields) => set((s) => ({ ...s, ...fields })),
+      setPartnerBrand: (partnerBrand) => set({ partnerBrand }),
       reset: () => set(initialState),
     }),
     {
-      name: 'dc-partner-booking',
+      // v2: added partnerBrand for ID users (tcc / doctor_clean_id / agents).
+      // Bump so persisted state from before the brand selector clears out.
+      name: 'dc-partner-booking-v2',
       storage: createJSONStorage(() =>
         typeof window !== 'undefined' ? sessionStorage : localStorage
       ),

@@ -37,6 +37,16 @@ function addonServiceLabel(row: PricingRow, scrubMachineType?: 'KM1' | 'LC1' | n
   return row.subcategory_label || ADDON_CATEGORY_NAMES[row.category] || row.unit_label || 'Add-on';
 }
 
+// Optional line-item shape used when the branded TCC / Doctor Clean ID flow
+// is active — replaces `pricing` / `housekeepingPricing` for the primary row
+// and drives the "+ add-on" list below it.
+export interface BrandedLineItem {
+  primaryLabel: string;      // e.g. "3-BED (<1200 sqft) — + Scrubbing"
+  primaryPrice: number;      // ex-GST, in SGD
+  addons: { id: number; label: string; price: number }[];
+  brand: 'tcc' | 'doctor_clean_id';
+}
+
 interface RealtimeSummaryProps {
   serviceLabel: string;
   subtype: string;
@@ -48,6 +58,7 @@ interface RealtimeSummaryProps {
   addonServices?: PricingRow[];
   scrubMachineType?: 'KM1' | 'LC1' | null;
   additionalServices?: AdditionalServiceLineItem[];
+  brandedLineItem?: BrandedLineItem | null;
   bundleUpholsteryPieces?: 0 | 2 | 3;
   bundleUpholsteryPrice?: number;
   bundleCurtainSteam?: boolean;
@@ -89,6 +100,7 @@ export default function RealtimeSummary({
   addonServices = [],
   scrubMachineType = null,
   additionalServices = [],
+  brandedLineItem = null,
   bundleUpholsteryPieces = 0,
   bundleUpholsteryPrice = 0,
   bundleCurtainSteam = false,
@@ -117,8 +129,14 @@ export default function RealtimeSummary({
   loading,
 }: RealtimeSummaryProps) {
   const isFinalStep = step === 'confirm';
-  const hasPricing = !!pricing || !!housekeepingPricing;
+  const hasBranded = !!brandedLineItem && brandedLineItem.primaryPrice > 0;
+  const hasPricing = !!pricing || !!housekeepingPricing || hasBranded;
   const detailsText = serviceLabel ? subtype || 'Configuring…' : 'Waiting for details';
+  const brandBadgeText = brandedLineItem
+    ? brandedLineItem.brand === 'tcc'
+      ? 'The Cleaning Crew'
+      : 'Doctor Clean ID'
+    : null;
 
   return (
     <div className="lg:sticky lg:top-6">
@@ -199,7 +217,32 @@ export default function RealtimeSummary({
           {/* Pricing block or empty state */}
           {hasPricing ? (
             <div className="space-y-2.5">
-              {housekeepingPricing ? (
+              {brandBadgeText && (
+                <div className="flex items-center gap-2 -mt-1">
+                  <span className={cn(
+                    'text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full',
+                    brandedLineItem?.brand === 'tcc'
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-orange-50 text-orange-700'
+                  )}>
+                    {brandBadgeText}
+                  </span>
+                </div>
+              )}
+              {brandedLineItem ? (
+                <>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-600 font-medium">{brandedLineItem.primaryLabel}</span>
+                    <span className="font-bold text-slate-900">S${brandedLineItem.primaryPrice}</span>
+                  </div>
+                  {brandedLineItem.addons.map((it) => (
+                    <div key={`brand-${it.id}`} className="flex justify-between items-center text-xs">
+                      <span className="text-slate-500 font-medium italic">+ {it.label}</span>
+                      <span className="font-bold text-emerald-600">+S${it.price}</span>
+                    </div>
+                  ))}
+                </>
+              ) : housekeepingPricing ? (
                 <div className="flex justify-between items-center text-sm">
                   <div className="flex flex-col">
                     <span className="text-slate-900 font-semibold">
@@ -220,7 +263,7 @@ export default function RealtimeSummary({
                 </div>
               ) : null}
 
-              {Object.values(addons).map((addon) => (
+              {!brandedLineItem && Object.values(addons).map((addon) => (
                 <div
                   key={addon.id}
                   className="flex justify-between items-center text-xs animate-in slide-in-from-right-1"
