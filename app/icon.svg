@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="tp-shield" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="0.55" stop-color="#1d4ed8"/>
+      <stop offset="1" stop-color="#059669"/>
+    </linearGradient>
+    <linearGradient id="tp-hand-left" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="tp-hand-right" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#10b981"/>
+      <stop offset="1" stop-color="#047857"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Shield background — fills viewBox, small padding for tab rendering -->
+  <path
+    d="M64 4 L114 20 L114 66 C114 92 92 116 64 124 C36 116 14 92 14 66 L14 20 Z"
+    fill="url(#tp-shield)"
+  />
+
+  <!-- Inner white cutout to give the mark contrast at small sizes -->
+  <path
+    d="M64 14 L104 26 L104 66 C104 88 86 108 64 114 C42 108 24 88 24 66 L24 26 Z"
+    fill="#ffffff"
+    fill-opacity="0.1"
+  />
+
+  <!-- Left arm/sleeve (blue) -->
+  <path
+    d="M22 68
+       Q22 60 30 60
+       L52 60
+       Q56 60 58 63
+       L64 71
+       L58 79
+       Q56 82 52 82
+       L30 82
+       Q22 82 22 74
+       Z"
+    fill="url(#tp-hand-left)"
+    stroke="#ffffff"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
+
+  <!-- Right arm/sleeve (green) -->
+  <path
+    d="M106 68
+       Q106 60 98 60
+       L76 60
+       Q72 60 70 63
+       L64 71
+       L70 79
+       Q72 82 76 82
+       L98 82
+       Q106 82 106 74
+       Z"
+    fill="url(#tp-hand-right)"
+    stroke="#ffffff"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
+
+  <!-- Handshake grip highlight in the middle -->
+  <path
+    d="M56 68 L72 68 L72 76 L56 76 Z"
+    fill="#ffffff"
+    fill-opacity="0.9"
+  />
+  <path
+    d="M56 68 L72 68 L72 76 L56 76 Z"
+    fill="none"
+    stroke="#1e40af"
+    stroke-width="1.5"
+    stroke-linejoin="round"
+    opacity="0.7"
+  />
+
+  <!-- Finger separator hints for the grip -->
+  <line x1="60" y1="68" x2="60" y2="76" stroke="#1e40af" stroke-width="0.75" opacity="0.55"/>
+  <line x1="64" y1="68" x2="64" y2="76" stroke="#1e40af" stroke-width="0.75" opacity="0.55"/>
+  <line x1="68" y1="68" x2="68" y2="76" stroke="#1e40af" stroke-width="0.75" opacity="0.55"/>
+</svg>
