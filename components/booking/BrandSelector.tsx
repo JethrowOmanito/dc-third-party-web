@@ -50,7 +50,7 @@ const BRAND_CARDS: {
     title: 'Doctor Clean',
     subtitle: 'Interior Designer Pricelist',
     tagline: 'Deep cleaning + renovation, 10% ID rebate',
-    logo: '/site-icon.png',
+    logo: '/doctor-clean-logo.png',
     accent: {
       ring: 'ring-slate-100',
       ringActive: 'ring-2 ring-orange-500',
@@ -91,22 +91,24 @@ export default function BrandSelector({ selected, onSelect }: BrandSelectorProps
                 isSelected && 'shadow-lg'
               )}
             >
-              {/* Doctor Clean shows the vendor logo tucked into the top-left
-                  rounded corner. TCC has no icon by design. */}
+              {/* Doctor Clean shows the official wordmark logo across the
+                  top of the card, aspect-preserved. TCC has no logo by design. */}
               {card.logo && (
-                <div className="absolute top-0 left-0 w-14 h-14 rounded-tl-2xl rounded-br-2xl overflow-hidden ring-1 ring-slate-100 bg-white flex items-center justify-center">
-                  <Image
-                    src={card.logo}
-                    alt={card.title}
-                    width={56}
-                    height={56}
-                    className="w-full h-full object-cover"
-                    priority
-                  />
+                <div className="w-full flex items-center justify-start mb-2">
+                  <div className="relative w-[160px] h-12">
+                    <Image
+                      src={card.logo}
+                      alt={card.title}
+                      fill
+                      className="object-contain object-left"
+                      sizes="160px"
+                      priority
+                    />
+                  </div>
                 </div>
               )}
 
-              <div className={cn('min-w-0 flex-1', card.logo && 'pl-16 min-h-[3.5rem]')}>
+              <div className="min-w-0 flex-1">
                 <p className="text-base font-bold text-slate-900 leading-tight">
                   {card.title}
                 </p>
