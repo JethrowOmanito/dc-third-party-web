@@ -31,6 +31,8 @@ import RealtimeSummary from '@/components/booking/RealtimeSummary';
 import JobChatContent from '@/components/booking/JobChatContent';
 import BrandSelector from '@/components/booking/BrandSelector';
 import PartnerScopeOfWork from '@/components/booking/PartnerScopeOfWork';
+import ServiceScopeOfWork from '@/components/booking/ServiceScopeOfWork';
+import { resolveDeepCleaningScope } from '@/lib/scope-of-work';
 import { cn, convertTo24Hour, isServiceablePostal } from '@/lib/utils';
 import { bookingContactSchema } from '@/lib/validations/booking.schema';
 import { getSupabaseClient } from '@/lib/supabase/client';
@@ -103,6 +105,7 @@ function getSuperStep(step: string): number {
     case 'duration':
     case 'subtype':
     case 'property':
+    case 'scope':
     case 'size':
     case 'addons':
       return 2;
@@ -158,7 +161,7 @@ const FALLBACK_SUBTYPES: Partial<Record<ServiceKey, { key: string; label: string
 
 type Step =
   | 'service' | 'type_selection' | 'hk_postal' | 'duration'
-  | 'subtype' | 'property' | 'size' | 'datetime' | 'addons'
+  | 'subtype' | 'property' | 'scope' | 'size' | 'datetime' | 'addons'
   | 'contact' | 'terms' | 'confirm' | 'chat';
 
 // ─── Page ────────────────────────────────────────────────────────────────────
@@ -760,9 +763,10 @@ export default function BookingNewPage() {
     }
 
     // Branded TCC / Doctor Clean ID: catalog is post-renovation only, so no
-    // subtype step. Order is service → property → size → datetime → addons.
+    // subtype step. Scope-of-work gets its own step AFTER property so the
+    // partner acknowledges what's included/excluded before picking a tier.
     if (isBrandedIdFlow) {
-      steps.push('property', 'size', 'datetime', 'addons');
+      steps.push('property', 'scope', 'size', 'datetime', 'addons');
     } else if (service === 'upholstery' || service === 'curtain') {
       steps.push('subtype', 'size', 'datetime');
     } else if (service === 'window_cleaning') {
@@ -772,7 +776,11 @@ export default function BookingNewPage() {
     } else if (isStandaloneService) {
       steps.push('size', 'datetime');
     } else {
-      steps.push('subtype', 'property', 'size', 'datetime', 'addons');
+      // Deep Cleaning gets a scope-of-work step between property and size so
+      // the customer sees what's included/excluded before picking a tier.
+      steps.push('subtype', 'property');
+      if (service === 'deep_cleaning') steps.push('scope');
+      steps.push('size', 'datetime', 'addons');
     }
 
     steps.push('contact', 'terms', 'confirm');
@@ -807,6 +815,7 @@ export default function BookingNewPage() {
     duration: 'Select Duration',
     subtype: 'Cleaning Type',
     property: 'Property Info',
+    scope: 'Scope of Work',
     size: 'Units & Pricing',
     datetime: 'Choose Schedule',
     addons: 'Add-on Services',
@@ -823,6 +832,7 @@ export default function BookingNewPage() {
     duration: 'How long do you need the cleaner?',
     subtype: 'Choose the sub-category that fits best',
     property: 'Tell us about the property',
+    scope: 'Review what\'s included and excluded before picking pricing',
     size: 'Pick a unit size to view pricing',
     datetime: 'Pick a date and arrival window',
     addons: 'Optional extras for your booking',
@@ -1962,12 +1972,6 @@ export default function BookingNewPage() {
                 {/* PROPERTY */}
                 {step === 'property' && (
                   <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-3">
-                    {/* Branded scope-of-work card (TCC + Doctor Clean). Appears
-                        immediately after service selection so partners see the
-                        included / excluded items before picking a unit tier. */}
-                    {isBrandedIdFlow && (partnerBrand === 'tcc' || partnerBrand === 'doctor_clean_id') && (
-                      <PartnerScopeOfWork brand={partnerBrand} />
-                    )}
                     {/* Move-In / Move-Out selector — tenancy only (must pick before property type) */}
                     {selectedSubcategoryKey === 'tenancy' && (
                       <div className="space-y-2 mb-2">
@@ -2069,6 +2073,27 @@ export default function BookingNewPage() {
                     )}
                   </div>
                 )}
+
+                {/* SCOPE — dedicated step. Runs AFTER property so the customer
+                    sees the included/excluded scope before picking a tier on
+                    the size step.
+                    · Branded ID flows (TCC + Doctor Clean) render the branded card.
+                    · Non-ID Deep Cleaning renders the generic card, resolved from
+                      the subtype (post-reno / spring / HIP / tenancy). */}
+                {step === 'scope' && isBrandedIdFlow && (partnerBrand === 'tcc' || partnerBrand === 'doctor_clean_id') && (
+                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <PartnerScopeOfWork brand={partnerBrand} />
+                  </div>
+                )}
+                {step === 'scope' && !isBrandedIdFlow && service === 'deep_cleaning' && (() => {
+                  const data = resolveDeepCleaningScope(selectedSubcategoryKey, tenancyMoveType);
+                  if (!data) return null;
+                  return (
+                    <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      <ServiceScopeOfWork data={data} />
+                    </div>
+                  );
+                })()}
 
                 {/* SIZE */}
                 {step === 'size' && (
