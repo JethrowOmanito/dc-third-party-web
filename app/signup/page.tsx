@@ -566,7 +566,12 @@ export default function SignupPage() {
       )}
 
       <div className="dc-signup">
-        <svg className="dc-ribbon" viewBox="0 0 900 700" preserveAspectRatio="none" aria-hidden>
+        <svg className="dc-ribbon dc-ribbon--left" viewBox="0 0 900 700" preserveAspectRatio="none" aria-hidden>
+          <path d="M0,140 C260,180 520,440 900,690 L900,700 L0,700 Z" fill="#0eae8b" />
+          <path d="M0,340 C230,380 520,560 900,700 L0,700 Z" fill="#e7f8f3" />
+        </svg>
+        {/* Mirrored ribbon on the opposite corner for visual balance. */}
+        <svg className="dc-ribbon dc-ribbon--right" viewBox="0 0 900 700" preserveAspectRatio="none" aria-hidden>
           <path d="M0,140 C260,180 520,440 900,690 L900,700 L0,700 Z" fill="#0eae8b" />
           <path d="M0,340 C230,380 520,560 900,700 L0,700 Z" fill="#e7f8f3" />
         </svg>
@@ -1199,9 +1204,11 @@ const CSS = `
 .dc-signup * { box-sizing: border-box; }
 
 .dc-ribbon {
-  position: fixed; left: 0; bottom: 0; width: 60%; height: 22vh;
+  position: fixed; bottom: 0; width: 60%; height: 22vh;
   pointer-events: none; z-index: 1;
 }
+.dc-ribbon--left  { left: 0; }
+.dc-ribbon--right { right: 0; transform: scaleX(-1); }
 
 .dc-signup__container {
   position: relative; z-index: 10;
