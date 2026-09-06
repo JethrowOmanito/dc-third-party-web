@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit, resetRateLimit } from '@/lib/utils';
 import bcrypt from 'bcryptjs';
 import { SignJWT } from 'jose';
@@ -80,11 +81,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // force_logout is a session-invalidator, not a ban. Existing JWTs
+    // fail on /api/auth/me (see me/route.ts) so the user is bounced to
+    // /login — a fresh, valid password login then clears the flag and
+    // proceeds. This is what happens after an admin changes a member's
+    // role via PATCH /api/team/members/[id]: the target picks up the
+    // new role on next login instead of being permanently locked out.
     if (partner.force_logout) {
-      return NextResponse.json(
-        { error: 'Your account has been logged out by admin.' },
-        { status: 403 }
-      );
+      const db = createAdminClient();
+      await db
+        .from('partner_user')
+        .update({ force_logout: false })
+        .eq('id', partner.id);
     }
 
     await resetRateLimit(rateLimitKey);

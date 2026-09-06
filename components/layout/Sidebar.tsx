@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
+import { canAccess } from '@/lib/rbac';
 
 interface NavItem {
   href: string;
@@ -47,8 +48,12 @@ export function Sidebar() {
       // Network fail — still clear local state and force navigation.
     }
     logout();
+    // Sweep every legacy Zustand key so logout truly clears the session.
     try {
-      localStorage.removeItem('dc-partner-auth-v2');
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k?.startsWith('dc-partner-auth-')) localStorage.removeItem(k);
+      }
     } catch {}
     // Full navigation instead of client-side push to ensure the new session
     // check runs cleanly on the login page.
@@ -87,9 +92,10 @@ export function Sidebar() {
         </div>
       )}
 
-      {/* Nav */}
+      {/* Nav — filter admin-only pages out for employee role.
+          Employees see Dashboard / Today / Availability / Book / Settings. */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {navItems.map(({ href, label, icon: Icon, requiresApproval }) => {
+        {navItems.filter((item) => canAccess(user, item.href)).map(({ href, label, icon: Icon, requiresApproval }) => {
           const isSpecificView = href.split('/').length > 2 && href !== '/dashboard';
           const isActive = isSpecificView
             ? pathname === href

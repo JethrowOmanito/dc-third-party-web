@@ -11,6 +11,7 @@ interface AuthState {
   setGuestSession: (session: GuestSession | null) => void;
   logout: () => void;
   setHasHydrated: (v: boolean) => void;
+  refresh: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -23,13 +24,25 @@ export const useAuthStore = create<AuthState>()(
       setGuestSession: (guestSession) => set({ guestSession, user: null }),
       logout: () => set({ user: null, guestSession: null }),
       setHasHydrated: (v) => set({ _hasHydrated: v }),
+      // Force a fresh /api/auth/me pull. Used by onboarding after doc
+      // upload flips company_status → 'approved' so the gate lets the
+      // user through immediately (instead of waiting for the 30s poll).
+      refresh: async () => {
+        try {
+          const res = await fetch('/api/auth/me', { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            set({ user: data.user });
+          }
+        } catch { /* silent — poll will catch up */ }
+      },
     }),
     {
-      // v3: added partner_role to the User shape. Bumping forces a fresh /api/auth/me
-      // so the booking-page subcategory filter has a role to read on returning sessions.
-      // v2 history: split partner_user schema; missing approval_status/company_id would
-      // have let legacy sessions bypass the booking gate.
-      name: 'dc-partner-auth-v3',
+      // v4: added company_status + partner_tier + widened partner_role.
+      // Bumping the key forces a fresh /api/auth/me pull so legacy
+      // sessions can't skip the new onboarding gate with stale data.
+      // v3: added partner_role. v2: added approval_status/company_id.
+      name: 'dc-partner-auth-v4',
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },

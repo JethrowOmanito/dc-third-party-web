@@ -11,8 +11,16 @@ export interface User {
   company_discount_type?: 'percent' | 'flat' | null;
   company_discount_value?: number;
   company_payment_terms?: 'upfront' | 'end_of_month' | null;
+  // Onboarding lifecycle for the partner company (added Phase 1).
+  // ID admins whose company_status !== 'approved' are routed to
+  // /dashboard/onboarding/company before they can access the wizard.
+  company_status?: 'draft' | 'pending' | 'approved' | 'rejected';
+  partner_tier?: string;
   approval_status?: 'pending' | 'approved' | 'rejected';
-  partner_role?: 'interior_designer' | 'agent' | 'other' | null;
+  // Values 'admin' | 'employee' are the new RBAC targets. Older values
+  // ('interior_designer' | 'agent' | 'other') stay until Phase 2 cleanup
+  // migration flips them (existing ID users will be wiped first).
+  partner_role?: 'admin' | 'employee' | 'interior_designer' | 'agent' | 'other' | null;
 }
 
 export interface Job {

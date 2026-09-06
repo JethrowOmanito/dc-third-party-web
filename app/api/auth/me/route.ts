@@ -62,7 +62,8 @@ export async function GET(_req: NextRequest) {
         `id, username, email, full_name, whatsapp_phone,
          company_id, approval_status, force_logout, partner_role,
          company:partner_companies!company_id (
-           name, company_code, company_type, discount_type, discount_value, payment_terms
+           name, company_code, company_type, discount_type, discount_value, payment_terms,
+           company_status, partner_tier
          )`
       )
       .eq('id', partnerId)
@@ -95,8 +96,12 @@ export async function GET(_req: NextRequest) {
       company_discount_type: (company?.discount_type ?? null) as 'percent' | 'flat' | null,
       company_discount_value: Number(company?.discount_value ?? 0),
       company_payment_terms: (company?.payment_terms ?? null) as 'upfront' | 'end_of_month' | null,
+      // Phase 1 additions — surfaced so client gate + boss dashboard
+      // can read directly from the session without a second RPC.
+      company_status: (company?.company_status ?? 'pending') as 'draft' | 'pending' | 'approved' | 'rejected',
+      partner_tier: (company?.partner_tier ?? 'Standard Partner') as string,
       approval_status: partner.approval_status as 'pending' | 'approved' | 'rejected',
-      partner_role: (partner.partner_role ?? null) as 'interior_designer' | 'agent' | 'other' | null,
+      partner_role: (partner.partner_role ?? null) as 'admin' | 'employee' | 'interior_designer' | 'agent' | 'other' | null,
     };
 
     // Rotate the JWT so subsequent requests carry the fresh approval_status.

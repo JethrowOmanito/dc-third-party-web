@@ -42,7 +42,12 @@ export function TopBar() {
   const handleLogout = async () => {
     try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
     logout();
-    try { localStorage.removeItem('dc-partner-auth-v2'); } catch {}
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k?.startsWith('dc-partner-auth-')) localStorage.removeItem(k);
+      }
+    } catch {}
     window.location.href = '/login';
   };
 

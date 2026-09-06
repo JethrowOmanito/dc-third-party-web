@@ -24,13 +24,18 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { getGreeting, getServiceDisplayName, cn } from '@/lib/utils';
+import { effectiveRole } from '@/lib/rbac';
 
 interface Stats {
   todayCount: number;
   incomingCount: number;
   totalCount: number;
-  totalCommission: number;
-  totalRebate: number;
+  // MTD = current calendar month, LM = previous calendar month.
+  // The dashboard cards show the MTD value and the % delta vs LM.
+  commissionMTD: number;
+  commissionLM: number;
+  rebateMTD: number;
+  rebateLM: number;
 }
 
 interface UpcomingJob {
@@ -49,6 +54,23 @@ interface UpcomingJob {
 
 const MONTH_ABBR = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
+// Format a month-over-month delta for the commission / rebate cards.
+// When the previous month was $0 we can't compute a %, so fall back
+// to a plain "+$X vs last month" so the card still shows movement.
+function formatDelta(mtd: number, lm: number): string {
+  if (lm === 0) {
+    if (mtd === 0) return '0% vs last month';
+    return `+$${mtd.toFixed(0)} vs last month`;
+  }
+  const pct = ((mtd - lm) / lm) * 100;
+  const sign = pct > 0 ? '+' : '';
+  return `${sign}${pct.toFixed(0)}% vs last month`;
+}
+function deltaTone(mtd: number, lm: number): 'positive' | 'negative' | 'neutral' {
+  if (mtd === lm) return 'neutral';
+  return mtd > lm ? 'positive' : 'negative';
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -56,8 +78,10 @@ export default function DashboardPage() {
     todayCount: 0,
     incomingCount: 0,
     totalCount: 0,
-    totalCommission: 0,
-    totalRebate: 0,
+    commissionMTD: 0,
+    commissionLM: 0,
+    rebateMTD: 0,
+    rebateLM: 0,
   });
   const [upcoming, setUpcoming] = useState<UpcomingJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,10 +125,33 @@ export default function DashboardPage() {
       const jobs = allResult.data || [];
       const todayCount = jobs.filter((j) => j.Start_Date?.startsWith(today)).length;
       const incomingCount = jobs.filter((j) => j.Start_Date && j.Start_Date > today).length;
-      const totalCommission = jobs.reduce((s, j) => s + (j.commission_percentage || 0), 0);
-      const totalRebate = jobs.reduce((s, j) => s + (j.rebate_amount || 0), 0);
 
-      setStats({ todayCount, incomingCount, totalCount: jobs.length, totalCommission, totalRebate });
+      // Month buckets. commission_percentage on events is currently stored
+      // as an already-computed $ amount (all 0.00 in DB as of 2026-09-06 —
+      // Zoe / trigger will populate). Sum is safe either way.
+      const now = new Date();
+      const mtdStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+      const lmStart  = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
+      const lmEnd    = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
+
+      let commissionMTD = 0, commissionLM = 0, rebateMTD = 0, rebateLM = 0;
+      for (const j of jobs) {
+        const d = j.Start_Date ?? '';
+        const c = Number(j.commission_percentage ?? 0);
+        const r = Number(j.rebate_amount ?? 0);
+        if (d >= mtdStart) {
+          commissionMTD += c;
+          rebateMTD += r;
+        } else if (d >= lmStart && d <= lmEnd) {
+          commissionLM += c;
+          rebateLM += r;
+        }
+      }
+
+      setStats({
+        todayCount, incomingCount, totalCount: jobs.length,
+        commissionMTD, commissionLM, rebateMTD, rebateLM,
+      });
       setUpcoming((upcomingResult.data as UpcomingJob[]) || []);
     } finally {
       setLoading(false);
@@ -124,9 +171,13 @@ export default function DashboardPage() {
     };
   }, [loadData]);
 
-  // UNIVERSAL HANDSHAKE: Account-wide recovery for post-payment redirect
+  // UNIVERSAL HANDSHAKE: Account-wide recovery for post-payment redirect.
+  // Employees never make bookings (no Book Service in their nav) so
+  // they should never see a Stripe success redirect — skip the 5s
+  // poll entirely for them.
   useEffect(() => {
     if (!user?.id) return;
+    if (effectiveRole(user) !== 'admin') return;
 
     const scout = async () => {
       try {
@@ -266,17 +317,21 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* ============ TOP STAT CARDS ============ */}
+      {/* ============ TOP STAT CARDS ============
+          Commission / Rebate / Tier are admin-only. Uses the same
+          effectiveRole() helper the sidebar + AuthGuard use so legacy
+          agent/other roles don't accidentally see revenue. */}
+      {effectiveRole(user) === 'admin' && (
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
         <StatCard
           icon={Wallet}
           iconBg="bg-emerald-100"
           iconColor="text-emerald-600"
           label="Total Commission"
-          value={`$ ${stats.totalCommission.toFixed(2)}`}
+          value={`$ ${stats.commissionMTD.toFixed(2)}`}
           hint="Month to date"
-          delta="0% vs last month"
-          deltaTone="positive"
+          delta={formatDelta(stats.commissionMTD, stats.commissionLM)}
+          deltaTone={deltaTone(stats.commissionMTD, stats.commissionLM)}
           trailingIcon={<TrendingUp className="w-4 h-4 text-emerald-500/60" />}
         />
         <StatCard
@@ -284,10 +339,10 @@ export default function DashboardPage() {
           iconBg="bg-violet-100"
           iconColor="text-violet-600"
           label="Total Rebate"
-          value={`$ ${stats.totalRebate.toFixed(2)}`}
+          value={`$ ${stats.rebateMTD.toFixed(2)}`}
           hint="Month to date"
-          delta="0% vs last month"
-          deltaTone="positive"
+          delta={formatDelta(stats.rebateMTD, stats.rebateLM)}
+          deltaTone={deltaTone(stats.rebateMTD, stats.rebateLM)}
         />
         <div className="rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm p-6 flex flex-col justify-between">
           <div className="flex items-start gap-4">
@@ -298,7 +353,9 @@ export default function DashboardPage() {
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                 Partner Tier
               </p>
-              <p className="text-xl font-bold text-sky-600 mt-1">Standard Partner</p>
+              <p className="text-xl font-bold text-sky-600 mt-1">
+                {user?.partner_tier ?? 'Standard Partner'}
+              </p>
             </div>
           </div>
           <button
@@ -310,6 +367,7 @@ export default function DashboardPage() {
           </button>
         </div>
       </section>
+      )}
 
       {benefitsOpen && (
         <BenefitsModal
@@ -590,7 +648,7 @@ function StatCard({
   value: string;
   hint: string;
   delta: string;
-  deltaTone: 'positive' | 'neutral';
+  deltaTone: 'positive' | 'negative' | 'neutral';
   trailingIcon?: React.ReactNode;
 }) {
   return (
@@ -612,12 +670,12 @@ function StatCard({
         <span
           className={cn(
             'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold',
-            deltaTone === 'positive'
-              ? 'bg-emerald-50 text-emerald-600'
+            deltaTone === 'positive' ? 'bg-emerald-50 text-emerald-600'
+              : deltaTone === 'negative' ? 'bg-red-50 text-red-600'
               : 'bg-slate-50 text-slate-500'
           )}
         >
-          <TrendingUp className="w-3 h-3" /> {delta}
+          <TrendingUp className={cn('w-3 h-3', deltaTone === 'negative' && 'rotate-180')} /> {delta}
         </span>
       </div>
     </div>

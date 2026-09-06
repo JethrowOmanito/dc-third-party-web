@@ -1,5 +1,6 @@
 'use client';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   LogOut,
   Building2,
@@ -7,8 +8,11 @@ import {
   Shield,
   MessageCircle,
   Phone,
+  Users,
+  ChevronRight,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
+import { effectiveRole } from '@/lib/rbac';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -17,7 +21,15 @@ export default function SettingsPage() {
   const handleLogout = async () => {
     try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
     logout();
-    try { localStorage.removeItem('dc-partner-auth-v2'); } catch {}
+    // Clear every historical Zustand key so logout wipes any legacy
+    // persisted session (v2 → v4 as of Phase 2). Iterate + prefix-match
+    // so future bumps don't reintroduce this bug.
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k?.startsWith('dc-partner-auth-')) localStorage.removeItem(k);
+      }
+    } catch {}
     window.location.href = '/login';
   };
 
@@ -72,6 +84,25 @@ export default function SettingsPage() {
         <InfoRow icon={Building2} label="Company" value={user?.company_name || '—'} />
         <InfoRow icon={Shield} label="Role" value="Partner (Third Party)" />
       </SectionCard>
+
+      {/* Team management — admin only. Phase 5 entry point. */}
+      {effectiveRole(user) === 'admin' && (
+        <SectionCard title="Team">
+          <Link
+            href="/dashboard/settings/team"
+            className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 ring-1 ring-slate-100 hover:bg-emerald-50 hover:ring-emerald-100 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
+              <Users className="w-5 h-5" strokeWidth={1.75} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-slate-900">Manage Team</p>
+              <p className="text-[11px] text-slate-500">Invite employees and manage member roles</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
+          </Link>
+        </SectionCard>
+      )}
 
       {/* Support */}
       <SectionCard title="Support">
