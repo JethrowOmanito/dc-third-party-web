@@ -47,6 +47,31 @@ function nextRetryAtIso(attempts: number): string {
   return new Date(Date.now() + backoffMinutes[idx] * 60_000).toISOString();
 }
 
+// Cloudflare 5xx / Supabase edge blips: the next cron tick will retry
+// automatically, so downgrade these from fatal Sentry alerts to warnings.
+function isTransientUpstreamError(err: unknown): boolean {
+  if (!err) return false;
+  const parts: string[] = [];
+  if (typeof err === 'string') parts.push(err);
+  else if (err instanceof Error) {
+    parts.push(err.message ?? '');
+    const cause = (err as { cause?: unknown }).cause;
+    if (cause instanceof Error) parts.push(cause.message ?? '');
+    else if (typeof cause === 'string') parts.push(cause);
+  } else if (typeof err === 'object') {
+    const anyErr = err as { message?: unknown; code?: unknown; details?: unknown };
+    if (typeof anyErr.message === 'string') parts.push(anyErr.message);
+    if (typeof anyErr.details === 'string') parts.push(anyErr.details);
+    if (typeof anyErr.code === 'string') parts.push(anyErr.code);
+  }
+  const blob = parts.join(' | ');
+  if (!blob) return false;
+  if (/<!DOCTYPE html>|<html|Web server is down|cloudflare/i.test(blob)) return true;
+  if (/\b(521|522|523|524|502|503|504)\b/.test(blob)) return true;
+  if (/fetch failed|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|socket hang up|network|AbortError/i.test(blob)) return true;
+  return false;
+}
+
 export async function POST(req: NextRequest) {
   return run(req);
 }
@@ -104,6 +129,14 @@ async function run(req: NextRequest) {
           tags: { route: 'cron/retry-notifications' },
         });
         return NextResponse.json({ ok: true, retried: 0, skipped_reason: 'outbox_table_missing' });
+      }
+      if (isTransientUpstreamError(selErr)) {
+        Sentry.captureMessage('retry_notifications_upstream_transient', {
+          level: 'warning',
+          tags: { route: 'cron/retry-notifications', op: 'select' },
+          extra: { message: (selErr as { message?: string }).message?.slice(0, 300) },
+        });
+        return NextResponse.json({ ok: true, retried: 0, skipped_reason: 'upstream_transient' }, { status: 503 });
       }
       Sentry.captureException(selErr, {
         tags: { route: 'cron/retry-notifications', op: 'select' },
@@ -246,6 +279,14 @@ async function run(req: NextRequest) {
 
     return NextResponse.json({ ok: true, retried: pending.length, sent, failed });
   } catch (err) {
+    if (isTransientUpstreamError(err)) {
+      Sentry.captureMessage('retry_notifications_upstream_transient', {
+        level: 'warning',
+        tags: { route: 'cron/retry-notifications', op: 'unhandled' },
+        extra: { message: err instanceof Error ? err.message?.slice(0, 300) : String(err).slice(0, 300) },
+      });
+      return NextResponse.json({ error: 'upstream_transient' }, { status: 503 });
+    }
     Sentry.captureException(err, { tags: { route: 'cron/retry-notifications' } });
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
   }
