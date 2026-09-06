@@ -108,6 +108,7 @@ function getSuperStep(step: string): number {
     case 'scope':
     case 'size':
     case 'addons':
+    case 'ala_carte_pick':
       return 2;
     case 'datetime':
       return 3;
@@ -162,7 +163,13 @@ const FALLBACK_SUBTYPES: Partial<Record<ServiceKey, { key: string; label: string
 type Step =
   | 'service' | 'type_selection' | 'hk_postal' | 'duration'
   | 'subtype' | 'property' | 'scope' | 'size' | 'datetime' | 'addons'
+  | 'ala_carte_pick'
   | 'contact' | 'terms' | 'confirm' | 'chat';
+
+// ID / TCC users pick one of two sub-flows on the service step:
+//   'standard'  → renovation catalog (property → scope → size → datetime)
+//   'ala_carte' → flat per-item first-wash picker (skip property/scope/size)
+type IdFlowMode = 'standard' | 'ala_carte' | null;
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
@@ -211,6 +218,8 @@ export default function BookingNewPage() {
   const [step, setStep]           = useState<Step>('service');
   const [service, setService]     = useState<ServiceKey | null>(null);
   const [bookingMode, setBookingMode] = useState<'general' | 'deep' | null>(null);
+  // ID / TCC sub-flow (Standard renovation vs Ala Carte First Wash)
+  const [idFlowMode, setIdFlowMode] = useState<IdFlowMode>(null);
 
   // ── Date / slot ──
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
@@ -467,9 +476,30 @@ export default function BookingNewPage() {
 
   // Shape for RealtimeSummary — one primary row + optional ala-carte add-on
   // list, tagged with the brand so the summary can render the badge.
+  //
+  // Two shapes covered:
+  //   • Standard sub-flow (renovation catalog) — primary = unit tier line
+  //   • Ala Carte First Wash sub-flow — primary = "Ala Carte First Wash"
+  //     header ($0), items live in the addons array so each line shows +price
   const brandedLineItem = useMemo(() => {
-    if (!isBrandedIdFlow || !selectedTccIdRow || !selectedTccIdTier) return null;
+    if (!isBrandedIdFlow) return null;
     const brand = partnerBrand as 'tcc' | 'doctor_clean_id';
+
+    if (idFlowMode === 'ala_carte') {
+      if (Object.keys(tccIdAlaCarteAddons).length === 0) return null;
+      return {
+        primaryLabel: 'Ala Carte — First Wash',
+        primaryPrice: 0,
+        addons: Object.values(tccIdAlaCarteAddons).map((r) => ({
+          id: r.id,
+          label: r.unit_label,
+          price: r.ala_carte_price == null ? 0 : Number(r.ala_carte_price),
+        })),
+        brand,
+      };
+    }
+
+    if (!selectedTccIdRow || !selectedTccIdTier) return null;
     const tierSuffix = selectedTccIdTier === 'ala_carte'
       ? 'Ala-Carte'
       : selectedTccIdTier === 'scrubbing'
@@ -486,7 +516,7 @@ export default function BookingNewPage() {
       brand,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isBrandedIdFlow, selectedTccIdRow, selectedTccIdTier, selectedTccIdPrice, tccIdAlaCarteAddons, partnerBrand]);
+  }, [isBrandedIdFlow, idFlowMode, selectedTccIdRow, selectedTccIdTier, selectedTccIdPrice, tccIdAlaCarteAddons, partnerBrand]);
 
   const totalPrice = useMemo(() => {
     // Branded ID flow: TCC / Doctor Clean ID uses its own catalog. All
@@ -763,10 +793,18 @@ export default function BookingNewPage() {
     }
 
     // Branded TCC / Doctor Clean ID: catalog is post-renovation only, so no
-    // subtype step. Scope-of-work gets its own step AFTER property so the
-    // partner acknowledges what's included/excluded before picking a tier.
+    // subtype step. Two sub-flows off the service picker:
+    //   'standard'  → property → scope → size (renovation tier). No addons
+    //                 step — ala-carte items live on their own service card
+    //                 now, so nothing else belongs on the addons step.
+    //   'ala_carte' → skip property/scope/size, jump to ala_carte_pick.
     if (isBrandedIdFlow) {
-      steps.push('property', 'scope', 'size', 'datetime', 'addons');
+      if (idFlowMode === 'ala_carte') {
+        steps.push('ala_carte_pick');
+      } else {
+        steps.push('property', 'scope', 'size');
+      }
+      steps.push('datetime');
     } else if (service === 'upholstery' || service === 'curtain') {
       steps.push('subtype', 'size', 'datetime');
     } else if (service === 'window_cleaning') {
@@ -785,7 +823,7 @@ export default function BookingNewPage() {
 
     steps.push('contact', 'terms', 'confirm');
     return steps;
-  }, [service, isStandaloneService, isPerPieceService, isBrandedIdFlow]);
+  }, [service, isStandaloneService, isPerPieceService, isBrandedIdFlow, idFlowMode]);
 
   const stepIndex = STEP_ORDER.indexOf(step);
   const progress = ((stepIndex + 1) / STEP_ORDER.length) * 100;
@@ -803,6 +841,7 @@ export default function BookingNewPage() {
       setSelectedTccIdRowId(null);
       setSelectedTccIdTier(null);
       setTccIdAlaCarteAddons({});
+      setIdFlowMode(null);
       return;
     }
     router.back();
@@ -817,6 +856,7 @@ export default function BookingNewPage() {
     property: 'Property Info',
     scope: 'Scope of Work',
     size: 'Units & Pricing',
+    ala_carte_pick: 'Ala Carte — First Wash',
     datetime: 'Choose Schedule',
     addons: 'Add-on Services',
     contact: 'Contact Details',
@@ -834,6 +874,7 @@ export default function BookingNewPage() {
     property: 'Tell us about the property',
     scope: 'Review what\'s included and excluded before picking pricing',
     size: 'Pick a unit size to view pricing',
+    ala_carte_pick: 'Pick the areas you need cleaned',
     datetime: 'Pick a date and arrival window',
     addons: 'Optional extras for your booking',
     contact: 'Who should we contact for this job?',
@@ -1105,11 +1146,12 @@ export default function BookingNewPage() {
       if (isBrandedIdFlow) return !selectedTccIdRow || !selectedTccIdTier;
       return !selectedPricing;
     }
+    if (step === 'ala_carte_pick') return Object.keys(tccIdAlaCarteAddons).length === 0;
     if (step === 'datetime') return !selectedDate || !slot;
     if (step === 'contact') return !name || !phone || !postalCode || !fetchedAddress;
     if (step === 'terms') return !termsAccepted;
     return false;
-  }, [step, service, bookingMode, postalCode, postalStatus, fetchedAddress, selectedHKPricing, selectedSubcategoryKey, subtype, propertyType, selectedPricing, selectedDate, slot, name, phone, termsAccepted, isBrandedIdFlow, selectedTccIdRow, selectedTccIdTier, blindsCount]);
+  }, [step, service, bookingMode, postalCode, postalStatus, fetchedAddress, selectedHKPricing, selectedSubcategoryKey, subtype, propertyType, selectedPricing, selectedDate, slot, name, phone, termsAccepted, isBrandedIdFlow, selectedTccIdRow, selectedTccIdTier, blindsCount, tccIdAlaCarteAddons]);
 
   // ─── Submit helpers ───────────────────────────────────────────────────────
 
@@ -1148,6 +1190,9 @@ export default function BookingNewPage() {
           : selectedTccIdTier === 'scrubbing_formaldehyde'
             ? 'Ala-Carte + Scrubbing + Formaldehyde'
             : null;
+      // Ala Carte First Wash sub-flow has no tier / no property — use a
+      // distinct subtype label so admins can tell it apart on the dashboard.
+      const isAlaCarteFirstWash = isBrandedIdFlow && idFlowMode === 'ala_carte';
 
       const newBooking = {
         Title: fullAddress,
@@ -1167,7 +1212,7 @@ export default function BookingNewPage() {
         // flows the "subtype" is really the tier name (Ala-Carte / +Scrubbing
         // / +Scrubbing + Formaldehyde) so admins can see at a glance.
         service_subtype: isBrandedIdFlow
-          ? (tierLabel ?? 'Post-Renovation')
+          ? (isAlaCarteFirstWash ? 'Ala Carte First Wash' : (tierLabel ?? 'Post-Renovation'))
           : (subtype || null),
         calendar_id: calendarId,
         Unit_type: propertyType === 'hdb' ? 'HDB' : propertyType === 'landed' ? 'Landed' : propertyType === 'commercial' ? 'Commercial' : 'Condo/APT',
@@ -1179,10 +1224,10 @@ export default function BookingNewPage() {
           : selectedPricing?.duration_hours ? `${selectedPricing.duration_hours} hrs` : null,
         Extra_Service: isBrandedIdFlow
           ? [
-              // Branded flow: keep the audit trail tight — tier + each picked
-              // ala-carte add-on. The shared service_pricing add-ons don't
-              // apply here.
+              // Branded flow: keep the audit trail tight — tier (Standard sub-flow)
+              // or per-item ala-carte lines (Ala Carte First Wash sub-flow).
               ...(tierLabel ? [`Tier: ${tierLabel}`] : []),
+              ...(isAlaCarteFirstWash ? ['Ala Carte First Wash'] : []),
               ...Object.values(tccIdAlaCarteAddons).map(
                 (r) => `${r.unit_label} — $${r.ala_carte_price}`,
               ),
@@ -1409,6 +1454,7 @@ export default function BookingNewPage() {
     setSelectedTccIdRowId(null);
     setSelectedTccIdTier(null);
     setTccIdAlaCarteAddons({});
+    setIdFlowMode(null);
     isSubmitting.current = false;
     bookingStore.reset();
     setStep('service');
@@ -1614,7 +1660,8 @@ export default function BookingNewPage() {
                       ).map((s) => {
                         const Icon = s.icon;
                         const meta = SERVICE_META[s.key] ?? { iconBg: 'bg-slate-50', iconText: 'text-slate-600', description: '' };
-                        const isSelected = service === s.key;
+                        const isStandardCard = isBrandedIdFlow && s.key === 'deep_cleaning';
+                        const isSelected = service === s.key && (!isStandardCard || idFlowMode === 'standard');
                         return (
                           <button
                             key={s.key}
@@ -1625,12 +1672,13 @@ export default function BookingNewPage() {
                               setSubtype(''); setSelectedSubcategoryKey('');
                               setPropertyType(null); setSelectedPricing(null);
                               setSelectedHKPricing(null); setSelectedAddons({});
-                              // Branded TCC / Doctor Clean ID flow: no
-                              // subtype step (catalog is post-renovation only)
-                              // and no service_pricing add-ons. Jump straight
-                              // to property so the size step can render the
-                              // matching HDB/Condo tier grid.
+                              setTccIdAlaCarteAddons({});
+                              // Branded TCC / Doctor Clean ID flow: standard
+                              // renovation sub-flow. Jump straight to property.
+                              // (The second card on this step is the Ala Carte
+                              // First Wash sub-flow — rendered separately below.)
                               if (isBrandedIdFlow) {
+                                setIdFlowMode('standard');
                                 setSubtype('Post-Renovation');
                                 setSelectedSubcategoryKey('post_reno');
                                 setStep('property');
@@ -1674,6 +1722,62 @@ export default function BookingNewPage() {
                           </button>
                         );
                       })}
+
+                      {/* Ala Carte First Wash — second option for ID / TCC.
+                          Skips property/scope/size and jumps straight to the
+                          flat per-item picker. */}
+                      {isBrandedIdFlow && (() => {
+                        const isSelected = idFlowMode === 'ala_carte';
+                        return (
+                          <button
+                            key="ala_carte_first_wash"
+                            onClick={() => {
+                              setIdFlowMode('ala_carte');
+                              setService('deep_cleaning');
+                              setBookingMode('deep');
+                              setSubtype('Ala Carte First Wash');
+                              setSelectedSubcategoryKey('ala_carte_first_wash');
+                              setPropertyType(null);
+                              setSelectedPricing(null);
+                              setSelectedAddons({});
+                              // Clear the standard-flow selections so summary
+                              // doesn't mix state from the other sub-flow.
+                              setSelectedTccIdRowId(null);
+                              setSelectedTccIdTier(null);
+                              setStep('ala_carte_pick');
+                            }}
+                            className={cn(
+                              'group relative flex items-start gap-4 p-5 bg-white rounded-2xl ring-1 shadow-sm transition-all text-left hover:-translate-y-0.5 hover:shadow-md active:scale-[0.99]',
+                              isSelected
+                                ? 'ring-2 ring-emerald-500 shadow-lg shadow-emerald-500/10 bg-emerald-50/30'
+                                : 'ring-slate-100 hover:ring-emerald-300',
+                            )}
+                          >
+                            <div className="w-12 h-12 flex items-center justify-center rounded-xl shrink-0 bg-amber-50 text-amber-600">
+                              <ShieldCheck className="w-6 h-6" strokeWidth={1.75} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-base font-bold text-slate-900 leading-tight">Ala Carte — First Wash</p>
+                              <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-1">Per-area · Flat Price</p>
+                              <p className="text-xs text-slate-500 leading-relaxed mt-2">
+                                Individual toilet / hall / kitchen picks, plus discounted combos. No property or unit-size step.
+                              </p>
+                              {isSelected && (
+                                <span className="mt-3 inline-flex items-center gap-1 text-emerald-600 text-xs font-bold">
+                                  Select Service <ChevronRight className="w-3.5 h-3.5" />
+                                </span>
+                              )}
+                            </div>
+                            {isSelected ? (
+                              <span className="absolute top-4 right-4 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                                <CheckCircle2 className="w-4 h-4 text-white" />
+                              </span>
+                            ) : (
+                              <ChevronRight className="w-5 h-5 text-slate-300 self-center shrink-0 group-hover:text-emerald-500 transition-colors" />
+                            )}
+                          </button>
+                        );
+                      })()}
                     </div>
 
                     {/* Help card */}
@@ -2630,84 +2734,77 @@ export default function BookingNewPage() {
                   );
                 })()}
 
-                {/* ADDONS */}
-                {step === 'addons' && (
+                {/* ALA CARTE PICK — dedicated step for TCC / Doctor Clean ID
+                    "Ala Carte First Wash" sub-flow. Multi-select the flat-price
+                    items grouped by subgroup (Individual / Combo / Surcharge).
+                    User must pick at least one row to continue. */}
+                {step === 'ala_carte_pick' && isBrandedIdFlow && (
                   <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-4">
-
-                    {/* Branded TCC / Doctor Clean ID add-ons — ala-carte first-wash
-                        items grouped by subgroup (Individual / Combo / Surcharge).
-                        This REPLACES the shared service_pricing add-on section
-                        below; we return early so nothing from the old catalog
-                        renders alongside. */}
-                    {isBrandedIdFlow ? (
-                      <>
-                        {tccIdAlaCarteRows.length === 0 ? (
-                          <div className="py-12 text-center opacity-50">
-                            <p className="text-xs font-bold text-slate-500">
-                              No add-ons available for this brand.
-                            </p>
-                          </div>
-                        ) : (
-                          Object.entries(
-                            tccIdAlaCarteRows.reduce((acc, r) => {
-                              const g = r.subgroup ?? 'Add-ons';
-                              if (!acc[g]) acc[g] = [];
-                              acc[g].push(r);
-                              return acc;
-                            }, {} as Record<string, TccIdPricingRow[]>),
-                          ).map(([groupLabel, rows]) => (
-                            <div key={groupLabel}>
-                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                                {groupLabel}
-                              </p>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                {rows.map((row) => {
-                                  const isSelected = Boolean(tccIdAlaCarteAddons[row.id]);
-                                  const price = row.ala_carte_price == null ? 0 : Number(row.ala_carte_price);
-                                  return (
-                                    <button
-                                      key={row.id}
-                                      type="button"
-                                      onClick={() => {
-                                        setTccIdAlaCarteAddons((prev) =>
-                                          isSelected
-                                            ? (({ [row.id]: _drop, ...rest }) => rest)(prev)
-                                            : { ...prev, [row.id]: row },
-                                        );
-                                      }}
-                                      className={cn(
-                                        'flex items-center justify-between p-3 rounded-xl border-2 text-left transition-all active:scale-[0.98]',
-                                        isSelected
-                                          ? 'bg-emerald-500 border-emerald-500 text-white shadow-md'
-                                          : 'bg-white border-slate-100 hover:border-emerald-200',
-                                      )}
-                                    >
-                                      <p className={cn('text-[11px] font-bold truncate', isSelected ? 'text-white' : 'text-slate-800')}>
-                                        {row.unit_label}
-                                      </p>
-                                      <div className="flex items-center gap-2 flex-shrink-0">
-                                        <p className={cn('text-sm font-black', isSelected ? 'text-white' : 'text-emerald-600')}>
-                                          +S${price}
-                                        </p>
-                                        {isSelected && <CheckCircle2 className="w-4 h-4 text-white" />}
-                                      </div>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ))
-                        )}
-                        <div className="pt-2 border-t border-slate-50">
-                          <Button
-                            onClick={handleNext}
-                            className="w-full h-12 rounded-2xl font-black text-sm bg-slate-100 hover:bg-emerald-600 hover:text-white text-slate-500 transition-all shadow-none active:scale-95"
-                          >
-                            <span className="flex items-center gap-2">Skip / Continue <ChevronRight className="w-4 h-4" /></span>
-                          </Button>
-                        </div>
-                      </>
+                    {tccIdAlaCarteRows.length === 0 ? (
+                      <div className="py-12 text-center opacity-50">
+                        <p className="text-xs font-bold text-slate-500">
+                          No ala-carte items available for this brand.
+                        </p>
+                      </div>
                     ) : (
+                      Object.entries(
+                        tccIdAlaCarteRows.reduce((acc, r) => {
+                          const g = r.subgroup ?? 'Items';
+                          if (!acc[g]) acc[g] = [];
+                          acc[g].push(r);
+                          return acc;
+                        }, {} as Record<string, TccIdPricingRow[]>),
+                      ).map(([groupLabel, rows]) => (
+                        <div key={groupLabel}>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                            {groupLabel}
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {rows.map((row) => {
+                              const isSelected = Boolean(tccIdAlaCarteAddons[row.id]);
+                              const price = row.ala_carte_price == null ? 0 : Number(row.ala_carte_price);
+                              return (
+                                <button
+                                  key={row.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setTccIdAlaCarteAddons((prev) =>
+                                      isSelected
+                                        ? (({ [row.id]: _drop, ...rest }) => rest)(prev)
+                                        : { ...prev, [row.id]: row },
+                                    );
+                                  }}
+                                  className={cn(
+                                    'flex items-center justify-between p-3 rounded-xl border-2 text-left transition-all active:scale-[0.98]',
+                                    isSelected
+                                      ? 'bg-emerald-500 border-emerald-500 text-white shadow-md'
+                                      : 'bg-white border-slate-100 hover:border-emerald-200',
+                                  )}
+                                >
+                                  <p className={cn('text-[11px] font-bold truncate', isSelected ? 'text-white' : 'text-slate-800')}>
+                                    {row.unit_label}
+                                  </p>
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    <p className={cn('text-sm font-black', isSelected ? 'text-white' : 'text-emerald-600')}>
+                                      +S${price}
+                                    </p>
+                                    {isSelected && <CheckCircle2 className="w-4 h-4 text-white" />}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {/* ADDONS — non-ID flows only. TCC / Doctor Clean ID no
+                    longer visit this step (their ala-carte items live on
+                    their own service card). */}
+                {step === 'addons' && !isBrandedIdFlow && (
+                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-4">
                       <>
 
                     {/* Size band picker for Spring / HIP (add-on prices vary by sqft range) */}
@@ -3104,7 +3201,6 @@ export default function BookingNewPage() {
                       </Button>
                     </div>
                       </>
-                    )}
                   </div>
                 )}
 
