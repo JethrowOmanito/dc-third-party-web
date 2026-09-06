@@ -91,17 +91,19 @@ export default function BrandSelector({ selected, onSelect }: BrandSelectorProps
                 isSelected && 'shadow-lg'
               )}
             >
-              {/* Doctor Clean shows the official wordmark logo across the
-                  top of the card, aspect-preserved. TCC has no logo by design. */}
+              {/* Doctor Clean shows the official wordmark logo anchored to
+                  the top-right of the card, aspect-preserved. Right padding
+                  keeps it clear of the top-right selected-check badge. TCC
+                  has no logo by design. */}
               {card.logo && (
-                <div className="w-full flex items-center justify-start mb-2">
-                  <div className="relative w-[160px] h-12">
+                <div className="w-full flex items-center justify-end mb-2 pr-10">
+                  <div className="relative w-[140px] h-12">
                     <Image
                       src={card.logo}
                       alt={card.title}
                       fill
-                      className="object-contain object-left"
-                      sizes="160px"
+                      className="object-contain object-right"
+                      sizes="140px"
                       priority
                     />
                   </div>
