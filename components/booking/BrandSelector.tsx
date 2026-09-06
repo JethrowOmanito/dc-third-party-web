@@ -91,23 +91,26 @@ export default function BrandSelector({ selected, onSelect }: BrandSelectorProps
                 isSelected && 'shadow-lg'
               )}
             >
-              {/* Doctor Clean wordmark tucked into the top-right corner —
-                  absolute-positioned so it doesn't push the title / subtitle
-                  down; text flows normally from the top. TCC has no logo. */}
+              {/* Wrap in a block div so the floated logo actually wraps
+                  around the text (floats are ignored inside flex parents). */}
+              <div className="w-full block">
+              {/* Doctor Clean wordmark floated to the top-right corner —
+                  only the first couple of text lines wrap beside it; the rest
+                  reflows full-width below. TCC has no logo. */}
               {card.logo && (
-                <div className="absolute top-0 right-0 w-[120px] h-12 rounded-tr-2xl rounded-bl-2xl overflow-hidden flex items-center justify-end pr-2 pl-1 bg-white pointer-events-none">
+                <div className="float-right w-[100px] h-10 ml-3 mb-1 relative pointer-events-none">
                   <Image
                     src={card.logo}
                     alt={card.title}
-                    width={120}
-                    height={48}
-                    className="w-full h-full object-contain object-right"
+                    fill
+                    className="object-contain object-right-top"
+                    sizes="100px"
                     priority
                   />
                 </div>
               )}
 
-              <div className={cn('min-w-0 flex-1', card.logo && 'pr-[120px]')}>
+              <div className="min-w-0">
                 <p className="text-base font-bold text-slate-900 leading-tight">
                   {card.title}
                 </p>
@@ -140,6 +143,7 @@ export default function BrandSelector({ selected, onSelect }: BrandSelectorProps
                     Select this brand <ChevronRight className="w-3 h-3" />
                   </span>
                 )}
+              </div>
               </div>
 
               {/* Cards with a corner logo skip the check badge — the ring
