@@ -1,6 +1,7 @@
 'use client';
 
-import { CheckCircle2, ChevronRight, Sparkles, Palette } from 'lucide-react';
+import Image from 'next/image';
+import { CheckCircle2, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PartnerBrand } from '@/types';
 
@@ -23,13 +24,10 @@ const BRAND_CARDS: {
   title: string;
   subtitle: string;
   tagline: string;
-  Icon: typeof Sparkles;
+  logo: string | null;
   accent: {
     ring: string;
     ringActive: string;
-    iconBg: string;
-    iconText: string;
-    chipBg: string;
     chipText: string;
     ctaText: string;
   };
@@ -39,13 +37,10 @@ const BRAND_CARDS: {
     title: 'The Cleaning Crew',
     subtitle: 'powered by Doctor Clean',
     tagline: 'Standard cleaning',
-    Icon: Sparkles,
+    logo: null,
     accent: {
       ring: 'ring-slate-100',
       ringActive: 'ring-2 ring-emerald-500',
-      iconBg: 'bg-emerald-50',
-      iconText: 'text-emerald-600',
-      chipBg: 'bg-emerald-50',
       chipText: 'text-emerald-700',
       ctaText: 'text-emerald-600',
     },
@@ -55,13 +50,10 @@ const BRAND_CARDS: {
     title: 'Doctor Clean',
     subtitle: 'Interior Designer Pricelist',
     tagline: 'Deep cleaning + renovation, 10% ID rebate',
-    Icon: Palette,
+    logo: '/site-icon.png',
     accent: {
       ring: 'ring-slate-100',
       ringActive: 'ring-2 ring-orange-500',
-      iconBg: 'bg-orange-50',
-      iconText: 'text-orange-600',
-      chipBg: 'bg-orange-50',
       chipText: 'text-orange-700',
       ctaText: 'text-orange-600',
     },
@@ -86,7 +78,7 @@ export default function BrandSelector({ selected, onSelect }: BrandSelectorProps
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {BRAND_CARDS.map((card) => {
-          const { Icon, accent } = card;
+          const { accent } = card;
           const isSelected = selected === card.key;
           return (
             <button
@@ -94,22 +86,27 @@ export default function BrandSelector({ selected, onSelect }: BrandSelectorProps
               type="button"
               onClick={() => onSelect(card.key)}
               className={cn(
-                'group relative flex flex-col items-start gap-3 p-5 bg-white rounded-2xl ring-1 shadow-sm transition-all text-left hover:-translate-y-0.5 hover:shadow-md active:scale-[0.99]',
+                'group relative flex flex-col items-start gap-3 p-5 bg-white rounded-2xl ring-1 shadow-sm transition-all text-left hover:-translate-y-0.5 hover:shadow-md active:scale-[0.99] overflow-hidden',
                 isSelected ? accent.ringActive : accent.ring,
                 isSelected && 'shadow-lg'
               )}
             >
-              <div
-                className={cn(
-                  'w-12 h-12 flex items-center justify-center rounded-xl shrink-0',
-                  accent.iconBg,
-                  accent.iconText
-                )}
-              >
-                <Icon className="w-6 h-6" strokeWidth={1.75} />
-              </div>
+              {/* Doctor Clean shows the vendor logo tucked into the top-left
+                  rounded corner. TCC has no icon by design. */}
+              {card.logo && (
+                <div className="absolute top-0 left-0 w-14 h-14 rounded-tl-2xl rounded-br-2xl overflow-hidden ring-1 ring-slate-100 bg-white flex items-center justify-center">
+                  <Image
+                    src={card.logo}
+                    alt={card.title}
+                    width={56}
+                    height={56}
+                    className="w-full h-full object-cover"
+                    priority
+                  />
+                </div>
+              )}
 
-              <div className="min-w-0 flex-1">
+              <div className={cn('min-w-0 flex-1', card.logo && 'pl-16 min-h-[3.5rem]')}>
                 <p className="text-base font-bold text-slate-900 leading-tight">
                   {card.title}
                 </p>
