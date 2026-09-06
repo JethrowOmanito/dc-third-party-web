@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -7,7 +8,6 @@ import {
   CalendarSearch,
   Settings,
   LogOut,
-  Building2,
   BookOpen,
   Wallet,
   BarChart3,
@@ -59,8 +59,15 @@ export function Sidebar() {
     <aside className="hidden lg:flex flex-col w-64 min-h-screen bg-white border-r border-gray-200 fixed left-0 top-0 bottom-0 z-40">
       {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-100">
-        <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0">
-          <Building2 className="w-5 h-5 text-white" />
+        <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 ring-1 ring-emerald-100">
+          <Image
+            src="/site-icon.png"
+            alt="Doctor Clean"
+            width={36}
+            height={36}
+            className="w-full h-full object-cover"
+            priority
+          />
         </div>
         <div className="min-w-0">
           <p className="font-bold text-gray-900 text-sm truncate">Doctor Clean</p>
