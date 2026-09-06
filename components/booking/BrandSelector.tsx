@@ -91,26 +91,23 @@ export default function BrandSelector({ selected, onSelect }: BrandSelectorProps
                 isSelected && 'shadow-lg'
               )}
             >
-              {/* Doctor Clean shows the official wordmark logo anchored to
-                  the top-right of the card, aspect-preserved. Right padding
-                  keeps it clear of the top-right selected-check badge. TCC
-                  has no logo by design. */}
+              {/* Doctor Clean wordmark tucked into the top-right corner —
+                  absolute-positioned so it doesn't push the title / subtitle
+                  down; text flows normally from the top. TCC has no logo. */}
               {card.logo && (
-                <div className="w-full flex items-center justify-end mb-2 pr-10">
-                  <div className="relative w-[140px] h-12">
-                    <Image
-                      src={card.logo}
-                      alt={card.title}
-                      fill
-                      className="object-contain object-right"
-                      sizes="140px"
-                      priority
-                    />
-                  </div>
+                <div className="absolute top-0 right-0 w-[120px] h-12 rounded-tr-2xl rounded-bl-2xl overflow-hidden flex items-center justify-end pr-2 pl-1 bg-white pointer-events-none">
+                  <Image
+                    src={card.logo}
+                    alt={card.title}
+                    width={120}
+                    height={48}
+                    className="w-full h-full object-contain object-right"
+                    priority
+                  />
                 </div>
               )}
 
-              <div className="min-w-0 flex-1">
+              <div className={cn('min-w-0 flex-1', card.logo && 'pr-[120px]')}>
                 <p className="text-base font-bold text-slate-900 leading-tight">
                   {card.title}
                 </p>
@@ -145,7 +142,10 @@ export default function BrandSelector({ selected, onSelect }: BrandSelectorProps
                 )}
               </div>
 
-              {isSelected && (
+              {/* Cards with a corner logo skip the check badge — the ring
+                  color change already signals selection and the badge would
+                  collide with the logo. */}
+              {isSelected && !card.logo && (
                 <span className="absolute top-4 right-4 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
                   <CheckCircle2 className="w-4 h-4 text-white" />
                 </span>
