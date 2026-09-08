@@ -254,10 +254,10 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
             <span className="dc-cta__title">Book on WhatsApp</span>
             <span className="dc-cta__sub">+65 8918 2880</span>
           </a>
-          <a href="mailto:hello@securedoctorclean.com?subject=Cleaning%20Inquiry" className="dc-cta dc-cta--outline">
+          <a href="mailto:sales@doctorclean.com.sg?subject=Cleaning%20Inquiry" className="dc-cta dc-cta--outline">
             <span className="dc-cta__icon">✉️</span>
             <span className="dc-cta__title">Chat with CS</span>
-            <span className="dc-cta__sub">hello@securedoctorclean.com</span>
+            <span className="dc-cta__sub">sales@doctorclean.com.sg</span>
           </a>
         </section>
 
@@ -291,7 +291,7 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
               <a href="https://wa.me/6589182880" className="dc-footer-block__link" target="_blank" rel="noopener noreferrer">
                 WhatsApp: +65 8918 2880
               </a>
-              <a href="mailto:hello@securedoctorclean.com" className="dc-footer-block__link">hello@securedoctorclean.com</a>
+              <a href="mailto:sales@doctorclean.com.sg" className="dc-footer-block__link">sales@doctorclean.com.sg</a>
               <span className="dc-footer-block__meta">Mon–Sat · 9am–6pm SGT</span>
             </div>
             <div className="dc-footer-block__col">
