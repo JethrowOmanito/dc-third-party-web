@@ -214,6 +214,57 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
         </p>
       </main>
 
+      {/* Footer */}
+      <footer className="dc-footer-block">
+        <div className="dc-footer-block__inner">
+          <div className="dc-footer-block__grid">
+            <div className="dc-footer-block__col dc-footer-block__col--brand">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={LOGO_URL} alt="Doctor Clean" className="dc-footer-block__logo" />
+              <p className="dc-footer-block__brand-name">Doctor Clean Pte Ltd.</p>
+              <p className="dc-footer-block__brand-desc">
+                Singapore's trusted commercial &amp; residential cleaning partner.
+                Specialists in post-renovation, general, and deep cleaning.
+              </p>
+            </div>
+
+            <div className="dc-footer-block__col">
+              <p className="dc-footer-block__col-title">Partners</p>
+              <a href="/signup" className="dc-footer-block__link">Register your company</a>
+              <a href="/login" className="dc-footer-block__link">Partner sign in</a>
+              <a href="/pricing" className="dc-footer-block__link">Partner pricing</a>
+            </div>
+
+            <div className="dc-footer-block__col">
+              <p className="dc-footer-block__col-title">Contact</p>
+              <a href="https://wa.me/6589182880" className="dc-footer-block__link" target="_blank" rel="noopener noreferrer">
+                WhatsApp: +65 8918 2880
+              </a>
+              <a href="mailto:hello@securedoctorclean.com" className="dc-footer-block__link">hello@securedoctorclean.com</a>
+              <span className="dc-footer-block__meta">Mon–Sat · 9am–6pm SGT</span>
+            </div>
+
+            <div className="dc-footer-block__col">
+              <p className="dc-footer-block__col-title">Trust</p>
+              <span className="dc-footer-block__meta">✅ Trained &amp; Verified Team</span>
+              <span className="dc-footer-block__meta">📅 Flexible Scheduling</span>
+              <span className="dc-footer-block__meta">🌿 Eco-Friendly Products</span>
+              <span className="dc-footer-block__meta">🇸🇬 Serving all of Singapore</span>
+            </div>
+          </div>
+
+          <div className="dc-footer-block__bar">
+            <span>© {new Date().getFullYear()} Doctor Clean Pte Ltd. All rights reserved.</span>
+            <span className="dc-footer-block__pipe">|</span>
+            <span>Secure</span>
+            <span className="dc-footer-block__dot">•</span>
+            <span>Reliable</span>
+            <span className="dc-footer-block__dot">•</span>
+            <span>Singapore-based</span>
+          </div>
+        </div>
+      </footer>
+
       <style>{CSS}</style>
     </div>
   );
@@ -418,4 +469,64 @@ const CSS = `
   max-width: 720px; margin: 8px auto 0;
   line-height: 1.6;
 }
+
+/* FOOTER */
+.dc-footer-block {
+  background: var(--dc-navy);
+  color: rgba(255,255,255,0.85);
+  padding: 56px 24px 28px;
+  margin-top: 40px;
+}
+.dc-footer-block__inner { max-width: 1200px; margin: 0 auto; }
+.dc-footer-block__grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr;
+  gap: 40px;
+  padding-bottom: 40px;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+}
+@media (max-width: 900px) {
+  .dc-footer-block__grid { grid-template-columns: 1fr 1fr; gap: 32px; }
+}
+@media (max-width: 560px) {
+  .dc-footer-block__grid { grid-template-columns: 1fr; }
+}
+.dc-footer-block__col { display: flex; flex-direction: column; gap: 10px; }
+.dc-footer-block__col--brand { max-width: 320px; }
+.dc-footer-block__logo { width: 52px; height: 52px; object-fit: contain; margin-bottom: 4px; }
+.dc-footer-block__brand-name { margin: 0; font-size: 16px; font-weight: 800; color: #fff; }
+.dc-footer-block__brand-desc {
+  margin: 6px 0 0;
+  font-size: 13px; line-height: 1.65;
+  color: rgba(255,255,255,0.65);
+}
+.dc-footer-block__col-title {
+  margin: 0 0 8px;
+  font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--dc-green);
+}
+.dc-footer-block__link {
+  font-size: 13.5px;
+  color: rgba(255,255,255,0.75);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.dc-footer-block__link:hover { color: #fff; }
+.dc-footer-block__meta {
+  font-size: 13px;
+  color: rgba(255,255,255,0.65);
+  line-height: 1.55;
+}
+.dc-footer-block__bar {
+  padding-top: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.55);
+}
+.dc-footer-block__pipe { color: rgba(255,255,255,0.30); margin: 0 2px; }
+.dc-footer-block__dot { color: rgba(255,255,255,0.30); }
 `;
