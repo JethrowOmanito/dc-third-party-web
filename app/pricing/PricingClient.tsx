@@ -91,7 +91,7 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
         <div className="dc-hero__inner">
           <span className="dc-hero__kicker">PRICE COMPARISON</span>
           <h1 className="dc-hero__title">
-            Doctor Clean <span className="dc-hero__accent">vs TCC</span>
+            Doctor Clean <span className="dc-hero__accent">vs The Cleaning Crew</span>
           </h1>
           <p className="dc-hero__desc">Same cleaning. More value with Doctor Clean.</p>
 
@@ -173,12 +173,12 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
             </ul>
           </div>
 
-          {/* TCC */}
+          {/* The Cleaning Crew */}
           <div className="dc-brand dc-brand--other">
             <div className="dc-brand__head">
               <span className="dc-brand__icon dc-brand__icon--muted">🏠</span>
               <div>
-                <p className="dc-brand__name">TCC</p>
+                <p className="dc-brand__name">The Cleaning Crew</p>
                 <p className="dc-brand__tag">&nbsp;</p>
               </div>
             </div>
@@ -211,7 +211,7 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
               <tr>
                 <th>Features</th>
                 <th className="dc-features__col dc-features__col--dc">🏠 Doctor Clean</th>
-                <th className="dc-features__col dc-features__col--other">🏠 TCC</th>
+                <th className="dc-features__col dc-features__col--other">🏠 The Cleaning Crew</th>
               </tr>
             </thead>
             <tbody>
