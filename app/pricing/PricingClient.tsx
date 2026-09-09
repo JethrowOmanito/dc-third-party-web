@@ -195,9 +195,8 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
             </div>
             <ul className="dc-brand__perks dc-brand__perks--other">
               <li><span className="dc-x">✗</span>Basic Cleaning Service</li>
-              <li><span className="dc-x">✗</span>Cleaning Supplies Not Included <span className="dc-brand__note">(Additional charges may apply)</span></li>
               <li><span className="dc-x">✗</span>Limited Booking Slots</li>
-              <li><span className="dc-x">✗</span>Hidden Fees <span className="dc-brand__note">(May include travel or equipment charges)</span></li>
+              <li><span className="dc-x">✗</span>No Satisfaction Guarantee</li>
             </ul>
           </div>
         </div>
@@ -221,10 +220,8 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
                 <td className="dc-features__center dc-features__big dc-features__muted">{popularOther ? fmtPrice(popularOther.ala_carte_price) : '—'}</td>
               </tr>
               <tr><td>Professional Cleaners</td><td className="dc-features__center"><span className="dc-yes">✓</span></td><td className="dc-features__center"><span className="dc-yes">✓</span></td></tr>
-              <tr><td>Cleaning Supplies Provided</td><td className="dc-features__center"><span className="dc-yes">✓</span></td><td className="dc-features__center"><span className="dc-no">✗</span></td></tr>
+              <tr><td>Cleaning Supplies Provided</td><td className="dc-features__center"><span className="dc-yes">✓</span></td><td className="dc-features__center"><span className="dc-yes">✓</span></td></tr>
               <tr><td>Same-Day Booking</td><td className="dc-features__center"><span className="dc-yes">✓</span></td><td className="dc-features__center"><span className="dc-yes">✓</span></td></tr>
-              <tr><td>Hidden Fees</td><td className="dc-features__center"><span className="dc-no">✗</span></td><td className="dc-features__center"><span className="dc-no">✗</span></td></tr>
-              <tr><td>Customer Support</td><td className="dc-features__center dc-features__pos">7 Days a Week</td><td className="dc-features__center dc-features__neg">Weekdays Only</td></tr>
               <tr><td>Satisfaction Guarantee</td><td className="dc-features__center"><span className="dc-yes">✓</span></td><td className="dc-features__center"><span className="dc-no">✗</span></td></tr>
             </tbody>
           </table>
