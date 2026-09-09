@@ -13,9 +13,11 @@ const schema = z.object({
   name:            z.string().trim().min(2, 'Company name required').max(160),
   uen:             z.string().trim().min(6, 'UEN required').max(32),
   address:         z.string().trim().min(4, 'Address required').max(400),
-  // HDB DRC — legally required to do any HDB reno work. Required so we
-  // never route an HDB booking to a firm that can't lawfully accept it.
-  hdb_drc_license: z.string().trim().min(3, 'HDB DRC license required').max(64),
+  // HDB DRC — legally required to do any HDB reno work. Made optional
+  // at the schema level so agents/other business types can save their
+  // onboarding without a fake value; enforcement happens per-role in
+  // the handler once we know the company_type.
+  hdb_drc_license: z.string().trim().max(64).optional(),
   // Accounts contact — clause 15 of the credit T&C says failure to
   // receive an invoice due to wrong email doesn't waive payment, so we
   // require it upfront rather than chasing later.
@@ -112,6 +114,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Look up company_type so we can enforce HDB DRC per-role. Only ID
+  // firms are required to provide the license.
+  const { data: companyRow } = await db
+    .from('partner_companies')
+    .select('company_type')
+    .eq('id', partner.company_id)
+    .single();
+  const isIDCompany = companyRow?.company_type === 'interior_design';
+  if (isIDCompany && (!parsed.data.hdb_drc_license || parsed.data.hdb_drc_license.length < 3)) {
+    return NextResponse.json(
+      { error: 'HDB DRC license number is required for Interior Designers.' },
+      { status: 400 }
+    );
+  }
+
   // Save company fields. Don't touch acra_doc_url / uen_doc_url — those
   // are only set by the upload route so we don't accidentally wipe them
   // when the user re-saves the form.
@@ -121,7 +138,9 @@ export async function POST(req: NextRequest) {
       name: parsed.data.name,
       uen: parsed.data.uen,
       address: parsed.data.address,
-      hdb_drc_license: parsed.data.hdb_drc_license,
+      // Only write HDB DRC for ID firms — undefined for non-ID so we
+      // don't overwrite an existing value with an empty string.
+      ...(isIDCompany ? { hdb_drc_license: parsed.data.hdb_drc_license } : {}),
       accounts_name: parsed.data.accounts_name,
       accounts_email: parsed.data.accounts_email,
       accounts_phone: parsed.data.accounts_phone,

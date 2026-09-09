@@ -11,13 +11,25 @@ const LOGO_URL =
 
 export default function SignupSuccessPage() {
   const router = useRouter();
-  const { user, _hasHydrated } = useAuthStore();
+  const { user, _hasHydrated, refresh } = useAuthStore();
 
   // If someone navigates here without a session (e.g. deep-link), bounce them
   // to the login page — this page is only meaningful right after signup.
   useEffect(() => {
     if (_hasHydrated && !user) router.replace('/login');
   }, [_hasHydrated, user, router]);
+
+  // Refresh the session once on mount so the local `user` reflects
+  // status changes the server made post-signup (e.g. company_status
+  // flipping to 'approved' after doc uploads for ID). Without this
+  // the boss briefly sees the onboarding page when clicking through
+  // to the dashboard, because AuthGuard reads stale `pending' status.
+  useEffect(() => {
+    if (_hasHydrated && user) {
+      refresh?.().catch(() => { /* silent — 30s poll will catch up */ });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [_hasHydrated]);
 
   const name = user?.name ?? user?.username ?? 'there';
 

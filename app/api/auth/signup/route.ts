@@ -168,6 +168,14 @@ export async function POST(req: NextRequest) {
       };
       const derivedCompanyType = companyTypeMap[partner_role ?? ''] ?? 'other';
 
+      // Non-ID companies (agents/other) don't upload docs at signup —
+      // they'd be stuck on the onboarding gate forever waiting for
+      // docs the wizard never asked for. Approve them immediately;
+      // Zoe still gates ability-to-book via payment_terms='pending_review'.
+      // ID companies stay 'pending' — the doc upload route auto-flips
+      // them to 'approved' once ACRA + UEN land.
+      const isIDCompany = derivedCompanyType === 'interior_design';
+
       const { data: created, error: coErr } = await supabase
         .from('partner_companies')
         .insert({
@@ -175,7 +183,7 @@ export async function POST(req: NextRequest) {
           uen: (company_uen ?? '').trim().toUpperCase(),
           address: (company_address ?? '').trim(),
           // HDB DRC only for ID — agents / other don't do reno work.
-          hdb_drc_license: partner_role === 'interior_designer'
+          hdb_drc_license: isIDCompany
             ? (hdb_drc_license ?? '').trim()
             : null,
           accounts_name: (accounts_name ?? '').trim(),
@@ -183,7 +191,7 @@ export async function POST(req: NextRequest) {
           accounts_phone: (accounts_phone ?? '').trim(),
           // Sensible defaults — Zoe overrides via main-web admin UI.
           company_type: derivedCompanyType,
-          company_status: 'pending', // upgrades to 'approved' after doc uploads
+          company_status: isIDCompany ? 'pending' : 'approved',
           partner_tier: 'Standard Partner',
           payment_terms: 'pending_review', // gates booking until Zoe reviews
           is_active: true,
@@ -274,8 +282,12 @@ export async function POST(req: NextRequest) {
       // flow inherits whatever the seeded company already had.
       company_payment_terms: (isSelfSignup ? null : undefined) as
         'upfront' | 'end_of_month' | null | undefined,
-      company_status: (isSelfSignup ? 'pending' : undefined) as
-        'draft' | 'pending' | 'approved' | 'rejected' | undefined,
+      // ID: 'pending' until docs upload flips it. Non-ID: 'approved'
+      // at signup (they skip docs). Matches partner_companies insert above.
+      company_status: (isSelfSignup
+        ? (company.company_type === 'interior_design' ? 'pending' : 'approved')
+        : undefined
+      ) as 'draft' | 'pending' | 'approved' | 'rejected' | undefined,
       partner_tier: 'Standard Partner' as string,
       approval_status: (inserted.approval_status ?? initialApproval) as 'pending' | 'approved' | 'rejected',
       partner_role: (inserted.partner_role ?? effectivePartnerRole) as
