@@ -26,9 +26,16 @@ export default function CompanyOnboardingPage() {
   const router = useRouter();
   const { user, refresh } = useAuthStore();
 
-  const [name, setName]     = useState('');
-  const [uen, setUen]       = useState('');
-  const [address, setAddr]  = useState('');
+  const [name, setName]         = useState('');
+  const [uen, setUen]           = useState('');
+  const [address, setAddr]      = useState('');
+  // Tier 1 additions from Malou's credit T&C — required for
+  // approval so we never route HDB jobs to unlicensed firms and so
+  // invoices land at the right AP inbox from day one.
+  const [hdbDrc, setHdbDrc]     = useState('');
+  const [acctName, setAcctName] = useState('');
+  const [acctEmail, setAcctEmail] = useState('');
+  const [acctPhone, setAcctPhone] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [detailsSaved, setDetailsSaved] = useState(false);
@@ -58,6 +65,10 @@ export default function CompanyOnboardingPage() {
         if (data.name)    setName(data.name);
         if (data.uen)     setUen(data.uen);
         if (data.address) setAddr(data.address);
+        if (data.hdb_drc_license) setHdbDrc(data.hdb_drc_license);
+        if (data.accounts_name)   setAcctName(data.accounts_name);
+        if (data.accounts_email)  setAcctEmail(data.accounts_email);
+        if (data.accounts_phone)  setAcctPhone(data.accounts_phone);
         if (data.acra_uploaded) setAcra((s) => ({ ...s, uploaded: true }));
         if (data.uen_uploaded)  setUenDoc((s) => ({ ...s, uploaded: true }));
       } catch { /* silent — form is still usable blank */ }
@@ -92,7 +103,15 @@ export default function CompanyOnboardingPage() {
       const res = await fetch('/api/onboarding/company', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), uen: uen.trim(), address: address.trim() }),
+        body: JSON.stringify({
+          name: name.trim(),
+          uen: uen.trim(),
+          address: address.trim(),
+          hdb_drc_license: hdbDrc.trim(),
+          accounts_name: acctName.trim(),
+          accounts_email: acctEmail.trim(),
+          accounts_phone: acctPhone.trim(),
+        }),
       });
       if (bounceIfExpired(res.status)) return;
       const json = await res.json();
@@ -107,7 +126,7 @@ export default function CompanyOnboardingPage() {
     } finally {
       setSaving(false);
     }
-  }, [name, uen, address, refresh, router, bounceIfExpired]);
+  }, [name, uen, address, hdbDrc, acctName, acctEmail, acctPhone, refresh, router, bounceIfExpired]);
 
   const uploadDoc = useCallback(async (docType: 'acra' | 'uen', file: File) => {
     const setter = docType === 'acra' ? setAcra : setUenDoc;
@@ -133,7 +152,14 @@ export default function CompanyOnboardingPage() {
     }
   }, [refresh, router, bounceIfExpired]);
 
-  const detailsValid = name.trim().length >= 2 && uen.trim().length >= 6 && address.trim().length >= 4;
+  const detailsValid =
+    name.trim().length >= 2 &&
+    uen.trim().length >= 6 &&
+    address.trim().length >= 4 &&
+    hdbDrc.trim().length >= 3 &&
+    acctName.trim().length >= 2 &&
+    /^\S+@\S+\.\S+$/.test(acctEmail.trim()) &&
+    acctPhone.trim().length >= 6;
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
@@ -169,6 +195,34 @@ export default function CompanyOnboardingPage() {
           <div>
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Registered Address</label>
             <Input value={address} onChange={(e) => setAddr(e.target.value)} placeholder="1 Raffles Place, #10-01, Singapore 048616" className="mt-1" />
+          </div>
+          <div>
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">HDB DRC License Number</label>
+            <Input value={hdbDrc} onChange={(e) => setHdbDrc(e.target.value)} placeholder="HDB/DRC/12345" className="mt-1" />
+            <p className="text-[10px] text-slate-400 mt-1">Required by law for any HDB renovation work. Verifiable on the HDB DRC portal.</p>
+          </div>
+        </div>
+
+        {/* Accounts contact — where our tax invoices land. Clause 15 of
+            the credit T&C says wrong-email delivery doesn't waive
+            payment, so we require it upfront. */}
+        <div className="pt-3 border-t border-slate-100">
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Accounts / Billing Contact</p>
+          <div className="grid grid-cols-1 gap-3">
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Name</label>
+              <Input value={acctName} onChange={(e) => setAcctName(e.target.value)} placeholder="Full name of AP contact" className="mt-1" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Email</label>
+                <Input type="email" value={acctEmail} onChange={(e) => setAcctEmail(e.target.value)} placeholder="accounts@example.com" className="mt-1" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Phone</label>
+                <Input value={acctPhone} onChange={(e) => setAcctPhone(e.target.value)} placeholder="+65 8123 4567" className="mt-1" />
+              </div>
+            </div>
           </div>
         </div>
 

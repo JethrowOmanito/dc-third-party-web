@@ -36,11 +36,23 @@ function fmtPrice(v: number | null): string {
   return `$${Number(v).toFixed(0)}`;
 }
 
+type BrandKey = 'dc' | 'tcc';
+
+function FeatureRow({ label, dc, other, isLast }: { label: string; dc: React.ReactNode; other: React.ReactNode; isLast?: boolean }) {
+  return (
+    <div className={`dc-features__row ${isLast ? 'dc-features__row--last' : ''}`}>
+      <div className="dc-features__col-label">{label}</div>
+      <div className="dc-features__col-cell">{dc}</div>
+      <div className="dc-features__col-cell">{other}</div>
+    </div>
+  );
+}
+
 export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idRows: Row[] }) {
   const [activeProp, setActiveProp] = useState<PropertyKey>('hdb');
+  const [activeBrand, setActiveBrand] = useState<BrandKey>('dc');
   const activeCfg = PROPERTY_TYPES.find(p => p.key === activeProp)!;
 
-  // Filter both datasets to the active section, sort by unit sort_order
   const dcUnits = useMemo(
     () => idRows.filter(r => r.section === activeCfg.section).sort((a, b) => a.sort_order - b.sort_order),
     [idRows, activeCfg.section]
@@ -50,7 +62,31 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
     [tccRows, activeCfg.section]
   );
 
-  // Highlight the middle unit ("Most Popular") — typically 3rd row
+  const activeUnits = activeBrand === 'dc' ? dcUnits : otherUnits;
+
+  // First wash (à la carte) — only for the active brand, always from the ala_carte_first_wash section
+  const firstWash = useMemo(() => {
+    const src = activeBrand === 'dc' ? idRows : tccRows;
+    const rows = src.filter(r => r.section === 'ala_carte_first_wash').sort((a, b) => a.sort_order - b.sort_order);
+    const SUBGROUP_ORDER = ['Individual', 'Combo', 'Surcharge'];
+    const grouped: Record<string, Row[]> = {};
+    for (const r of rows) {
+      const k = r.subgroup || 'Other';
+      (grouped[k] ??= []).push(r);
+    }
+    const ordered = [
+      ...SUBGROUP_ORDER.filter(k => grouped[k]?.length),
+      ...Object.keys(grouped).filter(k => !SUBGROUP_ORDER.includes(k) && k !== 'Other'),
+      ...(grouped['Other'] ? ['Other'] : []),
+    ];
+    return { ordered, grouped };
+  }, [idRows, tccRows, activeBrand]);
+  const brandLabel = activeBrand === 'dc' ? 'Doctor Clean' : 'The Cleaning Crew';
+  const sectionTitle = activeCfg.key === 'hdb'   ? 'Post-Renovation Cleaning — HDB'
+                     : activeCfg.key === 'condo' ? 'Post-Renovation Cleaning — Condominium'
+                     : activeCfg.key === 'landed'? 'Post-Renovation Cleaning — Landed'
+                     : 'Post-Renovation Cleaning — Office';
+
   const popularIdx = Math.min(2, Math.max(0, Math.floor(dcUnits.length / 2)));
   const popularDc = dcUnits[popularIdx];
   const popularOther = otherUnits[popularIdx];
@@ -65,19 +101,16 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
             <img src={LOGO_URL} alt="Doctor Clean" className="dc-nav__logo" />
             <div>
               <p className="dc-nav__title">Doctor Clean</p>
-              <p className="dc-nav__subtitle">A Cleaner Home · A Happier You</p>
+              <p className="dc-nav__subtitle">Spotless Faces, Smiling Faces</p>
             </div>
           </a>
           <div className="dc-nav__links">
-            <a href="#home" className="dc-nav__link">Home</a>
-            <a href="#services" className="dc-nav__link">Services</a>
-            <a href="#pricing" className="dc-nav__link dc-nav__link--active">Pricing</a>
-            <a href="#why" className="dc-nav__link">Why Us</a>
-            <a href="#reviews" className="dc-nav__link">Reviews</a>
-            <a href="#faq" className="dc-nav__link">FAQ</a>
+            <a href="/dashboard" className="dc-nav__link">Home</a>
+            <a href="/signup" className="dc-nav__link">Sign Up</a>
+            <a href="/pricing" className="dc-nav__link dc-nav__link--active">Pricing</a>
           </div>
           <a
-            href="https://wa.me/6589182880?text=Hi%2C%20I%27d%20like%20to%20book%20a%20cleaning."
+            href="https://www.doctorcleanpayment.sg/book"
             target="_blank" rel="noopener noreferrer"
             className="dc-nav__cta"
           >
@@ -149,12 +182,14 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
           <div className="dc-brand dc-brand--dc">
             <span className="dc-brand__ribbon">👑 Most Popular</span>
             <div className="dc-brand__head">
-              <span className="dc-brand__icon">🏠</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={LOGO_URL} alt="Doctor Clean" className="dc-brand__logo" />
               <div>
                 <p className="dc-brand__name">Doctor Clean</p>
-                <p className="dc-brand__tag">A Cleaner Home · A Happier You</p>
+                <p className="dc-brand__tag">Private Limited</p>
               </div>
             </div>
+            <p className="dc-brand__section-label">Renovation Cleaning</p>
             <div className="dc-brand__prices">
               {dcUnits.length === 0 ? (
                 <p className="dc-brand__empty">Pricing coming soon for {activeCfg.label}.</p>
@@ -167,21 +202,22 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
               ))}
             </div>
             <ul className="dc-brand__perks">
-              <li><span className="dc-check">✓</span>Professional &amp; Trained Cleaners</li>
-              <li><span className="dc-check">✓</span>Bring Our Own Cleaning Supplies</li>
-              <li><span className="dc-check">✓</span>Same-Day Booking (Subject to Availability)</li>
+              <li><span className="dc-check">✓</span>10% Rebate for All ID</li>
+              <li><span className="dc-check">✓</span>Price is only exclusive for ID</li>
+              <li><span className="dc-check">✓</span>Project subject to 9% GST</li>
             </ul>
           </div>
 
           {/* The Cleaning Crew */}
           <div className="dc-brand dc-brand--other">
-            <div className="dc-brand__head">
-              <span className="dc-brand__icon dc-brand__icon--muted">🏠</span>
+            <div className="dc-brand__head dc-brand__head--textonly">
               <div>
                 <p className="dc-brand__name">The Cleaning Crew</p>
-                <p className="dc-brand__tag">&nbsp;</p>
+                <p className="dc-brand__tag">Your Trusted Cleaning Partners</p>
+                <p className="dc-brand__powered">Powered by Doctor Clean</p>
               </div>
             </div>
+            <p className="dc-brand__section-label">General Cleaning</p>
             <div className="dc-brand__prices">
               {otherUnits.length === 0 ? (
                 <p className="dc-brand__empty">No comparison data available.</p>
@@ -194,38 +230,110 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
               ))}
             </div>
             <ul className="dc-brand__perks dc-brand__perks--other">
-              <li><span className="dc-x">✗</span>Basic Cleaning Service</li>
-              <li><span className="dc-x">✗</span>Limited Booking Slots</li>
-              <li><span className="dc-x">✗</span>No Satisfaction Guarantee</li>
+              <li><span className="dc-check">✓</span>Project subject to 9% GST</li>
             </ul>
           </div>
         </div>
       </section>
 
-      {/* Feature comparison table */}
-      <section className="dc-features">
-        <div className="dc-features__card">
-          <table className="dc-features__table">
-            <thead>
-              <tr>
-                <th>Features</th>
-                <th className="dc-features__col dc-features__col--dc">🏠 Doctor Clean</th>
-                <th className="dc-features__col dc-features__col--other">🏠 The Cleaning Crew</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Price ({popularDc?.unit_label ?? '—'})</td>
-                <td className="dc-features__center dc-features__big">{popularDc ? fmtPrice(popularDc.ala_carte_price) : '—'}</td>
-                <td className="dc-features__center dc-features__big dc-features__muted">{popularOther ? fmtPrice(popularOther.ala_carte_price) : '—'}</td>
-              </tr>
-              <tr><td>Professional Cleaners</td><td className="dc-features__center"><span className="dc-yes">✓</span></td><td className="dc-features__center"><span className="dc-yes">✓</span></td></tr>
-              <tr><td>Cleaning Supplies Provided</td><td className="dc-features__center"><span className="dc-yes">✓</span></td><td className="dc-features__center"><span className="dc-yes">✓</span></td></tr>
-              <tr><td>Same-Day Booking</td><td className="dc-features__center"><span className="dc-yes">✓</span></td><td className="dc-features__center"><span className="dc-yes">✓</span></td></tr>
-              <tr><td>Satisfaction Guarantee</td><td className="dc-features__center"><span className="dc-yes">✓</span></td><td className="dc-features__center"><span className="dc-no">✗</span></td></tr>
-            </tbody>
-          </table>
+      {/* Full pricing breakdown — matches admin dashboard style */}
+      <section className="dc-pricetable">
+        <div className="dc-pricetable__toggle-wrap">
+          <div className="dc-brand-toggle">
+            <button
+              onClick={() => setActiveBrand('dc')}
+              className={`dc-brand-toggle__btn ${activeBrand === 'dc' ? 'dc-brand-toggle__btn--active' : ''}`}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={LOGO_URL} alt="" className="dc-brand-toggle__logo" />
+              Doctor Clean
+            </button>
+            <button
+              onClick={() => setActiveBrand('tcc')}
+              className={`dc-brand-toggle__btn ${activeBrand === 'tcc' ? 'dc-brand-toggle__btn--active' : ''}`}
+            >
+              The Cleaning Crew
+            </button>
+          </div>
         </div>
+
+        <div className="dc-pricetable__card">
+          <div className="dc-pricetable__head">
+            <h2 className="dc-pricetable__title">{sectionTitle}</h2>
+            <span className="dc-pricetable__count">{activeUnits.length} rows</span>
+          </div>
+
+          <div className="dc-pricetable__table">
+            <div className="dc-pricetable__row dc-pricetable__row--header">
+              <div className="dc-pricetable__unit">Unit Type</div>
+              <div className="dc-pricetable__cell dc-pricetable__cell--header">Ala-Carte</div>
+              <div className="dc-pricetable__cell dc-pricetable__cell--header">+ Scrub</div>
+              <div className="dc-pricetable__cell dc-pricetable__cell--header">+ Scrub + Formal.</div>
+            </div>
+
+            {activeUnits.length === 0 ? (
+              <div className="dc-pricetable__empty">No pricing available for {activeCfg.label} yet.</div>
+            ) : activeUnits.map((u, i) => (
+              <div key={i} className="dc-pricetable__row">
+                <div className="dc-pricetable__unit">
+                  <p className="dc-pricetable__unit-label">{u.unit_label}</p>
+                  {u.sqft_label && <p className="dc-pricetable__unit-sqft">({u.sqft_label})</p>}
+                </div>
+                <div className="dc-pricetable__cell">
+                  <span className={`dc-pricepill ${u.ala_carte_price ? 'dc-pricepill--filled' : 'dc-pricepill--empty'}`}>
+                    {u.is_tbq ? 'TBQ' : (u.ala_carte_price ? `$${Number(u.ala_carte_price).toFixed(2)}` : '—')}
+                  </span>
+                </div>
+                <div className="dc-pricetable__cell">
+                  <span className={`dc-pricepill ${u.scrubbing_price ? 'dc-pricepill--filled' : 'dc-pricepill--empty'}`}>
+                    {u.is_tbq ? 'TBQ' : (u.scrubbing_price ? `$${Number(u.scrubbing_price).toFixed(2)}` : '—')}
+                  </span>
+                </div>
+                <div className="dc-pricetable__cell">
+                  <span className={`dc-pricepill ${u.scrubbing_formaldehyde_price ? 'dc-pricepill--filled' : 'dc-pricepill--empty'}`}>
+                    {u.is_tbq ? 'TBQ' : (u.scrubbing_formaldehyde_price ? `$${Number(u.scrubbing_formaldehyde_price).toFixed(2)}` : '—')}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* First Wash — À la carte */}
+        {firstWash.ordered.length > 0 && (
+          <div className="dc-pricetable__card" style={{ marginTop: 20 }}>
+            <div className="dc-pricetable__head">
+              <h2 className="dc-pricetable__title">Ala Carte for First Wash</h2>
+              <span className="dc-pricetable__count">
+                {firstWash.ordered.reduce((n, k) => n + firstWash.grouped[k].length, 0)} items
+              </span>
+            </div>
+
+            <div className="dc-pricetable__table">
+              <div className="dc-firstwash__header">
+                <div className="dc-pricetable__unit">Item</div>
+                <div className="dc-pricetable__cell dc-pricetable__cell--header">Price</div>
+              </div>
+              {firstWash.ordered.map(gk => (
+                <div key={gk}>
+                  <div className="dc-firstwash__group">{gk}</div>
+                  {firstWash.grouped[gk].map((r, i) => (
+                    <div key={i} className="dc-firstwash__row">
+                      <div className="dc-pricetable__unit">
+                        <p className="dc-pricetable__unit-label">{r.unit_label}</p>
+                      </div>
+                      <div className="dc-pricetable__cell">
+                        <span className={`dc-pricepill ${r.ala_carte_price ? 'dc-pricepill--filled' : 'dc-pricepill--empty'}`}>
+                          {r.is_tbq ? 'TBQ' : (r.ala_carte_price ? `$${Number(r.ala_carte_price).toFixed(2)}` : '—')}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* CTA banner */}
@@ -237,14 +345,23 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
             <p className="dc-cta-banner__sub">Quality cleaning at a better value.</p>
           </div>
           <div className="dc-cta-banner__action">
-            <a
-              href="https://wa.me/6589182880?text=Hi%2C%20I%27d%20like%20to%20book%20a%20cleaning."
-              target="_blank" rel="noopener noreferrer"
-              className="dc-cta-banner__btn"
-            >
-              Book Your Cleaning Now →
-            </a>
-            <p className="dc-cta-banner__tagline">A Cleaner Home. A Happier You.</p>
+            <div className="dc-cta-banner__buttons">
+              <a
+                href="https://www.doctorcleanpayment.sg/book"
+                target="_blank" rel="noopener noreferrer"
+                className="dc-cta-banner__btn"
+              >
+                📅 Book Now →
+              </a>
+              <a
+                href="https://wa.me/6589182880?text=Hi%2C%20I%27d%20like%20to%20book%20a%20cleaning."
+                target="_blank" rel="noopener noreferrer"
+                className="dc-cta-banner__btn dc-cta-banner__btn--wa"
+              >
+                💬 Chat via WhatsApp
+              </a>
+            </div>
+            <p className="dc-cta-banner__tagline">Spotless Faces, Smiling Faces.</p>
           </div>
         </div>
       </section>
@@ -259,47 +376,63 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="dc-footer-block">
-        <div className="dc-footer-block__inner">
-          <div className="dc-footer-block__grid">
-            <div className="dc-footer-block__col dc-footer-block__col--brand">
+      {/* Footer — ported from booking-web homepage */}
+      <footer className="dc-web-footer">
+        <div className="dc-web-footer__inner">
+          <div className="dc-web-footer__grid">
+            <div className="dc-web-footer__brand">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={LOGO_URL} alt="Doctor Clean" className="dc-footer-block__logo" />
-              <p className="dc-footer-block__brand-name">Doctor Clean Pte Ltd.</p>
-              <p className="dc-footer-block__brand-desc">
-                Singapore&apos;s trusted commercial &amp; residential cleaning partner.
-                Specialists in post-renovation, general, and deep cleaning.
+              <img src={LOGO_URL} alt="Doctor Clean" className="dc-web-footer__logo" />
+              <p className="dc-web-footer__desc">
+                Singapore&apos;s trusted professional cleaning service. Vetted cleaners, insured jobs,
+                and instant online booking — available islandwide.
               </p>
+              <div className="dc-web-footer__contacts">
+                <a href="https://wa.me/6589182880" target="_blank" rel="noopener noreferrer" className="dc-web-footer__contact">
+                  <span className="dc-web-footer__ci">📞</span>+65 8918 2880
+                </a>
+                <a href="mailto:sales@doctorclean.com.sg" className="dc-web-footer__contact">
+                  <span className="dc-web-footer__ci">✉️</span>sales@doctorclean.com.sg
+                </a>
+                <span className="dc-web-footer__contact dc-web-footer__contact--plain">
+                  <span className="dc-web-footer__ci">📍</span>65 Ubi Rd 1, #02-64 Oxley Bizhub, Singapore 408729
+                </span>
+              </div>
             </div>
-            <div className="dc-footer-block__col">
-              <p className="dc-footer-block__col-title">Partners</p>
-              <a href="/signup" className="dc-footer-block__link">Register your company</a>
-              <a href="/login" className="dc-footer-block__link">Partner sign in</a>
-              <a href="/pricing" className="dc-footer-block__link">Partner pricing</a>
+
+            <div className="dc-web-footer__col">
+              <h4 className="dc-web-footer__col-title">Services</h4>
+              <ul className="dc-web-footer__list">
+                <li><a href="https://www.doctorcleanpayment.sg/deep-cleaning" target="_blank" rel="noopener noreferrer">Deep Cleaning</a></li>
+                <li><a href="https://www.doctorcleanpayment.sg/hip-cleaning" target="_blank" rel="noopener noreferrer">Post-Renovation</a></li>
+                <li><a href="https://www.doctorcleanpayment.sg/housekeeping" target="_blank" rel="noopener noreferrer">Housekeeping</a></li>
+                <li><a href="https://www.doctorcleanpayment.sg/curtain-cleaning" target="_blank" rel="noopener noreferrer">Curtain Cleaning</a></li>
+                <li><a href="https://www.doctorcleanpayment.sg/floor-coating" target="_blank" rel="noopener noreferrer">Floor Coating</a></li>
+                <li><a href="https://www.doctorcleanpayment.sg/disinfection" target="_blank" rel="noopener noreferrer">Disinfection</a></li>
+                <li><a href="https://www.doctorcleanpayment.sg/formaldehyde-removal" target="_blank" rel="noopener noreferrer">Formaldehyde Removal</a></li>
+              </ul>
             </div>
-            <div className="dc-footer-block__col">
-              <p className="dc-footer-block__col-title">Contact</p>
-              <a href="https://wa.me/6589182880" className="dc-footer-block__link" target="_blank" rel="noopener noreferrer">WhatsApp: +65 8918 2880</a>
-              <a href="mailto:sales@doctorclean.com.sg" className="dc-footer-block__link">sales@doctorclean.com.sg</a>
-              <span className="dc-footer-block__meta">Mon–Sat · 9am–6pm SGT</span>
-            </div>
-            <div className="dc-footer-block__col">
-              <p className="dc-footer-block__col-title">Trust</p>
-              <span className="dc-footer-block__meta">✅ Trained &amp; Verified Team</span>
-              <span className="dc-footer-block__meta">📅 Flexible Scheduling</span>
-              <span className="dc-footer-block__meta">🌿 Eco-Friendly Products</span>
-              <span className="dc-footer-block__meta">🇸🇬 Serving all of Singapore</span>
+
+            <div className="dc-web-footer__col">
+              <h4 className="dc-web-footer__col-title">Company</h4>
+              <ul className="dc-web-footer__list">
+                <li><a href="https://www.doctorcleanpayment.sg/book" target="_blank" rel="noopener noreferrer">Book Online</a></li>
+                <li><a href="https://www.doctorcleanpayment.sg/faq" target="_blank" rel="noopener noreferrer">FAQ</a></li>
+                <li><a href="https://g.page/r/CTDvertxNGsEEAI/review" target="_blank" rel="noopener noreferrer">Google Reviews</a></li>
+                <li><a href="https://wa.me/6589182880" target="_blank" rel="noopener noreferrer">Contact Us</a></li>
+                <li><a href="/signup">Register your Company</a></li>
+                <li><a href="/login">Partner Sign In</a></li>
+              </ul>
             </div>
           </div>
-          <div className="dc-footer-block__bar">
-            <span>© {new Date().getFullYear()} Doctor Clean Pte Ltd. All rights reserved.</span>
-            <span className="dc-footer-block__pipe">|</span>
-            <span>Secure</span>
-            <span className="dc-footer-block__dot">•</span>
-            <span>Reliable</span>
-            <span className="dc-footer-block__dot">•</span>
-            <span>Singapore-based</span>
+
+          <div className="dc-web-footer__bar">
+            <span>&copy; {new Date().getFullYear()} Doctor Clean Singapore. All rights reserved.</span>
+            <div className="dc-web-footer__bar-right">
+              <a href="https://www.doctorcleanpayment.sg/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+              <a href="https://www.doctorcleanpayment.sg/terms" target="_blank" rel="noopener noreferrer">Terms &amp; Conditions</a>
+              <span className="dc-web-footer__secure">🛡️ Payments secured by Stripe</span>
+            </div>
           </div>
         </div>
       </footer>
@@ -394,13 +527,90 @@ const CSS = `
 .dc-prop__label { margin: 0; font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
 .dc-prop__sub { margin: 2px 0 0; font-size: 11px; color: var(--dc-muted); font-weight: 500; }
 
-/* COMPARE */
+/* BRAND TOGGLE */
+.dc-brand-toggle-wrap { padding: 24px 24px 0; }
+.dc-brand-toggle {
+  max-width: 480px; margin: 0 auto;
+  background: #fff; border: 1px solid var(--dc-border); border-radius: 100px;
+  padding: 5px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.05);
+}
+.dc-brand-toggle__btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: transparent; border: none;
+  padding: 12px 16px; border-radius: 100px;
+  font-family: inherit; font-size: 14px; font-weight: 700;
+  color: var(--dc-muted); cursor: pointer; transition: all 0.15s ease;
+}
+.dc-brand-toggle__btn:hover { color: var(--dc-text); }
+.dc-brand-toggle__btn--active {
+  background: var(--dc-blue); color: #fff;
+  box-shadow: 0 4px 10px rgba(37,99,235,0.30);
+}
+.dc-brand-toggle__logo { width: 20px; height: 20px; object-fit: contain; }
+
+/* PRICE TABLE */
+.dc-pricetable { padding: 32px 24px 0; }
+.dc-pricetable__toggle-wrap { max-width: 1100px; margin: 0 auto 16px; display: flex; justify-content: center; }
+.dc-pricetable__card { max-width: 1100px; margin: 0 auto; background: #fff; border: 1px solid var(--dc-border); border-radius: 16px; overflow: hidden; box-shadow: 0 8px 20px rgba(15,23,42,0.05); }
+.dc-pricetable__head { display: flex; align-items: center; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--dc-border); }
+.dc-pricetable__icon { width: 36px; height: 36px; border-radius: 10px; background: var(--dc-blue-soft); color: var(--dc-blue); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.dc-pricetable__title { margin: 0; font-size: 16px; font-weight: 800; color: var(--dc-text); flex: 1; }
+.dc-pricetable__count { font-size: 12px; color: var(--dc-muted); font-weight: 600; }
+.dc-pricetable__table { display: flex; flex-direction: column; }
+.dc-pricetable__row { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--dc-border); }
+.dc-pricetable__row:last-child { border-bottom: none; }
+.dc-pricetable__row--header { background: #f8fafc; padding: 12px 20px; }
+.dc-pricetable__row--header .dc-pricetable__cell { color: var(--dc-muted); font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+.dc-pricetable__cell { text-align: center; }
+.dc-pricetable__cell--header { text-align: center; }
+.dc-pricetable__unit-label { margin: 0; font-size: 14px; font-weight: 800; color: var(--dc-text); letter-spacing: -0.01em; }
+.dc-pricetable__unit-sqft { margin: 2px 0 0; font-size: 11px; color: var(--dc-muted); }
+.dc-pricetable__row--header .dc-pricetable__unit { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dc-muted); }
+.dc-pricepill {
+  display: inline-block; padding: 8px 20px; border-radius: 8px;
+  font-size: 14px; font-weight: 800; letter-spacing: -0.01em;
+  min-width: 100px;
+}
+.dc-pricepill--filled { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.dc-pricepill--empty { background: #f8fafc; color: #cbd5e1; border: 1px solid var(--dc-border); font-weight: 500; }
+.dc-pricetable__empty { padding: 40px 20px; text-align: center; color: var(--dc-muted); font-size: 14px; }
+
+.dc-firstwash__header {
+  display: grid; grid-template-columns: 1.5fr 1fr;
+  align-items: center; padding: 12px 20px;
+  background: #f8fafc; border-bottom: 1px solid var(--dc-border);
+  font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dc-muted);
+}
+.dc-firstwash__group {
+  padding: 10px 20px;
+  background: #fef2f2; color: #dc2626;
+  font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;
+  border-bottom: 1px solid #fecaca;
+  border-top: 1px solid #fecaca;
+}
+.dc-firstwash__row {
+  display: grid; grid-template-columns: 1.5fr 1fr;
+  align-items: center; padding: 14px 20px;
+  border-bottom: 1px solid var(--dc-border);
+}
+.dc-firstwash__row:last-child { border-bottom: none; }
+
+.dc-brand-notes { max-width: 1100px; margin: 16px auto 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 16px 28px; }
+.dc-brand-notes__item { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--dc-text); font-weight: 600; }
+
+@media (max-width: 720px) {
+  .dc-pricetable__row { grid-template-columns: 1.4fr 1fr 1fr 1fr; padding: 12px 12px; gap: 6px; }
+  .dc-pricepill { min-width: auto; padding: 6px 8px; font-size: 12px; }
+}
+
+/* COMPARE (legacy — unused) */
 .dc-compare { padding: 28px 24px 0; }
 .dc-compare__grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 @media (max-width: 900px) { .dc-compare__grid { grid-template-columns: 1fr; } }
 .dc-brand { position: relative; border-radius: 20px; padding: 32px 24px 24px; }
-.dc-brand--dc { background: var(--dc-blue-tint); border: 2px solid var(--dc-blue-soft); }
-.dc-brand--other { background: #f8fafc; border: 2px solid var(--dc-border); }
+.dc-brand--dc { background: #fff; border: 2px solid var(--dc-blue); box-shadow: 0 16px 32px rgba(37,99,235,0.15); }
+.dc-brand--other { background: #fff; border: 2px solid var(--dc-border); box-shadow: 0 8px 16px rgba(15,23,42,0.05); }
 .dc-brand__ribbon {
   position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
   background: var(--dc-green); color: #fff;
@@ -410,20 +620,25 @@ const CSS = `
   white-space: nowrap;
 }
 .dc-brand__head { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; justify-content: center; }
+.dc-brand__head--textonly { min-height: 60px; }
 .dc-brand__icon { font-size: 32px; }
 .dc-brand__icon--muted { opacity: 0.4; }
+.dc-brand__logo { width: 56px; height: 56px; object-fit: contain; }
 .dc-brand__name { margin: 0; font-size: 22px; font-weight: 800; color: var(--dc-blue); letter-spacing: -0.02em; }
-.dc-brand--other .dc-brand__name { color: var(--dc-muted); }
+.dc-brand--other .dc-brand__name { color: var(--dc-text); }
 .dc-brand__tag { margin: 2px 0 0; font-size: 11px; color: var(--dc-muted); font-weight: 500; min-height: 16px; }
+.dc-brand__powered { margin: 4px 0 0; font-size: 10px; color: var(--dc-blue); font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+.dc-brand__section-label { margin: 0 0 10px; font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dc-blue); text-align: center; }
+.dc-brand--other .dc-brand__section-label { color: var(--dc-muted); }
 .dc-brand__prices { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 20px; }
 @media (max-width: 560px) { .dc-brand__prices { grid-template-columns: repeat(3, 1fr); } }
 .dc-brand__empty { grid-column: 1 / -1; text-align: center; color: var(--dc-muted); padding: 24px 0; font-size: 14px; }
 .dc-price {
-  background: #fff; border-radius: 10px; padding: 12px 6px; text-align: center;
-  border: 1px solid transparent;
+  background: #f8fafc; border-radius: 10px; padding: 12px 6px; text-align: center;
+  border: 1px solid var(--dc-border);
 }
-.dc-price--pop { background: var(--dc-blue); color: #fff; box-shadow: 0 8px 20px rgba(37,99,235,0.30); }
-.dc-price--other { background: #fff; }
+.dc-price--pop { background: var(--dc-blue); color: #fff; border-color: var(--dc-blue); box-shadow: 0 8px 20px rgba(37,99,235,0.30); }
+.dc-price--other { background: #f8fafc; border-color: var(--dc-border); }
 .dc-price__unit { margin: 0; font-size: 11px; color: var(--dc-muted); font-weight: 600; }
 .dc-price--pop .dc-price__unit { color: rgba(255,255,255,0.85); }
 .dc-price__amt { margin: 4px 0 2px; font-size: 22px; font-weight: 800; color: var(--dc-text); letter-spacing: -0.02em; }
@@ -437,26 +652,51 @@ const CSS = `
 .dc-x { flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: var(--dc-red); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; margin-top: 1px; }
 .dc-brand__note { color: var(--dc-muted); font-size: 12px; font-style: italic; }
 
-/* FEATURES TABLE */
+/* FEATURES TABLE — admin-dashboard-inspired pill style */
 .dc-features { padding: 32px 24px 0; }
-.dc-features__card { max-width: 1100px; margin: 0 auto; background: #fff; border: 1px solid var(--dc-border); border-radius: 16px; overflow: hidden; }
-.dc-features__table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.dc-features__table thead th {
-  padding: 16px 20px; text-align: left; font-size: 14px; font-weight: 700;
-  color: var(--dc-text); background: #f8fafc; border-bottom: 1px solid var(--dc-border);
+.dc-features__card {
+  max-width: 1100px; margin: 0 auto;
+  background: #fff; border: 1px solid var(--dc-border);
+  border-radius: 16px; overflow: hidden;
+  box-shadow: 0 8px 20px rgba(15,23,42,0.05);
 }
-.dc-features__col { text-align: center !important; }
-.dc-features__col--dc { color: var(--dc-blue); }
-.dc-features__col--other { color: var(--dc-muted); }
-.dc-features__table tbody td { padding: 14px 20px; border-bottom: 1px solid var(--dc-border); color: var(--dc-text); }
-.dc-features__table tbody tr:last-child td { border-bottom: none; }
-.dc-features__center { text-align: center; }
-.dc-features__big { font-size: 18px; font-weight: 800; color: var(--dc-text); }
-.dc-features__muted { color: var(--dc-muted); }
-.dc-features__pos { color: var(--dc-green); font-weight: 700; }
-.dc-features__neg { color: var(--dc-red); font-weight: 700; }
-.dc-yes { display: inline-flex; width: 24px; height: 24px; border-radius: 50%; background: var(--dc-green); color: #fff; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
-.dc-no  { display: inline-flex; width: 24px; height: 24px; border-radius: 50%; background: var(--dc-red);  color: #fff; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
+.dc-features__head { display: flex; align-items: center; gap: 12px; padding: 18px 24px; border-bottom: 1px solid var(--dc-border); }
+.dc-features__icon { width: 36px; height: 36px; border-radius: 10px; background: var(--dc-blue-soft); color: var(--dc-blue); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.dc-features__heading { margin: 0; font-size: 16px; font-weight: 800; color: var(--dc-text); }
+
+.dc-features__row {
+  display: grid; grid-template-columns: 1.6fr 1fr 1fr;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--dc-border);
+  gap: 20px;
+}
+.dc-features__row--last { border-bottom: none; }
+.dc-features__row--header {
+  background: #f8fafc;
+  padding: 14px 24px;
+}
+.dc-features__col-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--dc-muted);
+}
+.dc-features__row:not(.dc-features__row--header) .dc-features__col-label {
+  font-size: 14px; font-weight: 700; text-transform: none; letter-spacing: 0;
+  color: var(--dc-text);
+}
+.dc-features__col-brand {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 13px; font-weight: 800; letter-spacing: -0.01em;
+}
+.dc-features__col-brand--dc { color: var(--dc-blue); }
+.dc-features__col-brand--other { color: var(--dc-muted); }
+.dc-features__brand-logo { width: 20px; height: 20px; object-fit: contain; }
+.dc-features__col-cell { display: flex; align-items: center; justify-content: center; }
+
+.dc-pricepill--muted { background: #f1f5f9; color: var(--dc-muted); border: 1px solid var(--dc-border); }
+
+.dc-yes { display: inline-flex; width: 28px; height: 28px; border-radius: 50%; background: var(--dc-green); color: #fff; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; }
+.dc-no  { display: inline-flex; width: 28px; height: 28px; border-radius: 50%; background: var(--dc-red);  color: #fff; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; }
 
 /* CTA BANNER */
 .dc-cta-banner { padding: 32px 24px 0; }
@@ -466,8 +706,11 @@ const CSS = `
 .dc-cta-banner__title { margin: 0 0 6px; font-size: 22px; font-weight: 800; color: var(--dc-text); line-height: 1.3; }
 .dc-cta-banner__sub { margin: 0; font-size: 14px; color: var(--dc-muted); }
 .dc-cta-banner__action { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.dc-cta-banner__btn { background: var(--dc-blue); color: #fff; font-size: 16px; font-weight: 800; padding: 14px 28px; border-radius: 12px; text-decoration: none; box-shadow: 0 8px 20px rgba(37,99,235,0.30); transition: background 0.15s ease; }
+.dc-cta-banner__buttons { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.dc-cta-banner__btn { background: var(--dc-blue); color: #fff; font-size: 15px; font-weight: 800; padding: 13px 22px; border-radius: 12px; text-decoration: none; box-shadow: 0 8px 20px rgba(37,99,235,0.30); transition: background 0.15s ease; white-space: nowrap; }
 .dc-cta-banner__btn:hover { background: var(--dc-blue-dark); }
+.dc-cta-banner__btn--wa { background: #22c55e; box-shadow: 0 8px 20px rgba(34,197,94,0.30); }
+.dc-cta-banner__btn--wa:hover { background: #16a34a; }
 .dc-cta-banner__tagline { margin: 0; font-size: 12px; color: var(--dc-muted); }
 
 /* STATS */
@@ -479,7 +722,49 @@ const CSS = `
 .dc-stat__num { margin: 0; font-size: 18px; font-weight: 800; color: var(--dc-blue); line-height: 1.1; }
 .dc-stat__lbl { margin: 2px 0 0; font-size: 12px; color: var(--dc-muted); font-weight: 500; }
 
-/* FOOTER */
+/* WEB FOOTER — ported from booking-web homepage */
+.dc-web-footer { background: #fff; border-top: 1px solid #e2e8f0; padding: 64px 24px 32px; margin-top: 40px; }
+.dc-web-footer__inner { max-width: 1200px; margin: 0 auto; }
+.dc-web-footer__grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+@media (max-width: 900px) { .dc-web-footer__grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .dc-web-footer__grid { grid-template-columns: 1fr; gap: 32px; } }
+.dc-web-footer__brand { max-width: 380px; }
+.dc-web-footer__logo { height: 56px; width: auto; margin-bottom: 14px; }
+.dc-web-footer__desc { margin: 0 0 18px; font-size: 13.5px; line-height: 1.65; color: #64748b; }
+.dc-web-footer__contacts { display: flex; flex-direction: column; gap: 10px; }
+.dc-web-footer__contact { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: #64748b; text-decoration: none; transition: color 0.15s ease; }
+.dc-web-footer__contact:hover { color: var(--dc-blue); }
+.dc-web-footer__contact--plain:hover { color: #64748b; cursor: default; }
+.dc-web-footer__ci { font-size: 14px; color: #10b981; flex-shrink: 0; margin-top: 1px; }
+.dc-web-footer__col-title { margin: 0 0 20px; font-size: 12px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: #0f172a; }
+.dc-web-footer__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.dc-web-footer__list a { font-size: 13.5px; color: #64748b; text-decoration: none; transition: color 0.15s ease; }
+.dc-web-footer__list a:hover { color: var(--dc-blue); }
+.dc-web-footer__bar {
+  padding-top: 24px; border-top: 1px solid #f1f5f9;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; font-size: 12px; color: #94a3b8;
+}
+.dc-web-footer__bar-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.dc-web-footer__bar-right a { color: #94a3b8; text-decoration: none; transition: color 0.15s ease; }
+.dc-web-footer__bar-right a:hover { color: var(--dc-blue); }
+.dc-web-footer__secure { display: inline-flex; align-items: center; gap: 6px; color: #94a3b8; }
+@media (max-width: 640px) {
+  .dc-web-footer__bar { justify-content: center; text-align: center; }
+  .dc-web-footer__bar-right { justify-content: center; }
+}
+
+/* MINI FOOTER (unused legacy) */
+.dc-mini-footer { background: #fff; border-top: 1px solid var(--dc-border); margin-top: 40px; }
+.dc-mini-footer__inner { max-width: 1100px; margin: 0 auto; padding: 22px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.dc-mini-footer__copy { margin: 0; font-size: 12px; color: var(--dc-muted); }
+.dc-mini-footer__links { display: flex; align-items: center; gap: 12px; }
+.dc-mini-footer__link { font-size: 12px; color: var(--dc-muted); text-decoration: none; transition: color 0.15s ease; }
+.dc-mini-footer__link:hover { color: #26ABE2; }
+.dc-mini-footer__pipe { color: #e5e7eb; font-size: 12px; }
+@media (max-width: 560px) { .dc-mini-footer__inner { justify-content: center; text-align: center; } }
+
+/* FOOTER (legacy — unused) */
 .dc-footer-block { background: var(--dc-navy); color: rgba(255,255,255,0.85); padding: 56px 24px 28px; margin-top: 40px; }
 .dc-footer-block__inner { max-width: 1200px; margin: 0 auto; }
 .dc-footer-block__grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 40px; padding-bottom: 40px; border-bottom: 1px solid rgba(255,255,255,0.10); }

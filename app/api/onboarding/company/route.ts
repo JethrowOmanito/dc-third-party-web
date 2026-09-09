@@ -10,9 +10,18 @@ import { isAdminRole } from '@/lib/rbac-server';
 // to 'approved' iff both docs are present AND all required fields set.
 
 const schema = z.object({
-  name:    z.string().trim().min(2, 'Company name required').max(160),
-  uen:     z.string().trim().min(6, 'UEN required').max(32),
-  address: z.string().trim().min(4, 'Address required').max(400),
+  name:            z.string().trim().min(2, 'Company name required').max(160),
+  uen:             z.string().trim().min(6, 'UEN required').max(32),
+  address:         z.string().trim().min(4, 'Address required').max(400),
+  // HDB DRC — legally required to do any HDB reno work. Required so we
+  // never route an HDB booking to a firm that can't lawfully accept it.
+  hdb_drc_license: z.string().trim().min(3, 'HDB DRC license required').max(64),
+  // Accounts contact — clause 15 of the credit T&C says failure to
+  // receive an invoice due to wrong email doesn't waive payment, so we
+  // require it upfront rather than chasing later.
+  accounts_name:   z.string().trim().min(2, 'Accounts contact name required').max(160),
+  accounts_email:  z.string().trim().email('Accounts email must be a valid email').max(160),
+  accounts_phone:  z.string().trim().min(6, 'Accounts phone required').max(32),
 });
 
 async function verifySession(): Promise<string | null> {
@@ -48,7 +57,7 @@ export async function GET() {
 
   const { data: company } = await db
     .from('partner_companies')
-    .select('name, uen, address, acra_doc_url, uen_doc_url, company_status')
+    .select('name, uen, address, hdb_drc_license, accounts_name, accounts_email, accounts_phone, acra_doc_url, uen_doc_url, company_status')
     .eq('id', partner.company_id)
     .single();
 
@@ -56,6 +65,10 @@ export async function GET() {
     name: company?.name ?? '',
     uen: company?.uen ?? '',
     address: company?.address ?? '',
+    hdb_drc_license: company?.hdb_drc_license ?? '',
+    accounts_name: company?.accounts_name ?? '',
+    accounts_email: company?.accounts_email ?? '',
+    accounts_phone: company?.accounts_phone ?? '',
     acra_uploaded: Boolean(company?.acra_doc_url),
     uen_uploaded: Boolean(company?.uen_doc_url),
     status: company?.company_status ?? 'pending',
@@ -108,6 +121,10 @@ export async function POST(req: NextRequest) {
       name: parsed.data.name,
       uen: parsed.data.uen,
       address: parsed.data.address,
+      hdb_drc_license: parsed.data.hdb_drc_license,
+      accounts_name: parsed.data.accounts_name,
+      accounts_email: parsed.data.accounts_email,
+      accounts_phone: parsed.data.accounts_phone,
       updated_at: new Date().toISOString(),
     })
     .eq('id', partner.company_id);
@@ -123,17 +140,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: updErr.message }, { status: 500 });
   }
 
-  // Auto-approve when both docs and all fields are present. Docs are
-  // set by the upload route; this endpoint just flips status if we're
-  // now complete.
+  // Auto-approve when both docs AND all required text fields are on
+  // file. HDB DRC + accounts contact are Tier-1 must-haves per the
+  // credit T&C (see project_credit_application_flow_plan memory).
   const { data: current } = await db
     .from('partner_companies')
-    .select('name, uen, address, acra_doc_url, uen_doc_url, company_status')
+    .select('name, uen, address, hdb_drc_license, accounts_email, acra_doc_url, uen_doc_url, company_status')
     .eq('id', partner.company_id)
     .single();
 
   const readyToApprove =
     current?.name && current?.uen && current?.address &&
+    current?.hdb_drc_license && current?.accounts_email &&
     current?.acra_doc_url && current?.uen_doc_url &&
     current?.company_status !== 'approved';
 
