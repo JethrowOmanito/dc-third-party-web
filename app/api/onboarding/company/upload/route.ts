@@ -182,17 +182,19 @@ export async function POST(req: NextRequest) {
   }
 
   // Auto-approve when the newly-uploaded doc completes the set. Same
-  // gate as /api/onboarding/company POST — HDB DRC and accounts_email
-  // are Tier-1 must-haves in addition to name/uen/address and docs.
+  // gate as /api/onboarding/company POST — HDB DRC only required for
+  // interior designers; agents / other business types skip that check.
   const { data: current } = await db
     .from('partner_companies')
-    .select('name, uen, address, hdb_drc_license, accounts_email, acra_doc_url, uen_doc_url, company_status')
+    .select('name, uen, address, hdb_drc_license, accounts_email, acra_doc_url, uen_doc_url, company_status, company_type')
     .eq('id', partner.company_id)
     .single();
 
+  const isID = current?.company_type === 'interior_design';
   const readyToApprove =
     current?.name && current?.uen && current?.address &&
-    current?.hdb_drc_license && current?.accounts_email &&
+    (!isID || current?.hdb_drc_license) &&
+    current?.accounts_email &&
     current?.acra_doc_url && current?.uen_doc_url &&
     current?.company_status !== 'approved';
 

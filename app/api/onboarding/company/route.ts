@@ -145,13 +145,17 @@ export async function POST(req: NextRequest) {
   // credit T&C (see project_credit_application_flow_plan memory).
   const { data: current } = await db
     .from('partner_companies')
-    .select('name, uen, address, hdb_drc_license, accounts_email, acra_doc_url, uen_doc_url, company_status')
+    .select('name, uen, address, hdb_drc_license, accounts_email, acra_doc_url, uen_doc_url, company_status, company_type')
     .eq('id', partner.company_id)
     .single();
 
+  // HDB DRC is only required for interior designers — property
+  // managers / agents don't do HDB renovation work.
+  const isID = current?.company_type === 'interior_design';
   const readyToApprove =
     current?.name && current?.uen && current?.address &&
-    current?.hdb_drc_license && current?.accounts_email &&
+    (!isID || current?.hdb_drc_license) &&
+    current?.accounts_email &&
     current?.acra_doc_url && current?.uen_doc_url &&
     current?.company_status !== 'approved';
 

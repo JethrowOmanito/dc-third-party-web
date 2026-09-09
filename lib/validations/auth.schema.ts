@@ -79,12 +79,11 @@ export const signupSchema = z
   })
   .superRefine((v, ctx) => {
     if (v.company_id) return; // legacy flow — nothing else required
-    // Self-signup — all new-company fields are required.
+    // Self-signup — all new-company fields required for every role.
     const required: [keyof typeof v, string][] = [
       ['company_name', 'Company name is required'],
       ['company_uen', 'UEN is required'],
       ['company_address', 'Registered address is required'],
-      ['hdb_drc_license', 'HDB DRC license number is required'],
       ['accounts_name', 'Accounts contact name is required'],
       ['accounts_email', 'Accounts email is required'],
       ['accounts_phone', 'Accounts phone is required'],
@@ -93,6 +92,16 @@ export const signupSchema = z
       if (!v[key]) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: [String(key)], message: msg });
       }
+    }
+    // HDB DRC License is only required for Interior Designers — agents
+    // and other business types don't do HDB renovation work, so they
+    // don't need a DRC license.
+    if (v.partner_role === 'interior_designer' && !v.hdb_drc_license) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['hdb_drc_license'],
+        message: 'HDB DRC license number is required for Interior Designers',
+      });
     }
   });
 

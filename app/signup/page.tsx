@@ -505,12 +505,17 @@ export default function SignupPage() {
     });
   }, [handleAppleResponse]);
 
+  // HDB DRC is only relevant for Interior Designers — property managers
+  // and other business types don't do HDB renovation work.
+  const selectedRole = form.watch('partner_role');
+  const requiresHdbDrc = selectedRole === 'interior_designer';
+
   // Validation for the new self-signup company step (step 1).
   const companyStepValid =
     coName.trim().length >= 2 &&
     coUen.trim().length >= 6 &&
     coAddress.trim().length >= 4 &&
-    hdbDrc.trim().length >= 3 &&
+    (!requiresHdbDrc || hdbDrc.trim().length >= 3) &&
     acctName.trim().length >= 2 &&
     /^\S+@\S+\.\S+$/.test(acctEmail.trim()) &&
     acctPhone.trim().length >= 6;
@@ -591,15 +596,19 @@ export default function SignupPage() {
     }
     try {
       // Self-signup — omit `company_id` entirely so the server takes
-      // the create-new-company branch, and always assign partner_role='admin'.
+      // the create-new-company branch. Keep the user's step-0
+      // partner_role (interior_designer / agent / other) so the server
+      // can map it to partner_companies.company_type; the server then
+      // overrides partner_user.partner_role='admin' for self-signup.
       const payload = {
         ...data,
-        partner_role: 'admin' as const,
         company_id: undefined,
         company_name:    coName.trim(),
         company_uen:     coUen.trim().toUpperCase(),
         company_address: coAddress.trim(),
-        hdb_drc_license: hdbDrc.trim(),
+        // Only send HDB DRC when the user is an Interior Designer —
+        // agents / other don't need it.
+        ...(requiresHdbDrc ? { hdb_drc_license: hdbDrc.trim() } : {}),
         accounts_name:   acctName.trim(),
         accounts_email:  acctEmail.trim().toLowerCase(),
         accounts_phone:  acctPhone.trim(),
@@ -1086,17 +1095,21 @@ export default function SignupPage() {
                     />
                   </div>
 
-                  <div className="dc-field">
-                    <label className="dc-label">HDB DRC License Number</label>
-                    <input
-                      type="text"
-                      value={hdbDrc}
-                      onChange={(e) => setHdbDrc(e.target.value)}
-                      placeholder="HDB/DRC/12345"
-                      className="dc-input"
-                    />
-                    <p className="dc-field__hint">Required by law for any HDB renovation work. Verifiable on the HDB DRC portal.</p>
-                  </div>
+                  {requiresHdbDrc && (
+                    <div className="dc-field">
+                      <label className="dc-label">HDB DRC License Number</label>
+                      <input
+                        type="text"
+                        value={hdbDrc}
+                        onChange={(e) => setHdbDrc(e.target.value)}
+                        placeholder="HDB/DRC/12345"
+                        className="dc-input"
+                      />
+                      <p className="dc-field__hint">
+                        Required by law for Interior Designers doing HDB renovation work. Verifiable on the HDB DRC portal.
+                      </p>
+                    </div>
+                  )}
 
                   <div className="dc-field" style={{ borderTop: '1px solid #e5e7eb', paddingTop: 14, marginTop: 6 }}>
                     <label className="dc-label" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748b', marginBottom: 6 }}>

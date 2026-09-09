@@ -157,18 +157,32 @@ export async function POST(req: NextRequest) {
       // Case-insensitive UEN uniqueness is enforced by the DB index
       // partner_companies_uen_key (upper(uen)) so concurrent races end
       // up with only one row.
+      //
+      // Map the user's step-0 business-type pick into partner_companies.
+      // company_type so downstream flows (booking wizard filters,
+      // BrandSelector for ID) route correctly.
+      const companyTypeMap: Record<string, string> = {
+        interior_designer: 'interior_design',
+        agent: 'property_manager',
+        other: 'other',
+      };
+      const derivedCompanyType = companyTypeMap[partner_role ?? ''] ?? 'other';
+
       const { data: created, error: coErr } = await supabase
         .from('partner_companies')
         .insert({
           name: (company_name ?? '').trim(),
           uen: (company_uen ?? '').trim().toUpperCase(),
           address: (company_address ?? '').trim(),
-          hdb_drc_license: (hdb_drc_license ?? '').trim(),
+          // HDB DRC only for ID — agents / other don't do reno work.
+          hdb_drc_license: partner_role === 'interior_designer'
+            ? (hdb_drc_license ?? '').trim()
+            : null,
           accounts_name: (accounts_name ?? '').trim(),
           accounts_email: (accounts_email ?? '').trim().toLowerCase(),
           accounts_phone: (accounts_phone ?? '').trim(),
           // Sensible defaults — Zoe overrides via main-web admin UI.
-          company_type: 'interior_design',
+          company_type: derivedCompanyType,
           company_status: 'pending', // upgrades to 'approved' after doc uploads
           partner_tier: 'Standard Partner',
           payment_terms: 'pending_review', // gates booking until Zoe reviews
