@@ -81,19 +81,38 @@ interface PartnerCompany {
   company_type: string | null;
 }
 
-const STEP_LABELS = ['Account', 'Company', 'Terms'] as const;
+const STEP_LABELS = ['Account', 'Company', 'Documents', 'Terms'] as const;
+type StepIdx = 0 | 1 | 2 | 3;
 
 export default function SignupPage() {
   const router = useRouter();
   const { setUser } = useAuthStore();
 
-  const [step, setStep] = useState<0 | 1 | 2>(0);
+  const [step, setStep] = useState<StepIdx>(0);
   const [showPwd, setShowPwd] = useState(false);
   const [serverError, setServerError] = useState('');
   const [companies, setCompanies] = useState<PartnerCompany[]>([]);
   const [loadingCompanies, setLoadingCompanies] = useState(true);
   const [companiesSearch, setCompaniesSearch] = useState('');
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
+
+  // ── Self-signup company fields (new — boss creates a new company) ──
+  // Replaces the old dropdown-based "pick an existing company" flow.
+  // Zoe no longer needs to pre-seed partner_companies rows.
+  const [coName, setCoName]         = useState('');
+  const [coUen, setCoUen]           = useState('');
+  const [coAddress, setCoAddress]   = useState('');
+  const [hdbDrc, setHdbDrc]         = useState('');
+  const [acctName, setAcctName]     = useState('');
+  const [acctEmail, setAcctEmail]   = useState('');
+  const [acctPhone, setAcctPhone]   = useState('');
+
+  // ── Documents step (files kept in browser state; uploaded post-signup) ──
+  const [acraFile, setAcraFile]     = useState<File | null>(null);
+  const [uenFile, setUenFile]       = useState<File | null>(null);
+  const [nricFile, setNricFile]     = useState<File | null>(null);
+  const [docsUploading, setDocsUploading] = useState(false);
+  const [docsError, setDocsError]   = useState('');
   const year = new Date().getFullYear();
 
   // ── OTP verification state ─────────────────────────────
@@ -486,6 +505,18 @@ export default function SignupPage() {
     });
   }, [handleAppleResponse]);
 
+  // Validation for the new self-signup company step (step 1).
+  const companyStepValid =
+    coName.trim().length >= 2 &&
+    coUen.trim().length >= 6 &&
+    coAddress.trim().length >= 4 &&
+    hdbDrc.trim().length >= 3 &&
+    acctName.trim().length >= 2 &&
+    /^\S+@\S+\.\S+$/.test(acctEmail.trim()) &&
+    acctPhone.trim().length >= 6;
+
+  const docsStepValid = acraFile !== null && uenFile !== null && nricFile !== null;
+
   const goNext = async () => {
     setServerError('');
     if (step === 0) {
@@ -501,37 +532,77 @@ export default function SignupPage() {
       return;
     }
     if (step === 1) {
-      const ok = await form.trigger(['company_id']);
-      if (ok) setStep(2);
+      if (!companyStepValid) {
+        setServerError('Please fill in all company fields before continuing.');
+        return;
+      }
+      setStep(2);
+      return;
+    }
+    if (step === 2) {
+      if (!docsStepValid) {
+        setDocsError('Please upload all three documents (ACRA, UEN, NRIC) before continuing.');
+        return;
+      }
+      setDocsError('');
+      setStep(3);
       return;
     }
   };
 
   const goPrev = () => {
     setServerError('');
-    setStep(s => (s > 0 ? ((s - 1) as 0 | 1) : 0));
+    setStep(s => (s > 0 ? ((s - 1) as StepIdx) : 0));
+  };
+
+  // Uploads a single doc after the account is created. Failure is
+  // non-fatal here — the boss can retry on /dashboard/onboarding/company
+  // if any of the three uploads fails.
+  const uploadDoc = async (docType: 'acra' | 'uen' | 'nric', file: File) => {
+    const fd = new FormData();
+    fd.append('doc_type', docType);
+    fd.append('file', file);
+    const res = await fetch('/api/onboarding/company/upload', {
+      method: 'POST',
+      body: fd,
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      throw new Error((json as { error?: string }).error ?? `${docType} upload failed`);
+    }
   };
 
   const onSubmit = async (data: SignupInput) => {
     setServerError('');
-    // Belt-and-braces: the Zod schema already refuses to submit without a
-    // role, but a client hack that bypasses the client validator would
-    // still be caught here (and by the server's own signupSchema.safeParse).
-    if (!data.partner_role) {
-      setServerError('Please select what best describes you.');
-      setStep(0);
-      return;
-    }
     if (!otpVerified) {
       setServerError('Please verify your WhatsApp number before submitting.');
       setStep(0);
       return;
     }
+    if (!companyStepValid) {
+      setServerError('Please complete the company details.');
+      setStep(1);
+      return;
+    }
+    if (!docsStepValid) {
+      setServerError('Please upload ACRA, UEN, and NRIC before submitting.');
+      setStep(2);
+      return;
+    }
     try {
+      // Self-signup — omit `company_id` entirely so the server takes
+      // the create-new-company branch, and always assign partner_role='admin'.
       const payload = {
         ...data,
-        // Only send signup_token when we actually have one (otherwise the
-        // .min(20) validation on the schema rejects an empty string).
+        partner_role: 'admin' as const,
+        company_id: undefined,
+        company_name:    coName.trim(),
+        company_uen:     coUen.trim().toUpperCase(),
+        company_address: coAddress.trim(),
+        hdb_drc_license: hdbDrc.trim(),
+        accounts_name:   acctName.trim(),
+        accounts_email:  acctEmail.trim().toLowerCase(),
+        accounts_phone:  acctPhone.trim(),
         ...(signupToken ? { signup_token: signupToken } : {}),
         ...(oauthProvider ? { oauth_provider: oauthProvider, oauth_subject: oauthSubject } : {}),
       };
@@ -545,7 +616,20 @@ export default function SignupPage() {
         setServerError(json.error ?? 'Signup failed. Please try again.');
         return;
       }
+      // Account created + session cookie set. Now upload the 3 docs
+      // (auth via the fresh session). Any failure lets the boss retry
+      // via /dashboard/onboarding/company — the account still exists.
       setUser(json.user);
+      setDocsUploading(true);
+      try {
+        if (acraFile) await uploadDoc('acra', acraFile);
+        if (uenFile)  await uploadDoc('uen',  uenFile);
+        if (nricFile) await uploadDoc('nric', nricFile);
+      } catch (e) {
+        setDocsError(`Account created, but document upload failed: ${(e as Error).message}. Complete the upload on the onboarding page.`);
+      } finally {
+        setDocsUploading(false);
+      }
       router.replace('/signup/success');
     } catch {
       setServerError('Network error. Please try again.');
@@ -958,105 +1042,165 @@ export default function SignupPage() {
                 </>
               )}
 
-              {/* STEP 2: PICK COMPANY */}
+              {/* STEP 2: COMPANY DETAILS (self-signup — creates a new
+                  partner_companies row on submit). Replaces the old
+                  dropdown-based flow so bosses no longer need Zoe to
+                  seed their company. */}
               {step === 1 && (
                 <>
                   <div className="dc-field">
-                    <label className="dc-label">Which company are you with?</label>
-                    <p className="dc-field__hint" style={{ marginBottom: 10 }}>
-                      Choose your company from the list. Admin will verify your employment before approving your account.
-                    </p>
+                    <label className="dc-label">Registered Company Name</label>
+                    <div className="dc-input-wrap">
+                      <Building2 size={18} className="dc-input-icon" />
+                      <input
+                        type="text"
+                        value={coName}
+                        onChange={(e) => setCoName(e.target.value)}
+                        placeholder="Example Interior Pte Ltd"
+                        className="dc-input"
+                      />
+                    </div>
+                  </div>
 
-                    <Controller
-                      control={form.control}
-                      name="company_id"
-                      render={({ field }) => (
-                        <div className="dc-company-picker">
-                          <button
-                            type="button"
-                            onClick={() => setCompanyDropdownOpen(v => !v)}
-                            className={`dc-company-trigger${form.formState.errors.company_id ? ' dc-input--error' : ''}`}
-                          >
-                            <Building2 size={18} className="dc-input-icon dc-input-icon--static" />
-                            <span className={selectedCompany ? 'dc-company-selected' : 'dc-company-placeholder'}>
-                              {selectedCompany
-                                ? `${selectedCompany.name}${selectedCompany.company_code ? ` (${selectedCompany.company_code})` : ''}`
-                                : 'Select your company…'}
-                            </span>
-                            <ChevronDown size={18} className={`dc-chev${companyDropdownOpen ? ' dc-chev--open' : ''}`} />
-                          </button>
-                          {companyDropdownOpen && (
-                            <div className="dc-company-dropdown">
-                              <input
-                                type="text"
-                                value={companiesSearch}
-                                onChange={e => setCompaniesSearch(e.target.value)}
-                                placeholder="Search…"
-                                className="dc-company-search"
-                                autoFocus
-                              />
-                              <div className="dc-company-list">
-                                {loadingCompanies && (
-                                  <div className="dc-company-empty">Loading companies…</div>
-                                )}
-                                {!loadingCompanies && filteredCompanies.length === 0 && (
-                                  <div className="dc-company-empty">No companies found.</div>
-                                )}
-                                {filteredCompanies.map(c => (
-                                  <button
-                                    key={c.id}
-                                    type="button"
-                                    onClick={() => {
-                                      field.onChange(c.id);
-                                      setCompanyDropdownOpen(false);
-                                      setCompaniesSearch('');
-                                    }}
-                                    className={`dc-company-option${field.value === c.id ? ' dc-company-option--selected' : ''}`}
-                                  >
-                                    <div className="dc-company-option__name">{c.name}</div>
-                                    <div className="dc-company-option__meta">
-                                      {c.company_type && (
-                                        <span className="dc-company-option__type">
-                                          {TYPE_LABELS[c.company_type] ?? c.company_type}
-                                        </span>
-                                      )}
-                                      {c.company_code && (
-                                        <span className="dc-company-option__code">{c.company_code}</span>
-                                      )}
-                                    </div>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                  <div className="dc-field">
+                    <label className="dc-label">UEN</label>
+                    <input
+                      type="text"
+                      value={coUen}
+                      onChange={(e) => setCoUen(e.target.value.toUpperCase())}
+                      placeholder="201812345K"
+                      className="dc-input"
+                      style={{ textTransform: 'uppercase' }}
                     />
-                    {form.formState.errors.company_id && (
-                      <p className="dc-field__error">{form.formState.errors.company_id.message}</p>
-                    )}
+                    <p className="dc-field__hint">Unique Entity Number from ACRA.</p>
+                  </div>
 
-                    {selectedCompany && (
-                      <div className="dc-company-preview">
-                        <Building2 size={16} />
-                        <div>
-                          <p className="dc-company-preview__name">{selectedCompany.name}</p>
-                          {selectedCompany.description && (
-                            <p className="dc-company-preview__desc">{selectedCompany.description}</p>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                  <div className="dc-field">
+                    <label className="dc-label">Registered Address</label>
+                    <input
+                      type="text"
+                      value={coAddress}
+                      onChange={(e) => setCoAddress(e.target.value)}
+                      placeholder="1 Raffles Place, #10-01, Singapore 048616"
+                      className="dc-input"
+                    />
+                  </div>
 
-                    <p className="dc-field__hint" style={{ marginTop: 14 }}>
-                      Can&apos;t find your company? Contact admin on WhatsApp to have it added.
+                  <div className="dc-field">
+                    <label className="dc-label">HDB DRC License Number</label>
+                    <input
+                      type="text"
+                      value={hdbDrc}
+                      onChange={(e) => setHdbDrc(e.target.value)}
+                      placeholder="HDB/DRC/12345"
+                      className="dc-input"
+                    />
+                    <p className="dc-field__hint">Required by law for any HDB renovation work. Verifiable on the HDB DRC portal.</p>
+                  </div>
+
+                  <div className="dc-field" style={{ borderTop: '1px solid #e5e7eb', paddingTop: 14, marginTop: 6 }}>
+                    <label className="dc-label" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748b', marginBottom: 6 }}>
+                      Accounts / Billing Contact
+                    </label>
+                    <p className="dc-field__hint" style={{ marginBottom: 10 }}>
+                      Who Doctor Clean should send invoices to (per credit T&amp;C clause 15 — wrong email doesn&apos;t waive payment).
                     </p>
+
+                    <div className="dc-field">
+                      <label className="dc-label" style={{ fontSize: 12 }}>Name</label>
+                      <input
+                        type="text"
+                        value={acctName}
+                        onChange={(e) => setAcctName(e.target.value)}
+                        placeholder="Full name of AP contact"
+                        className="dc-input"
+                      />
+                    </div>
+
+                    <div className="dc-field">
+                      <label className="dc-label" style={{ fontSize: 12 }}>Email</label>
+                      <input
+                        type="email"
+                        value={acctEmail}
+                        onChange={(e) => setAcctEmail(e.target.value)}
+                        placeholder="accounts@example.com"
+                        className="dc-input"
+                      />
+                    </div>
+
+                    <div className="dc-field">
+                      <label className="dc-label" style={{ fontSize: 12 }}>Phone</label>
+                      <input
+                        type="tel"
+                        value={acctPhone}
+                        onChange={(e) => setAcctPhone(e.target.value)}
+                        placeholder="+65 8123 4567"
+                        className="dc-input"
+                      />
+                    </div>
                   </div>
                 </>
               )}
 
-              {/* STEP 3: TERMS */}
+              {/* STEP 3: DOCUMENTS (ACRA + UEN + NRIC uploads — files
+                  stored in state, uploaded to Supabase after signup). */}
               {step === 2 && (
+                <>
+                  <div className="dc-field">
+                    <p className="dc-field__hint" style={{ marginBottom: 14 }}>
+                      Upload three documents to complete your company account.
+                      All are stored securely and only visible to Doctor Clean staff.
+                      Formats: PDF, PNG, or JPG. Max 8 MB each.
+                    </p>
+
+                    {(['acra','uen','nric'] as const).map((docType) => {
+                      const label =
+                        docType === 'acra' ? 'ACRA Business Profile' :
+                        docType === 'uen'  ? 'UEN Certificate' :
+                        'Director NRIC (front)';
+                      const file =
+                        docType === 'acra' ? acraFile :
+                        docType === 'uen'  ? uenFile  :
+                        nricFile;
+                      const setter =
+                        docType === 'acra' ? setAcraFile :
+                        docType === 'uen'  ? setUenFile  :
+                        setNricFile;
+                      return (
+                        <div key={docType} className="dc-field" style={{
+                          background: file ? '#ecfdf5' : '#f8fafc',
+                          border: '1px solid ' + (file ? '#bbf7d0' : '#e5e7eb'),
+                          borderRadius: 8,
+                          padding: 12,
+                        }}>
+                          <label className="dc-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>{label}</span>
+                            {file && <span style={{ fontSize: 11, color: '#059669', fontWeight: 700 }}>✓ Selected</span>}
+                          </label>
+                          <input
+                            type="file"
+                            accept="application/pdf,image/png,image/jpeg"
+                            onChange={(e) => setter(e.target.files?.[0] ?? null)}
+                            style={{ display: 'block', marginTop: 6, fontSize: 12 }}
+                          />
+                          {file && (
+                            <p style={{ fontSize: 11, color: '#334155', marginTop: 4, wordBreak: 'break-all' }}>
+                              {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {docsError && (
+                      <p className="dc-field__error" style={{ marginTop: 6 }}>{docsError}</p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* STEP 4: TERMS */}
+              {step === 3 && (
                 <>
                   <div className="dc-summary">
                     <h3 className="dc-summary__title">Review Your Details</h3>
@@ -1133,7 +1277,7 @@ export default function SignupPage() {
                     Back to login
                   </Link>
                 )}
-                {step < 2 ? (
+                {step < 3 ? (
                   <button type="button" onClick={goNext} className="dc-btn-primary">
                     Continue
                     <ArrowRight size={16} />
@@ -1141,13 +1285,13 @@ export default function SignupPage() {
                 ) : (
                   <button
                     type="submit"
-                    disabled={form.formState.isSubmitting}
+                    disabled={form.formState.isSubmitting || docsUploading}
                     className="dc-btn-primary"
                   >
-                    {form.formState.isSubmitting ? (
+                    {(form.formState.isSubmitting || docsUploading) ? (
                       <>
                         <Loader2 size={16} className="dc-spin" />
-                        Creating…
+                        {docsUploading ? 'Uploading docs…' : 'Creating…'}
                       </>
                     ) : (
                       <>

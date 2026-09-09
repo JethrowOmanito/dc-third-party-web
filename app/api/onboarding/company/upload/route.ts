@@ -80,8 +80,8 @@ export async function POST(req: NextRequest) {
   const docType = String(form.get('doc_type') ?? '');
   const file = form.get('file');
 
-  if (docType !== 'acra' && docType !== 'uen') {
-    return NextResponse.json({ error: "doc_type must be 'acra' or 'uen'" }, { status: 400 });
+  if (docType !== 'acra' && docType !== 'uen' && docType !== 'nric') {
+    return NextResponse.json({ error: "doc_type must be 'acra', 'uen', or 'nric'" }, { status: 400 });
   }
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'file is required' }, { status: 400 });
@@ -158,11 +158,24 @@ export async function POST(req: NextRequest) {
 
   // Bucket is private — record the storage path, not a signed URL (URLs
   // expire). The read side signs on demand.
-  const patchCol = docType === 'acra' ? 'acra_doc_url' : 'uen_doc_url';
-  const { error: patchErr } = await db
-    .from('partner_companies')
-    .update({ [patchCol]: key, updated_at: new Date().toISOString() })
-    .eq('id', partner.company_id);
+  //
+  // NRIC is a personal doc that lives on partner_user (each admin has
+  // their own). ACRA + UEN are company-wide and live on partner_companies.
+  let patchErr: { message: string } | null = null;
+  if (docType === 'nric') {
+    const { error } = await db
+      .from('partner_user')
+      .update({ nric_doc_url: key, updated_at: new Date().toISOString() })
+      .eq('id', partnerId);
+    patchErr = error;
+  } else {
+    const patchCol = docType === 'acra' ? 'acra_doc_url' : 'uen_doc_url';
+    const { error } = await db
+      .from('partner_companies')
+      .update({ [patchCol]: key, updated_at: new Date().toISOString() })
+      .eq('id', partner.company_id);
+    patchErr = error;
+  }
 
   if (patchErr) {
     return NextResponse.json({ error: patchErr.message }, { status: 500 });

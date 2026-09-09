@@ -37,6 +37,17 @@ export async function POST(req: NextRequest) {
       signup_token,
       oauth_provider,
       oauth_subject,
+      // Self-signup fields (present when company_id is NOT provided) —
+      // used to create a brand-new partner_companies row atomically
+      // with the partner_user, so a boss can register a new firm
+      // without Zoe having to seed anything.
+      company_name,
+      company_uen,
+      company_address,
+      hdb_drc_license,
+      accounts_name,
+      accounts_email,
+      accounts_phone,
     } = parsed.data;
 
     const usingOAuth = !!oauth_provider && !!oauth_subject;
@@ -110,18 +121,88 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'This email is already registered.' }, { status: 409 });
     }
 
-    // Verify the picked company exists and is active
-    const { data: company, error: coErr } = await supabase
-      .from('partner_companies')
-      .select('id, name, company_code, company_type, is_active, discount_type, discount_value')
-      .eq('id', company_id)
-      .single();
-    if (coErr || !company || !company.is_active) {
-      return NextResponse.json({ error: 'Selected company is not available.' }, { status: 400 });
+    // Resolve the company — either link to an existing one (legacy /
+    // invited flow) or create a new one atomically (self-signup boss).
+    //
+    // For self-signup we deliberately leave payment_terms + discount at
+    // safe defaults so Zoe reviews before the boss can actually book.
+    // The booking wizard's payment-terms gate blocks anything without
+    // 'upfront' or 'end_of_month' set, so a fresh signup stops there.
+    let company: {
+      id: string;
+      name: string;
+      company_code: string | null;
+      company_type: string | null;
+      discount_type: string | null;
+      discount_value: number | null;
+    };
+    let resolvedCompanyId: string;
+    let effectivePartnerRole = partner_role ?? 'admin';
+
+    if (company_id) {
+      // Legacy: link to existing company (used by invited users or
+      // pre-Zoe-seeded flows).
+      const { data: existing, error: coErr } = await supabase
+        .from('partner_companies')
+        .select('id, name, company_code, company_type, is_active, discount_type, discount_value')
+        .eq('id', company_id)
+        .single();
+      if (coErr || !existing || !existing.is_active) {
+        return NextResponse.json({ error: 'Selected company is not available.' }, { status: 400 });
+      }
+      company = existing;
+      resolvedCompanyId = company_id;
+    } else {
+      // Self-signup — create the partner_companies row FIRST.
+      // Case-insensitive UEN uniqueness is enforced by the DB index
+      // partner_companies_uen_key (upper(uen)) so concurrent races end
+      // up with only one row.
+      const { data: created, error: coErr } = await supabase
+        .from('partner_companies')
+        .insert({
+          name: (company_name ?? '').trim(),
+          uen: (company_uen ?? '').trim().toUpperCase(),
+          address: (company_address ?? '').trim(),
+          hdb_drc_license: (hdb_drc_license ?? '').trim(),
+          accounts_name: (accounts_name ?? '').trim(),
+          accounts_email: (accounts_email ?? '').trim().toLowerCase(),
+          accounts_phone: (accounts_phone ?? '').trim(),
+          // Sensible defaults — Zoe overrides via main-web admin UI.
+          company_type: 'interior_design',
+          company_status: 'pending', // upgrades to 'approved' after doc uploads
+          partner_tier: 'Standard Partner',
+          payment_terms: 'pending_review', // gates booking until Zoe reviews
+          is_active: true,
+        })
+        .select('id, name, company_code, company_type, discount_type, discount_value')
+        .single();
+
+      if (coErr || !created) {
+        const pgCode = (coErr as { code?: string } | null)?.code;
+        if (pgCode === '23505') {
+          return NextResponse.json(
+            { error: 'A company with this UEN is already registered. If this is yours, ask your admin for an invite link.' },
+            { status: 409 }
+          );
+        }
+        console.error('[signup] company insert error:', coErr);
+        return NextResponse.json({ error: 'Failed to register company.' }, { status: 500 });
+      }
+      company = created;
+      resolvedCompanyId = created.id;
+      // Self-signup — the person creating the company is always the admin.
+      effectivePartnerRole = 'admin';
     }
 
     const password_hash = password ? await bcrypt.hash(password, 12) : null;
     const now = new Date().toISOString();
+
+    // Self-signup bosses come in auto-approved at the USER level — they
+    // still can't book until the company docs are uploaded (company_status)
+    // AND Zoe sets payment_terms. Legacy invited flow stays 'pending'
+    // so the admin who seeded the company still gates them.
+    const isSelfSignup = !company_id;
+    const initialApproval = isSelfSignup ? 'approved' : 'pending';
 
     const { data: inserted, error: insErr } = await supabase
       .from('partner_user')
@@ -131,9 +212,9 @@ export async function POST(req: NextRequest) {
         email: email.trim().toLowerCase(),
         full_name: full_name.trim(),
         whatsapp_phone: normalizedPhone,
-        company_id,
-        partner_role,
-        approval_status: 'pending',
+        company_id: resolvedCompanyId,
+        partner_role: effectivePartnerRole,
+        approval_status: initialApproval,
         tnc_accepted_at: now,
         wa_verified_at: bypassOtp ? null : now,
         oauth_provider: oauth_provider ?? null,
@@ -175,8 +256,16 @@ export async function POST(req: NextRequest) {
       company_type: company.company_type ?? undefined,
       company_discount_type: (company.discount_type ?? null) as 'percent' | 'flat' | null,
       company_discount_value: Number(company.discount_value ?? 0),
-      approval_status: 'pending' as const,
-      partner_role: (inserted.partner_role ?? partner_role) as 'interior_designer' | 'agent' | 'other',
+      // Self-signup: pending_review until Zoe sets. Legacy invited
+      // flow inherits whatever the seeded company already had.
+      company_payment_terms: (isSelfSignup ? null : undefined) as
+        'upfront' | 'end_of_month' | null | undefined,
+      company_status: (isSelfSignup ? 'pending' : undefined) as
+        'draft' | 'pending' | 'approved' | 'rejected' | undefined,
+      partner_tier: 'Standard Partner' as string,
+      approval_status: (inserted.approval_status ?? initialApproval) as 'pending' | 'approved' | 'rejected',
+      partner_role: (inserted.partner_role ?? effectivePartnerRole) as
+        'admin' | 'employee' | 'interior_designer' | 'agent' | 'other',
     };
 
     const secret = new TextEncoder().encode(jwtSecret);
