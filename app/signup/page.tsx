@@ -81,7 +81,12 @@ interface PartnerCompany {
   company_type: string | null;
 }
 
-const STEP_LABELS = ['Account', 'Company', 'Documents', 'Terms'] as const;
+// Interior designers need to upload ACRA + UEN + NRIC upfront for HDB
+// verification. Agents / Other businesses skip the Documents step —
+// they can add docs later via /dashboard/onboarding/company if Zoe
+// asks for them during credit review.
+const STEP_LABELS_ID    = ['Account', 'Company', 'Documents', 'Terms'] as const;
+const STEP_LABELS_OTHER = ['Account', 'Company', 'Terms'] as const;
 type StepIdx = 0 | 1 | 2 | 3;
 
 export default function SignupPage() {
@@ -509,6 +514,13 @@ export default function SignupPage() {
   // and other business types don't do HDB renovation work.
   const selectedRole = form.watch('partner_role');
   const requiresHdbDrc = selectedRole === 'interior_designer';
+  // ID users see 4 steps (with a Documents step); everyone else sees 3.
+  const STEP_LABELS = requiresHdbDrc ? STEP_LABELS_ID : STEP_LABELS_OTHER;
+  // Actual step state stays 0-3, but agents/others skip step 2 entirely
+  // (jumping 1 → 3). Translate for the stepper so the Terms dot lights
+  // up when we're actually at step 3.
+  const lastStep = (requiresHdbDrc ? 3 : 3) as StepIdx;
+  const displayStep = requiresHdbDrc ? step : (step === 3 ? 2 : step);
 
   // Validation for the new self-signup company step (step 1).
   const companyStepValid =
@@ -541,7 +553,8 @@ export default function SignupPage() {
         setServerError('Please fill in all company fields before continuing.');
         return;
       }
-      setStep(2);
+      // ID goes to Documents (step 2), everyone else jumps straight to Terms (step 3).
+      setStep(requiresHdbDrc ? 2 : 3);
       return;
     }
     if (step === 2) {
@@ -557,7 +570,11 @@ export default function SignupPage() {
 
   const goPrev = () => {
     setServerError('');
-    setStep(s => (s > 0 ? ((s - 1) as StepIdx) : 0));
+    setStep(s => {
+      // Skip step 2 (Documents) for non-ID roles when navigating back.
+      if (!requiresHdbDrc && s === 3) return 1;
+      return (s > 0 ? ((s - 1) as StepIdx) : 0);
+    });
   };
 
   // Uploads a single doc after the account is created. Failure is
@@ -589,7 +606,9 @@ export default function SignupPage() {
       setStep(1);
       return;
     }
-    if (!docsStepValid) {
+    // Docs are only required for Interior Designers — agents / other
+    // can complete Zoe's verification later via the onboarding fallback.
+    if (requiresHdbDrc && !docsStepValid) {
       setServerError('Please upload ACRA, UEN, and NRIC before submitting.');
       setStep(2);
       return;
@@ -629,15 +648,19 @@ export default function SignupPage() {
       // (auth via the fresh session). Any failure lets the boss retry
       // via /dashboard/onboarding/company — the account still exists.
       setUser(json.user);
-      setDocsUploading(true);
-      try {
-        if (acraFile) await uploadDoc('acra', acraFile);
-        if (uenFile)  await uploadDoc('uen',  uenFile);
-        if (nricFile) await uploadDoc('nric', nricFile);
-      } catch (e) {
-        setDocsError(`Account created, but document upload failed: ${(e as Error).message}. Complete the upload on the onboarding page.`);
-      } finally {
-        setDocsUploading(false);
+      // Only ID users upload docs at signup. Agents / Other can add
+      // them later via /dashboard/onboarding/company if Zoe asks.
+      if (requiresHdbDrc) {
+        setDocsUploading(true);
+        try {
+          if (acraFile) await uploadDoc('acra', acraFile);
+          if (uenFile)  await uploadDoc('uen',  uenFile);
+          if (nricFile) await uploadDoc('nric', nricFile);
+        } catch (e) {
+          setDocsError(`Account created, but document upload failed: ${(e as Error).message}. Complete the upload on the onboarding page.`);
+        } finally {
+          setDocsUploading(false);
+        }
       }
       router.replace('/signup/success');
     } catch {
@@ -687,13 +710,13 @@ export default function SignupPage() {
               {STEP_LABELS.map((label, i) => (
                 <div key={label} className="dc-step-wrap">
                   <div
-                    className={`dc-step-dot${step >= i ? ' dc-step-dot--active' : ''}${step > i ? ' dc-step-dot--done' : ''}`}
+                    className={`dc-step-dot${displayStep >= i ? ' dc-step-dot--active' : ''}${displayStep > i ? ' dc-step-dot--done' : ''}`}
                   >
-                    {step > i ? <Check size={16} strokeWidth={3} /> : i + 1}
+                    {displayStep > i ? <Check size={16} strokeWidth={3} /> : i + 1}
                   </div>
-                  <span className={`dc-step-label${step >= i ? ' dc-step-label--active' : ''}`}>{label}</span>
+                  <span className={`dc-step-label${displayStep >= i ? ' dc-step-label--active' : ''}`}>{label}</span>
                   {i < STEP_LABELS.length - 1 && (
-                    <div className={`dc-step-line${step > i ? ' dc-step-line--done' : ''}`} />
+                    <div className={`dc-step-line${displayStep > i ? ' dc-step-line--done' : ''}`} />
                   )}
                 </div>
               ))}
@@ -1290,7 +1313,7 @@ export default function SignupPage() {
                     Back to login
                   </Link>
                 )}
-                {step < 3 ? (
+                {step < lastStep ? (
                   <button type="button" onClick={goNext} className="dc-btn-primary">
                     Continue
                     <ArrowRight size={16} />
