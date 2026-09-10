@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { isTransientUpstreamError } from '@/lib/api/transient-upstream';
 import { timingSafeEqual } from 'crypto';
 import * as Sentry from '@sentry/nextjs';
 
@@ -74,6 +75,15 @@ async function run(req: NextRequest) {
       .limit(MAX_BATCH);
 
     if (selErr) {
+      if (isTransientUpstreamError(selErr)) {
+        // Supabase pooler / PostgREST blip — next cron tick will retry.
+        Sentry.captureMessage('expire_holds_upstream_transient', {
+          level: 'warning',
+          tags: { route: 'cron/expire-holds', op: 'select' },
+          extra: { message: (selErr as { message?: string }).message?.slice(0, 300) },
+        });
+        return NextResponse.json({ ok: true, expired: 0, skipped_reason: 'upstream_transient' }, { status: 503 });
+      }
       Sentry.captureException(selErr, { tags: { route: 'cron/expire-holds', op: 'select' } });
       return NextResponse.json({ error: 'select_failed' }, { status: 500 });
     }
@@ -93,6 +103,14 @@ async function run(req: NextRequest) {
       .in('id', ids);
 
     if (updErr) {
+      if (isTransientUpstreamError(updErr)) {
+        Sentry.captureMessage('expire_holds_upstream_transient', {
+          level: 'warning',
+          tags: { route: 'cron/expire-holds', op: 'update' },
+          extra: { batchSize: ids.length, message: (updErr as { message?: string }).message?.slice(0, 300) },
+        });
+        return NextResponse.json({ ok: true, expired: 0, skipped_reason: 'upstream_transient' }, { status: 503 });
+      }
       Sentry.captureException(updErr, {
         tags: { route: 'cron/expire-holds', op: 'update' },
         extra: { batchSize: ids.length },
@@ -113,6 +131,14 @@ async function run(req: NextRequest) {
       refIds: stale.map(r => r.Ref_ID).filter(Boolean),
     });
   } catch (err) {
+    if (isTransientUpstreamError(err)) {
+      Sentry.captureMessage('expire_holds_upstream_transient', {
+        level: 'warning',
+        tags: { route: 'cron/expire-holds', op: 'unhandled' },
+        extra: { message: err instanceof Error ? err.message?.slice(0, 300) : String(err).slice(0, 300) },
+      });
+      return NextResponse.json({ error: 'upstream_transient' }, { status: 503 });
+    }
     Sentry.captureException(err, { tags: { route: 'cron/expire-holds' } });
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
   }

@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { isTransientUpstreamError } from '@/lib/api/transient-upstream';
 import { timingSafeEqual } from 'crypto';
 import * as Sentry from '@sentry/nextjs';
 
@@ -45,31 +46,6 @@ function nextRetryAtIso(attempts: number): string {
   const backoffMinutes = [1, 5, 15, 60, 6 * 60, 12 * 60, 24 * 60, 24 * 60];
   const idx = Math.min(attempts, backoffMinutes.length - 1);
   return new Date(Date.now() + backoffMinutes[idx] * 60_000).toISOString();
-}
-
-// Cloudflare 5xx / Supabase edge blips: the next cron tick will retry
-// automatically, so downgrade these from fatal Sentry alerts to warnings.
-function isTransientUpstreamError(err: unknown): boolean {
-  if (!err) return false;
-  const parts: string[] = [];
-  if (typeof err === 'string') parts.push(err);
-  else if (err instanceof Error) {
-    parts.push(err.message ?? '');
-    const cause = (err as { cause?: unknown }).cause;
-    if (cause instanceof Error) parts.push(cause.message ?? '');
-    else if (typeof cause === 'string') parts.push(cause);
-  } else if (typeof err === 'object') {
-    const anyErr = err as { message?: unknown; code?: unknown; details?: unknown };
-    if (typeof anyErr.message === 'string') parts.push(anyErr.message);
-    if (typeof anyErr.details === 'string') parts.push(anyErr.details);
-    if (typeof anyErr.code === 'string') parts.push(anyErr.code);
-  }
-  const blob = parts.join(' | ');
-  if (!blob) return false;
-  if (/<!DOCTYPE html>|<html|Web server is down|cloudflare/i.test(blob)) return true;
-  if (/\b(521|522|523|524|502|503|504)\b/.test(blob)) return true;
-  if (/fetch failed|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|socket hang up|network|AbortError/i.test(blob)) return true;
-  return false;
 }
 
 export async function POST(req: NextRequest) {
