@@ -1616,10 +1616,13 @@ export default function BookingNewPage() {
 
           {/* ── LEFT: Wizard pane ──
               iPad Pro 11" portrait (834px) falls into the `md` bracket
-              but not `lg`, so the split-view kicks in here at 768px
-              instead of 1024px. Summary panel gets ~320-350px at md,
-              which is enough for prices + Continue button. */}
-          <div className="md:col-span-7 xl:col-span-8 space-y-4">
+              but not `lg`, so the split-view kicks in at 768px instead
+              of 1024px. At md we bias 8/4 (wizard/summary) so the wizard
+              content has room to lay out horizontally — a narrower 7/5
+              was causing tier buttons / service cards to stack vertically
+              and made every step feel scroll-heavy. lg+ keeps the
+              existing 7/5 desktop proportion; xl+ jumps to 8/4. */}
+          <div className="md:col-span-8 lg:col-span-7 xl:col-span-8 space-y-4">
             <div className="bg-white rounded-3xl ring-1 ring-slate-100 shadow-sm overflow-hidden flex flex-col">
 
               {/* Content header */}
@@ -3559,9 +3562,10 @@ export default function BookingNewPage() {
             </div>
           </div>
 
-          {/* ── RIGHT: Real-time Summary (tablet + desktop) ── */}
+          {/* ── RIGHT: Real-time Summary (tablet + desktop) ──
+              Matches the wizard split above: md 4/12, lg 5/12, xl 4/12. */}
           {!['confirm', 'chat'].includes(step) && (
-            <div className="hidden md:block md:col-span-5 xl:col-span-4">
+            <div className="hidden md:block md:col-span-4 lg:col-span-5 xl:col-span-4">
               <RealtimeSummary
                 serviceLabel={serviceLabel}
                 subtype={subtype}
