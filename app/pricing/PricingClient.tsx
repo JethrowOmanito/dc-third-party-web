@@ -109,11 +109,7 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
             <a href="/signup" className="dc-nav__link">Sign Up</a>
             <a href="/pricing" className="dc-nav__link dc-nav__link--active">Pricing</a>
           </div>
-          <a
-            href="https://www.doctorcleanpayment.sg/book"
-            target="_blank" rel="noopener noreferrer"
-            className="dc-nav__cta"
-          >
+          <a href="/dashboard/booking/new" className="dc-nav__cta">
             Book Now
           </a>
         </div>
@@ -124,7 +120,7 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
         <div className="dc-hero__inner">
           <span className="dc-hero__kicker">PRICE COMPARISON</span>
           <h1 className="dc-hero__title">
-            Doctor Clean <span className="dc-hero__accent">vs The Cleaning Crew</span>
+            <span className="dc-hero__accent">Doctor Clean</span> vs The Cleaning Crew
           </h1>
           <p className="dc-hero__desc">Same cleaning. More value with Doctor Clean.</p>
 
@@ -192,7 +188,13 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
             <p className="dc-brand__section-label">Renovation Cleaning</p>
             <div className="dc-brand__prices">
               {dcUnits.length === 0 ? (
-                <p className="dc-brand__empty">Pricing coming soon for {activeCfg.label}.</p>
+                <a
+                  href={`https://wa.me/6589182880?text=Hi%2C%20I%27d%20like%20a%20quote%20for%20${encodeURIComponent(activeCfg.label)}%20cleaning.`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="dc-brand__empty dc-brand__empty--cta"
+                >
+                  Ask quote via WhatsApp →
+                </a>
               ) : dcUnits.map((u, i) => (
                 <div key={i} className={`dc-price ${i === popularIdx ? 'dc-price--pop' : ''}`}>
                   <p className="dc-price__unit">{u.unit_label}</p>
@@ -206,6 +208,9 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
               <li><span className="dc-check">✓</span>Price is only exclusive for ID</li>
               <li><span className="dc-check">✓</span>Project subject to 9% GST</li>
             </ul>
+            <a href="/dashboard/booking/new" className="dc-brand__cta dc-brand__cta--dc">
+              Book Now
+            </a>
           </div>
 
           {/* The Cleaning Crew */}
@@ -220,7 +225,13 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
             <p className="dc-brand__section-label">General Cleaning</p>
             <div className="dc-brand__prices">
               {otherUnits.length === 0 ? (
-                <p className="dc-brand__empty">No comparison data available.</p>
+                <a
+                  href={`https://wa.me/6589182880?text=Hi%2C%20I%27d%20like%20a%20quote%20for%20${encodeURIComponent(activeCfg.label)}%20cleaning.`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="dc-brand__empty dc-brand__empty--cta"
+                >
+                  Ask quote via WhatsApp →
+                </a>
               ) : otherUnits.map((u, i) => (
                 <div key={i} className="dc-price dc-price--other">
                   <p className="dc-price__unit">{u.unit_label}</p>
@@ -232,6 +243,9 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
             <ul className="dc-brand__perks dc-brand__perks--other">
               <li><span className="dc-check">✓</span>Project subject to 9% GST</li>
             </ul>
+            <a href="/dashboard/booking/new" className="dc-brand__cta dc-brand__cta--other">
+              Book Now
+            </a>
           </div>
         </div>
       </section>
@@ -272,7 +286,15 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
             </div>
 
             {activeUnits.length === 0 ? (
-              <div className="dc-pricetable__empty">No pricing available for {activeCfg.label} yet.</div>
+              <div className="dc-pricetable__empty">
+                <a
+                  href={`https://wa.me/6589182880?text=Hi%2C%20I%27d%20like%20a%20quote%20for%20${encodeURIComponent(activeCfg.label)}%20cleaning.`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="dc-pricetable__empty-cta"
+                >
+                  Ask quote via WhatsApp →
+                </a>
+              </div>
             ) : activeUnits.map((u, i) => (
               <div key={i} className="dc-pricetable__row">
                 <div className="dc-pricetable__unit">
@@ -346,19 +368,15 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
           </div>
           <div className="dc-cta-banner__action">
             <div className="dc-cta-banner__buttons">
-              <a
-                href="https://www.doctorcleanpayment.sg/book"
-                target="_blank" rel="noopener noreferrer"
-                className="dc-cta-banner__btn"
-              >
-                📅 Book Now →
+              <a href="/dashboard/booking/new" className="dc-cta-banner__btn">
+                Book Now
               </a>
               <a
                 href="https://wa.me/6589182880?text=Hi%2C%20I%27d%20like%20to%20book%20a%20cleaning."
                 target="_blank" rel="noopener noreferrer"
                 className="dc-cta-banner__btn dc-cta-banner__btn--wa"
               >
-                💬 Chat via WhatsApp
+                Chat via WhatsApp
               </a>
             </div>
             <p className="dc-cta-banner__tagline">Spotless Faces, Smiling Faces.</p>
@@ -370,7 +388,17 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
       <section className="dc-stats">
         <div className="dc-stats__inner">
           <div className="dc-stat"><span className="dc-stat__icon">👥</span><div><p className="dc-stat__num">10,000+</p><p className="dc-stat__lbl">Homes Cleaned</p></div></div>
-          <div className="dc-stat"><span className="dc-stat__icon">⭐</span><div><p className="dc-stat__num">4.9/5</p><p className="dc-stat__lbl">Customer Rating</p></div></div>
+          <div className="dc-stat">
+            <span className="dc-stat__icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="32" height="32" style={{ display: 'block' }}>
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+              </svg>
+            </span>
+            <div><p className="dc-stat__num">4.9/5</p><p className="dc-stat__lbl">Google Rating</p></div>
+          </div>
           <div className="dc-stat"><span className="dc-stat__icon">🛡️</span><div><p className="dc-stat__num">100%</p><p className="dc-stat__lbl">Satisfaction Guaranteed</p></div></div>
           <div className="dc-stat"><span className="dc-stat__icon">🌿</span><div><p className="dc-stat__num">A Cleaner, Healthier</p><p className="dc-stat__lbl">Singapore</p></div></div>
         </div>
@@ -416,7 +444,7 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
             <div className="dc-web-footer__col">
               <h4 className="dc-web-footer__col-title">Company</h4>
               <ul className="dc-web-footer__list">
-                <li><a href="https://www.doctorcleanpayment.sg/book" target="_blank" rel="noopener noreferrer">Book Online</a></li>
+                <li><a href="/dashboard/booking/new">Book Online</a></li>
                 <li><a href="https://www.doctorcleanpayment.sg/faq" target="_blank" rel="noopener noreferrer">FAQ</a></li>
                 <li><a href="https://g.page/r/CTDvertxNGsEEAI/review" target="_blank" rel="noopener noreferrer">Google Reviews</a></li>
                 <li><a href="https://wa.me/6589182880" target="_blank" rel="noopener noreferrer">Contact Us</a></li>
@@ -444,21 +472,24 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
 
 const CSS = `
 :root {
-  --dc-blue: #2563eb;
-  --dc-blue-dark: #1d4ed8;
-  --dc-blue-soft: #dbeafe;
-  --dc-blue-tint: #eff6ff;
-  --dc-navy: #1e3a8a;
-  --dc-text: #1f2937;
-  --dc-muted: #64748b;
-  --dc-border: #e2e8f0;
-  --dc-green: #22c55e;
+  /* Aliased "blue" keys onto brand green so existing classes keep working */
+  --dc-blue: #0eae8b;
+  --dc-blue-dark: #079c7c;
+  --dc-blue-soft: rgba(20,174,143,0.12);
+  --dc-blue-tint: #f4fff9;
+  --dc-navy: #13233f;
+  --dc-text: #334155;
+  --dc-muted: #718096;
+  --dc-border: #dce2e9;
+  --dc-green: #0eae8b;
+  --dc-green-dark: #079c7c;
   --dc-red: #ef4444;
-  --dc-page-bg: #f0f7ff;
 }
 .dc-pricing {
   min-height: 100vh;
-  background: linear-gradient(180deg, #ffffff 0%, #f0f7ff 200px, #f0f7ff 100%);
+  background:
+    radial-gradient(circle at 25% 15%, rgba(22,180,145,0.08), transparent 45%),
+    linear-gradient(180deg, #f4fff9 0%, #ffffff 320px, #ffffff 100%);
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--dc-text);
 }
@@ -475,8 +506,8 @@ const CSS = `
 .dc-nav__link { font-size: 14px; font-weight: 600; color: var(--dc-text); text-decoration: none; padding: 8px 12px; border-radius: 8px; }
 .dc-nav__link:hover { color: var(--dc-blue); }
 .dc-nav__link--active { color: var(--dc-blue); }
-.dc-nav__cta { font-size: 14px; font-weight: 700; color: #fff; background: var(--dc-blue); padding: 10px 22px; border-radius: 999px; text-decoration: none; box-shadow: 0 4px 12px rgba(37,99,235,0.25); }
-.dc-nav__cta:hover { background: var(--dc-blue-dark); }
+.dc-nav__cta { font-size: 14px; font-weight: 700; color: #000; background: #fff; border: 1.5px solid #000; padding: 10px 22px; border-radius: 999px; text-decoration: none; transition: all 0.15s ease; }
+.dc-nav__cta:hover { background: #000; color: #fff; }
 @media (max-width: 900px) { .dc-nav__links { display: none; } }
 
 /* HERO */
@@ -608,9 +639,9 @@ const CSS = `
 .dc-compare { padding: 28px 24px 0; }
 .dc-compare__grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 @media (max-width: 900px) { .dc-compare__grid { grid-template-columns: 1fr; } }
-.dc-brand { position: relative; border-radius: 20px; padding: 32px 24px 24px; }
-.dc-brand--dc { background: #fff; border: 2px solid var(--dc-blue); box-shadow: 0 16px 32px rgba(37,99,235,0.15); }
-.dc-brand--other { background: #fff; border: 2px solid var(--dc-border); box-shadow: 0 8px 16px rgba(15,23,42,0.05); }
+.dc-brand { position: relative; border-radius: 20px; padding: 32px 24px 24px; display: flex; flex-direction: column; }
+.dc-brand--dc { background: #fff; border: 2px solid var(--dc-green); box-shadow: 0 16px 32px rgba(14,174,139,0.18); }
+.dc-brand--other { background: #fff; border: 2px solid #000; box-shadow: 0 12px 24px rgba(0,0,0,0.15); }
 .dc-brand__ribbon {
   position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
   background: var(--dc-green); color: #fff;
@@ -624,15 +655,153 @@ const CSS = `
 .dc-brand__icon { font-size: 32px; }
 .dc-brand__icon--muted { opacity: 0.4; }
 .dc-brand__logo { width: 56px; height: 56px; object-fit: contain; }
-.dc-brand__name { margin: 0; font-size: 22px; font-weight: 800; color: var(--dc-blue); letter-spacing: -0.02em; }
-.dc-brand--other .dc-brand__name { color: var(--dc-text); }
+.dc-brand__name { margin: 0; font-size: 22px; font-weight: 800; color: var(--dc-green); letter-spacing: -0.02em; }
+.dc-brand--other .dc-brand__name { color: #000; }
 .dc-brand__tag { margin: 2px 0 0; font-size: 11px; color: var(--dc-muted); font-weight: 500; min-height: 16px; }
 .dc-brand__powered { margin: 4px 0 0; font-size: 10px; color: var(--dc-blue); font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
-.dc-brand__section-label { margin: 0 0 10px; font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dc-blue); text-align: center; }
-.dc-brand--other .dc-brand__section-label { color: var(--dc-muted); }
+.dc-brand__cta {
+  display: block;
+  margin-top: auto;
+  text-align: center;
+  padding: 14px 20px;
+  border-radius: 12px;
+  font-size: 15px; font-weight: 800;
+  text-decoration: none; letter-spacing: -0.01em;
+  background: #fff; color: #000; border: 1.5px solid #000;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.dc-brand__cta:hover { background: #000; color: #fff; transform: translateY(-2px); box-shadow: 0 12px 24px rgba(15,23,42,0.20); }
+/* Force explicit 20px gap between the last ✓ and the Book Now button —
+   overrides the flex margin-top:auto absorption. */
+.dc-brand__cta { margin-top: 20px !important; }
+.dc-brand__section-label { margin: 0 0 10px; font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dc-green); text-align: center; }
+.dc-brand--other .dc-brand__section-label { color: #000; }
 .dc-brand__prices { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 20px; }
 @media (max-width: 560px) { .dc-brand__prices { grid-template-columns: repeat(3, 1fr); } }
 .dc-brand__empty { grid-column: 1 / -1; text-align: center; color: var(--dc-muted); padding: 24px 0; font-size: 14px; }
+.dc-brand__empty--cta {
+  display: block; text-decoration: none;
+  color: #000; font-weight: 800; font-size: 15px;
+  background: #fff; border: 1.5px solid #000;
+  padding: 20px; border-radius: 12px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.dc-brand__empty--cta:hover { background: #000; color: #fff; }
+.dc-pricetable__empty-cta {
+  display: inline-block; text-decoration: none;
+  color: #000; font-weight: 800; font-size: 15px;
+  background: #fff; border: 1.5px solid #000;
+  padding: 12px 22px; border-radius: 12px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.dc-pricetable__empty-cta:hover { background: #000; color: #fff; }
+
+/* ─────────── MOBILE (<= 720px) ─────────── */
+@media (max-width: 720px) {
+  /* Nav: compact links visible, hide subtitle */
+  .dc-nav__inner { gap: 8px; padding: 10px 12px; flex-wrap: wrap; }
+  .dc-nav__logo { width: 36px; height: 36px; }
+  .dc-nav__title { font-size: 15px; }
+  .dc-nav__subtitle { display: none; }
+  .dc-nav__links { display: flex; order: 3; width: 100%; justify-content: center; gap: 4px; }
+  .dc-nav__link { padding: 6px 8px; font-size: 12px; }
+  .dc-nav__cta { padding: 8px 16px; font-size: 13px; }
+
+  /* Hero */
+  .dc-hero { padding: 32px 16px 24px; }
+  .dc-hero__title { font-size: 26px; }
+  .dc-hero__desc { font-size: 14px; }
+  .dc-hero__trust { gap: 14px; flex-direction: column; align-items: flex-start; padding: 0 8px; }
+  .dc-trust__icon { width: 36px; height: 36px; font-size: 16px; }
+  .dc-trust__title { font-size: 13px; }
+  .dc-trust__sub { font-size: 11px; }
+
+  /* Property selector */
+  .dc-props-wrap { padding: 12px 16px 0; }
+  .dc-props { gap: 8px; }
+  .dc-prop { padding: 10px 12px; gap: 10px; }
+  .dc-prop__icon { width: 36px; height: 36px; font-size: 20px; }
+  .dc-prop__label { font-size: 13px; }
+  .dc-prop__sub { font-size: 10px; }
+
+  /* Compare cards */
+  .dc-compare { padding: 20px 16px 0; }
+  .dc-brand { padding: 24px 16px 20px; }
+  .dc-brand__ribbon { font-size: 11px; padding: 5px 14px; }
+  .dc-brand__name { font-size: 18px; }
+  .dc-brand__logo { width: 44px; height: 44px; }
+  .dc-brand__prices { grid-template-columns: repeat(2, 1fr) !important; gap: 6px; }
+  .dc-price { padding: 10px 4px; }
+  .dc-price__amt { font-size: 18px; }
+  .dc-price__unit { font-size: 10px; }
+  .dc-price__hrs { font-size: 9px; }
+  .dc-brand__cta { padding: 12px 16px; font-size: 14px; margin-top: 16px; }
+
+  /* Pricing breakdown table — switch to card layout per row */
+  .dc-pricetable { padding: 20px 16px 0; }
+  .dc-pricetable__card { border-radius: 12px; }
+  .dc-pricetable__head { padding: 14px 16px; }
+  .dc-pricetable__title { font-size: 14px; }
+  .dc-pricetable__row {
+    grid-template-columns: 1fr 1fr;
+    padding: 10px 12px 4px;
+    gap: 6px 8px;
+  }
+  .dc-pricetable__row--header { display: none; }
+  .dc-pricetable__row { border-bottom: 1px solid var(--dc-border); padding: 12px; }
+  .dc-pricetable__unit { grid-column: 1 / -1; padding-bottom: 6px; border-bottom: 1px dashed var(--dc-border); margin-bottom: 4px; }
+  .dc-pricetable__cell::before {
+    display: block;
+    font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--dc-muted); margin-bottom: 4px;
+  }
+  .dc-pricetable__cell:nth-of-type(2)::before { content: "Ala-Carte"; }
+  .dc-pricetable__cell:nth-of-type(3)::before { content: "+ Scrub"; }
+  .dc-pricetable__cell:nth-of-type(4)::before { content: "+ Scrub + Formal."; }
+  .dc-pricetable__cell:nth-of-type(4) { grid-column: 1 / -1; }
+  .dc-pricepill { min-width: auto; padding: 8px 12px; font-size: 13px; width: 100%; text-align: center; }
+
+  /* First-wash sub-table */
+  .dc-firstwash__header { padding: 10px 12px; }
+  .dc-firstwash__row { grid-template-columns: 1.6fr 1fr; padding: 12px; gap: 8px; }
+  .dc-firstwash__group { padding: 8px 12px; font-size: 10px; }
+
+  /* Brand toggle */
+  .dc-brand-toggle { max-width: 100%; margin: 0 16px; }
+  .dc-brand-toggle__btn { padding: 10px 12px; font-size: 12px; }
+  .dc-brand-toggle__logo { width: 16px; height: 16px; }
+
+  /* CTA banner */
+  .dc-cta-banner { padding: 20px 16px 0; }
+  .dc-cta-banner__inner { padding: 24px 20px; gap: 18px; }
+  .dc-cta-banner__illus { font-size: 48px; }
+  .dc-cta-banner__title { font-size: 18px; }
+  .dc-cta-banner__sub { font-size: 13px; }
+  .dc-cta-banner__btn { font-size: 14px; padding: 12px 18px; }
+
+  /* Stats */
+  .dc-stats { padding: 28px 16px 12px; }
+  .dc-stats__inner { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .dc-stat { padding: 8px; gap: 8px; }
+  .dc-stat__icon { font-size: 24px; }
+  .dc-stat__num { font-size: 15px; }
+  .dc-stat__lbl { font-size: 11px; }
+
+  /* Web footer */
+  .dc-web-footer { padding: 40px 16px 24px; }
+  .dc-web-footer__col-title { margin-bottom: 12px; letter-spacing: 1.5px; }
+  .dc-web-footer__list { gap: 8px; }
+  .dc-web-footer__bar { flex-direction: column; text-align: center; }
+  .dc-web-footer__bar-right { justify-content: center; }
+}
+
+@media (max-width: 400px) {
+  .dc-hero__title { font-size: 22px; }
+  .dc-props { grid-template-columns: 1fr; }
+  .dc-brand__prices { grid-template-columns: repeat(2, 1fr) !important; }
+  .dc-brand-toggle { display: block; }
+  .dc-brand-toggle__btn { width: 100%; margin-bottom: 4px; }
+}
 .dc-price {
   background: #f8fafc; border-radius: 10px; padding: 12px 6px; text-align: center;
   border: 1px solid var(--dc-border);
@@ -646,7 +815,7 @@ const CSS = `
 .dc-price--other .dc-price__amt { color: var(--dc-text); }
 .dc-price__hrs { margin: 0; font-size: 10px; color: var(--dc-muted); }
 .dc-price--pop .dc-price__hrs { color: rgba(255,255,255,0.85); }
-.dc-brand__perks { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.dc-brand__perks { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .dc-brand__perks li { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--dc-text); }
 .dc-check { flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: var(--dc-green); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; margin-top: 1px; }
 .dc-x { flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: var(--dc-red); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; margin-top: 1px; }
@@ -706,11 +875,12 @@ const CSS = `
 .dc-cta-banner__title { margin: 0 0 6px; font-size: 22px; font-weight: 800; color: var(--dc-text); line-height: 1.3; }
 .dc-cta-banner__sub { margin: 0; font-size: 14px; color: var(--dc-muted); }
 .dc-cta-banner__action { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.dc-cta-banner__buttons { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
-.dc-cta-banner__btn { background: var(--dc-blue); color: #fff; font-size: 15px; font-weight: 800; padding: 13px 22px; border-radius: 12px; text-decoration: none; box-shadow: 0 8px 20px rgba(37,99,235,0.30); transition: background 0.15s ease; white-space: nowrap; }
-.dc-cta-banner__btn:hover { background: var(--dc-blue-dark); }
-.dc-cta-banner__btn--wa { background: #22c55e; box-shadow: 0 8px 20px rgba(34,197,94,0.30); }
-.dc-cta-banner__btn--wa:hover { background: #16a34a; }
+.dc-cta-banner__buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 500px) { .dc-cta-banner__buttons { grid-template-columns: 1fr; } }
+.dc-cta-banner__btn { background: #fff; color: #000; border: 1.5px solid #000; font-size: 15px; font-weight: 800; padding: 13px 22px; border-radius: 12px; text-decoration: none; transition: background 0.15s ease, color 0.15s ease; white-space: nowrap; }
+.dc-cta-banner__btn:hover { background: #000; color: #fff; }
+.dc-cta-banner__btn--wa { background: #fff; color: #000; border: 1.5px solid #000; }
+.dc-cta-banner__btn--wa:hover { background: #000; color: #fff; }
 .dc-cta-banner__tagline { margin: 0; font-size: 12px; color: var(--dc-muted); }
 
 /* STATS */
