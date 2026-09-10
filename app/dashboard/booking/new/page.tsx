@@ -1506,7 +1506,7 @@ export default function BookingNewPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] -mt-4 sm:-mt-6 pb-32 lg:pb-0">
+    <div className="min-h-screen bg-[#f8fafc] -mt-4 sm:-mt-6 pb-32 md:pb-0">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-3 space-y-2 lg:space-y-3">
 
         {/* Brand chip for ID users — reminds them which catalog is active
@@ -1545,7 +1545,7 @@ export default function BookingNewPage() {
         {/* ── 5-step tracker ── */}
         <nav className="rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm px-3 lg:px-6 py-2 lg:py-2">
           {/* Compact tracker (mobile) — dots + active label */}
-          <div className="flex items-center gap-2 lg:hidden">
+          <div className="flex items-center gap-2 md:hidden">
             {SUPER_STEPS.map((s, idx) => {
               const isDone = s.key < superStep;
               const isActive = s.key === superStep;
@@ -1574,8 +1574,8 @@ export default function BookingNewPage() {
             </span>
           </div>
 
-          {/* Full tracker (desktop) */}
-          <ol className="hidden lg:flex items-center gap-2 lg:gap-4 min-w-max overflow-x-auto">
+          {/* Full tracker (tablet + desktop) */}
+          <ol className="hidden md:flex items-center gap-2 lg:gap-4 min-w-max overflow-x-auto">
             {SUPER_STEPS.map((s, idx) => {
               const isDone = s.key < superStep;
               const isActive = s.key === superStep;
@@ -1612,10 +1612,14 @@ export default function BookingNewPage() {
           </ol>
         </nav>
 
-        <div className="lg:grid lg:grid-cols-12 lg:gap-8 lg:items-start">
+        <div className="md:grid md:grid-cols-12 md:gap-6 lg:gap-8 md:items-start">
 
-          {/* ── LEFT: Wizard pane ── */}
-          <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+          {/* ── LEFT: Wizard pane ──
+              iPad Pro 11" portrait (834px) falls into the `md` bracket
+              but not `lg`, so the split-view kicks in here at 768px
+              instead of 1024px. Summary panel gets ~320-350px at md,
+              which is enough for prices + Continue button. */}
+          <div className="md:col-span-7 xl:col-span-8 space-y-4">
             <div className="bg-white rounded-3xl ring-1 ring-slate-100 shadow-sm overflow-hidden flex flex-col">
 
               {/* Content header */}
@@ -3555,9 +3559,9 @@ export default function BookingNewPage() {
             </div>
           </div>
 
-          {/* ── RIGHT: Real-time Summary (Desktop) ── */}
+          {/* ── RIGHT: Real-time Summary (tablet + desktop) ── */}
           {!['confirm', 'chat'].includes(step) && (
-            <div className="hidden lg:block lg:col-span-5 xl:col-span-4">
+            <div className="hidden md:block md:col-span-5 xl:col-span-4">
               <RealtimeSummary
                 serviceLabel={serviceLabel}
                 subtype={subtype}
@@ -3608,9 +3612,10 @@ export default function BookingNewPage() {
         </div>
       </div>
 
-      {/* ── Mobile navigation tray ── */}
+      {/* ── Mobile navigation tray (phones only — tablets get the
+             right-side summary panel with its own Continue button) ── */}
       {!['confirm', 'chat'].includes(step) && (
-        <div className="lg:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-100 z-50 shadow-2xl pb-safe">
+        <div className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-100 z-50 shadow-2xl pb-safe">
           {/* Compact price summary + inline chat trigger (replaces the
               floating FAB on mobile inside this wizard so it doesn't
               overlap the "View breakdown" tap target). */}
@@ -3669,7 +3674,7 @@ export default function BookingNewPage() {
       {/* ── Mobile Breakdown Sheet ── */}
       {showMobileSummary && (
         <div
-          className="lg:hidden fixed inset-0 z-[60] flex items-end bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+          className="md:hidden fixed inset-0 z-[60] flex items-end bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
           onClick={() => setShowMobileSummary(false)}
         >
           <div
