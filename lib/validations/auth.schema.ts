@@ -23,7 +23,16 @@ export const referenceLoginSchema = z.object({
     .regex(/^[a-zA-Z0-9\-_/]+$/, 'Invalid reference number format'),
 });
 
-export const signupSchema = z
+// Base object schema (no superRefine). Used as the react-hook-form
+// resolver on the /signup client — the new-company fields (name, uen,
+// etc.) live in local useState there rather than registered form
+// fields, so the superRefine would always fire "Company name is
+// required" client-side and block onSubmit from ever running.
+//
+// The full strict schema below (signupSchema) reapplies superRefine
+// so the server still enforces every rule when the POST hits
+// /api/auth/signup.
+const signupObjectSchema = z
   .object({
     username: z
       .string()
@@ -82,7 +91,17 @@ export const signupSchema = z
       .optional(),
     oauth_provider: z.enum(['google', 'apple']).optional(),
     oauth_subject: z.string().optional(),
-  })
+  });
+
+// Client-side resolver: validates ONLY the fields the wizard has
+// registered with react-hook-form (account step + T&C). The step-1
+// company fields + step-2 document uploads are gated by the wizard's
+// own goNext() / onSubmit() guards using local state.
+export const signupClientSchema = signupObjectSchema;
+
+// Server-side strict schema: the same object + full self-signup
+// enforcement. /api/auth/signup uses this to validate the POST body.
+export const signupSchema = signupObjectSchema
   .superRefine((v, ctx) => {
     if (v.company_id) return; // legacy flow — nothing else required
     // Self-signup — all new-company fields required for every role.

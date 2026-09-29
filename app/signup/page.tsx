@@ -1,6 +1,6 @@
 'use client';
 
-import { signupSchema, type SignupInput } from '@/lib/validations/auth.schema';
+import { signupClientSchema, type SignupInput } from '@/lib/validations/auth.schema';
 import { useAuthStore } from '@/store/authStore';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -186,7 +186,10 @@ export default function SignupPage() {
   }, []);
 
   const form = useForm<SignupInput>({
-    resolver: zodResolver(signupSchema),
+    // Client-only schema (no superRefine) — see auth.schema.ts.
+    // Company / doc validation is enforced by our own goNext() guards
+    // and the server's strict signupSchema when the POST lands.
+    resolver: zodResolver(signupClientSchema),
     mode: 'onTouched',
     defaultValues: {
       username: '',
