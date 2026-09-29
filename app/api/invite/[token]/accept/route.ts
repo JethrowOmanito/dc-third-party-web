@@ -91,6 +91,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     return NextResponse.json({ error: 'Inviting company is not active.' }, { status: 409 });
   }
 
+  // Helper — release the atomic reservation so the invite link is
+  // reusable when anything after the reserve step fails. Without this
+  // a typo in username / duplicate email / bcrypt hiccup / anything
+  // else permanently burns the invite and the admin has to generate
+  // a new one, which was breaking the whole employee onboarding.
+  const release = async () => {
+    try {
+      await db.from('partner_invites').update({ used_at: null }).eq('id', invite.id);
+    } catch { /* best-effort — the invite will just show as used */ }
+  };
+
   // Duplicate username / email checks (mirrors /api/auth/signup semantics).
   const [{ data: usernameHit }, { data: emailHit }] = await Promise.all([
     db.from('partner_user').select('id').ilike('username', parsed.data.username).maybeSingle(),
@@ -98,8 +109,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
       ? db.from('partner_user').select('id').ilike('email', parsed.data.email).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
-  if (usernameHit) return NextResponse.json({ error: 'This username is already taken.' }, { status: 409 });
-  if (emailHit)    return NextResponse.json({ error: 'This email is already registered.' }, { status: 409 });
+  if (usernameHit) {
+    await release();
+    return NextResponse.json({ error: 'This username is already taken.' }, { status: 409 });
+  }
+  if (emailHit) {
+    await release();
+    return NextResponse.json({ error: 'This email is already registered.' }, { status: 409 });
+  }
 
   const password_hash = await bcrypt.hash(parsed.data.password, 12);
   const now = new Date().toISOString();
@@ -123,6 +140,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ token: str
     .single();
 
   if (insErr || !inserted) {
+    await release();
     const code = (insErr as { code?: string } | null)?.code;
     if (code === '23505') {
       return NextResponse.json({ error: 'Username or email already registered.' }, { status: 409 });
