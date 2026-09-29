@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       // Hardcoded — invites always create employees. See postSchema comment.
       role_to_assign: 'employee',
       created_by: session.partnerId,
-      // expires_at defaults to now() + 7 days per schema
+      // expires_at defaults to now() + 30 days per schema
     })
     .select('id, token, expires_at')
     .single();
