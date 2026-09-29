@@ -724,7 +724,22 @@ export default function SignupPage() {
 
             {serverError && <div className="dc-error">{serverError}</div>}
 
-            <form onSubmit={form.handleSubmit(onSubmit)} className="dc-form">
+            <form
+              onSubmit={form.handleSubmit(onSubmit, (errs) => {
+                // Zod schema failures (e.g. tnc_accepted unchecked, or
+                // any invalid field) are otherwise silent — the button
+                // click does nothing and the user is left confused. Turn
+                // the first error into a visible serverError banner and
+                // bounce them to the step that owns the failing field.
+                const first = Object.values(errs)[0];
+                const msg = (first as { message?: string } | undefined)?.message ?? 'Please review the form and fix any errors before submitting.';
+                setServerError(msg);
+                const failed = Object.keys(errs)[0] as string;
+                if (['partner_role','full_name','email','whatsapp_phone','username','password'].includes(failed)) setStep(0);
+                else if (['tnc_accepted'].includes(failed)) setStep(lastStep);
+              })}
+              className="dc-form"
+            >
               {/* STEP 1: ACCOUNT INFO */}
               {step === 0 && (
                 <>
@@ -1242,11 +1257,27 @@ export default function SignupPage() {
                     <h3 className="dc-summary__title">Review Your Details</h3>
                     <dl className="dc-summary__list">
                       <div><dt>Role</dt><dd>{ROLE_OPTIONS.find(r => r.value === form.getValues('partner_role'))?.label ?? '—'}</dd></div>
-                      <div><dt>Full name</dt><dd>{form.getValues('full_name')}</dd></div>
-                      <div><dt>Username</dt><dd>{form.getValues('username')}</dd></div>
-                      <div><dt>Email</dt><dd>{form.getValues('email')}</dd></div>
-                      <div><dt>WhatsApp</dt><dd>{form.getValues('whatsapp_phone')}</dd></div>
-                      <div><dt>Company</dt><dd>{selectedCompany?.name ?? '—'}</dd></div>
+                      <div><dt>Full name</dt><dd>{form.getValues('full_name') || '—'}</dd></div>
+                      <div><dt>Username</dt><dd>{form.getValues('username') || '—'}</dd></div>
+                      <div><dt>Email</dt><dd>{form.getValues('email') || '—'}</dd></div>
+                      <div><dt>WhatsApp</dt><dd>{form.getValues('whatsapp_phone') || '—'}</dd></div>
+                      <div><dt>Company</dt><dd>{coName.trim() || '—'}</dd></div>
+                      <div><dt>UEN</dt><dd>{coUen.trim().toUpperCase() || '—'}</dd></div>
+                      <div><dt>Address</dt><dd>{coAddress.trim() || '—'}</dd></div>
+                      {requiresHdbDrc && (
+                        <div><dt>HDB DRC</dt><dd>{hdbDrc.trim() || '—'}</dd></div>
+                      )}
+                      <div><dt>Accounts contact</dt><dd>{acctName.trim() ? `${acctName.trim()} · ${acctEmail.trim()} · ${acctPhone.trim()}` : '—'}</dd></div>
+                      {requiresHdbDrc && (
+                        <div>
+                          <dt>Documents</dt>
+                          <dd style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ color: acraFile ? '#059669' : '#dc2626' }}>{acraFile ? '✓' : '✗'} ACRA {acraFile ? `(${acraFile.name})` : 'not uploaded'}</span>
+                            <span style={{ color: uenFile ? '#059669' : '#dc2626' }}>{uenFile ? '✓' : '✗'} UEN {uenFile ? `(${uenFile.name})` : 'not uploaded'}</span>
+                            <span style={{ color: nricFile ? '#059669' : '#dc2626' }}>{nricFile ? '✓' : '✗'} NRIC {nricFile ? `(${nricFile.name})` : 'not uploaded'}</span>
+                          </dd>
+                        </div>
+                      )}
                     </dl>
                   </div>
 
