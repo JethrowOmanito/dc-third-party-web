@@ -1493,8 +1493,8 @@ export default function BookingNewPage() {
   if (isInteriorDesignPartner && !partnerBrand) {
     return (
       <div className="min-h-screen bg-[#f8fafc] -mt-4 sm:-mt-6 pb-16">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-10">
-          <div className="bg-white rounded-3xl ring-1 ring-slate-100 shadow-sm p-5 sm:p-8">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-16 lg:pt-24">
+          <div className="bg-white rounded-3xl ring-1 ring-slate-100 shadow-sm p-6 sm:p-10 lg:p-14">
             <BrandSelector
               selected={partnerBrand}
               onSelect={(brand) => bookingStore.setPartnerBrand(brand)}

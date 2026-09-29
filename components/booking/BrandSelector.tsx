@@ -62,21 +62,21 @@ const BRAND_CARDS: {
 
 export default function BrandSelector({ selected, onSelect }: BrandSelectorProps) {
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div className="space-y-8 sm:space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
       <div className="text-center px-2">
-        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+        <p className="text-[11px] sm:text-xs font-black text-emerald-600 uppercase tracking-widest">
           Interior Designer Portal
         </p>
-        <h2 className="mt-2 text-lg font-extrabold tracking-tight text-slate-900">
+        <h2 className="mt-3 text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-slate-900">
           Which price list would you like to use?
         </h2>
-        <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+        <p className="mt-3 text-sm sm:text-base text-slate-500 leading-relaxed max-w-xl mx-auto">
           Choose the brand you want this booking billed under. This drives the pricing
           catalog and add-ons shown in the next steps.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
         {BRAND_CARDS.map((card) => {
           const { accent } = card;
           const isSelected = selected === card.key;
@@ -86,7 +86,7 @@ export default function BrandSelector({ selected, onSelect }: BrandSelectorProps
               type="button"
               onClick={() => onSelect(card.key)}
               className={cn(
-                'group relative flex flex-col items-start gap-3 p-5 bg-white rounded-2xl ring-1 shadow-sm transition-all text-left hover:-translate-y-0.5 hover:shadow-md active:scale-[0.99] overflow-hidden',
+                'group relative flex flex-col items-start gap-3 p-6 sm:p-7 lg:p-8 bg-white rounded-2xl ring-1 shadow-sm transition-all text-left hover:-translate-y-0.5 hover:shadow-md active:scale-[0.99] overflow-hidden min-h-[200px] sm:min-h-[240px]',
                 isSelected ? accent.ringActive : accent.ring,
                 isSelected && 'shadow-lg'
               )}
@@ -98,49 +98,49 @@ export default function BrandSelector({ selected, onSelect }: BrandSelectorProps
                   only the first couple of text lines wrap beside it; the rest
                   reflows full-width below. TCC has no logo. */}
               {card.logo && (
-                <div className="float-right w-[100px] h-10 ml-3 mb-1 relative pointer-events-none">
+                <div className="float-right w-[120px] sm:w-[140px] h-12 sm:h-14 ml-3 mb-1 relative pointer-events-none">
                   <Image
                     src={card.logo}
                     alt={card.title}
                     fill
                     className="object-contain object-right-top"
-                    sizes="100px"
+                    sizes="140px"
                     priority
                   />
                 </div>
               )}
 
               <div className="min-w-0">
-                <p className="text-base font-bold text-slate-900 leading-tight">
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 leading-tight">
                   {card.title}
                 </p>
                 <p
                   className={cn(
-                    'mt-0.5 text-[10px] font-semibold uppercase tracking-widest',
+                    'mt-1 text-[11px] sm:text-xs font-semibold uppercase tracking-widest',
                     accent.chipText
                   )}
                 >
                   {card.subtitle}
                 </p>
-                <p className="text-xs text-slate-500 leading-relaxed mt-2">
+                <p className="text-sm sm:text-base text-slate-500 leading-relaxed mt-3">
                   {card.tagline}
                 </p>
-                <p className="mt-1 text-[10px] italic text-slate-400">
+                <p className="mt-2 text-[11px] italic text-slate-400">
                   Prices subject to 9% GST
                 </p>
                 {isSelected ? (
                   <span
                     className={cn(
-                      'mt-3 inline-flex items-center gap-1 text-xs font-bold',
+                      'mt-4 inline-flex items-center gap-1 text-sm font-bold',
                       accent.ctaText
                     )}
                   >
                     Continue with {card.title.split(' ')[0]}{' '}
-                    <ChevronRight className="w-3.5 h-3.5" />
+                    <ChevronRight className="w-4 h-4" />
                   </span>
                 ) : (
-                  <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 group-hover:text-emerald-600 transition-colors">
-                    Select this brand <ChevronRight className="w-3 h-3" />
+                  <span className="mt-4 inline-flex items-center gap-1 text-xs sm:text-sm font-semibold text-slate-400 group-hover:text-emerald-600 transition-colors">
+                    Select this brand <ChevronRight className="w-3.5 h-3.5" />
                   </span>
                 )}
               </div>
@@ -159,7 +159,7 @@ export default function BrandSelector({ selected, onSelect }: BrandSelectorProps
         })}
       </div>
 
-      <p className="text-[11px] text-slate-400 text-center leading-relaxed px-4">
+      <p className="text-xs sm:text-sm text-slate-400 text-center leading-relaxed px-4 max-w-xl mx-auto">
         Not sure which one to pick? Choose{' '}
         <span className="font-semibold text-slate-500">Doctor Clean</span> for interior
         designer projects that qualify for the 10% rebate.
