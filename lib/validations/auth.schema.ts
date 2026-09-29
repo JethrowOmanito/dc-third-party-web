@@ -52,9 +52,15 @@ export const signupSchema = z
     // Either link to an existing company via company_id (legacy /
     // Zoe-seeded flow) OR provide the new-company fields for self-serve
     // boss signup. Enforced by the .superRefine() below.
+    //
+    // Accepts empty string too because the react-hook-form default is
+    // `''` (from the wizard's dropdown-flow leftover), and `''` isn't
+    // a valid UUID — without this or() the schema rejects every
+    // self-signup with "Invalid company id" before onSubmit even fires.
     company_id: z
       .string()
       .uuid('Invalid company id')
+      .or(z.literal(''))
       .optional(),
     company_name: z.string().min(2).max(160).optional(),
     company_uen: z.string().min(6).max(32).optional(),
