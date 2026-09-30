@@ -340,12 +340,20 @@ export async function POST(req: NextRequest) {
             if (!admins || admins.length === 0) return;
             const applicantName = full_name.trim();
             const applicantCoName = (company_name ?? '').trim() || 'a new ID company';
-            const msg =
-              `🆕 New Doctor Clean ID partner application\n\n` +
-              `Applicant: ${applicantName}\n` +
-              `Company: ${applicantCoName}\n\n` +
-              `Please review, approve, and set payment terms:\n` +
-              `https://www.securedoctorclean.org/dashboard/partners/pending`;
+            // Meta template — see partner_id_signup_admin_notify submission.
+            // WhatsApp Business API requires a template for cold outbound
+            // messages outside a 24h conversation window (Zoe etc. rarely
+            // message the DC number, so every admin-notify is cold). The
+            // template is pre-registered in whatsapp_template_control so
+            // the edge function's cap-gate lets it through on APPROVED.
+            // While PENDING, Meta rejects sends — the edge function surfaces
+            // that as `skipped:true` and we swallow via the .catch(() => null)
+            // below, so signup response is unaffected. Once Meta flips to
+            // APPROVED, next signup fires for real, no re-deploy needed.
+            //
+            // The `message` field is a human-readable label for the
+            // whatsapp_outbound_log audit trail — edge fn schema requires
+            // it even for template sends.
             await Promise.all(admins.map((a) =>
               fetch(`${supabaseUrl}/functions/v1/send-whatsapp-notification`, {
                 method: 'POST',
@@ -353,7 +361,22 @@ export async function POST(req: NextRequest) {
                   Authorization: `Bearer ${supabaseServiceKey}`,
                   'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ to: a.whatsapp_phone, message: msg, type: 'text' }),
+                body: JSON.stringify({
+                  to: a.whatsapp_phone,
+                  type: 'template',
+                  templateName: 'partner_id_signup_admin_notify',
+                  templateLanguage: 'en_US',
+                  templateParams: [
+                    {
+                      type: 'body',
+                      parameters: [
+                        { type: 'text', text: applicantName },     // {{1}}
+                        { type: 'text', text: applicantCoName },   // {{2}}
+                      ],
+                    },
+                  ],
+                  message: `partner signup admin notify — ${applicantName} / ${applicantCoName}`,
+                }),
               }).catch(() => null)
             ));
           } catch (err) {
