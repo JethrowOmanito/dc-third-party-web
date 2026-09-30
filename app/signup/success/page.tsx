@@ -33,6 +33,11 @@ export default function SignupSuccessPage() {
 
   const name = user?.name ?? user?.username ?? 'there';
 
+  // ID self-signup lands as approval_status='pending' so Zoe can review.
+  // Non-ID auto-approves — different copy per case so we don't mislead the
+  // partner about whether they can log in immediately.
+  const isPendingReview = user?.approval_status === 'pending';
+
   return (
     <>
       <style>{CSS}</style>
@@ -47,9 +52,13 @@ export default function SignupSuccessPage() {
               <CheckCircle2 size={56} />
             </div>
 
-            <h1 className="ss-title">Application submitted!</h1>
+            <h1 className="ss-title">
+              {isPendingReview ? 'Application submitted!' : "You're in!"}
+            </h1>
             <p className="ss-lead">
-              Thanks {name} — your Doctor Clean Partner application has been received.
+              {isPendingReview
+                ? <>Thanks {name} — your Doctor Clean Partner application has been received.</>
+                : <>Thanks {name} — your Doctor Clean Partner account is ready.</>}
             </p>
 
             <div className="ss-steps">
@@ -57,14 +66,24 @@ export default function SignupSuccessPage() {
                 <div className="ss-step-icon ss-step-icon--done"><CheckCircle2 size={18} /></div>
                 <div>
                   <p className="ss-step-title">Account created</p>
-                  <p className="ss-step-desc">Your details are saved and waiting for admin review.</p>
+                  <p className="ss-step-desc">
+                    {isPendingReview
+                      ? 'Your details are saved and awaiting admin review.'
+                      : 'You can log in and explore the dashboard right now.'}
+                  </p>
                 </div>
               </div>
               <div className="ss-step">
                 <div className="ss-step-icon"><Clock size={18} /></div>
                 <div>
-                  <p className="ss-step-title">Under review</p>
-                  <p className="ss-step-desc">Admin usually reviews within 24 hours (Mon–Sat, business hours).</p>
+                  <p className="ss-step-title">
+                    {isPendingReview ? 'Under review' : 'Booking activation pending'}
+                  </p>
+                  <p className="ss-step-desc">
+                    {isPendingReview
+                      ? 'Admin usually reviews within 24 hours (Mon–Sat, business hours).'
+                      : 'Our admin will set your payment terms — usually within 24 hours (Mon–Sat, business hours). Booking creation unlocks once that’s done.'}
+                  </p>
                 </div>
               </div>
               <div className="ss-step">
@@ -72,7 +91,10 @@ export default function SignupSuccessPage() {
                 <div>
                   <p className="ss-step-title">You&apos;ll get a WhatsApp</p>
                   <p className="ss-step-desc">
-                    We&apos;ll message <strong>{user?.whatsapp_phone ?? 'your WhatsApp'}</strong> when your account is approved (or if we need more info).
+                    We&apos;ll message <strong>{user?.whatsapp_phone ?? 'your WhatsApp'}</strong>
+                    {isPendingReview
+                      ? ' when your account is approved (or if we need more info).'
+                      : ' when booking is enabled (or if we need any extra info).'}
                   </p>
                 </div>
               </div>
@@ -84,7 +106,9 @@ export default function SignupSuccessPage() {
                 <ArrowRight size={16} />
               </Link>
               <p className="ss-help">
-                Booking is unlocked as soon as admin approves you. In the meantime you can explore the dashboard.
+                {isPendingReview
+                  ? 'Booking is unlocked as soon as admin approves your account.'
+                  : 'Explore now, book once admin sets your payment terms.'}
               </p>
             </div>
 

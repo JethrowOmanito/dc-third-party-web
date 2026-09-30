@@ -139,6 +139,18 @@ export async function POST(req: NextRequest) {
     let resolvedCompanyId: string;
     let effectivePartnerRole = partner_role ?? 'admin';
 
+    // Map the user's step-0 business-type pick into partner_companies.company_type
+    // so downstream flows (booking wizard filters, BrandSelector for ID) route
+    // correctly. Hoisted above the create/link branch because both the approval
+    // rule + the admin-notify WhatsApp fanout below need to know if this is ID.
+    const companyTypeMap: Record<string, string> = {
+      interior_designer: 'interior_design',
+      agent:             'property_manager',
+      other:             'other',
+    };
+    const derivedCompanyType = companyTypeMap[partner_role ?? ''] ?? 'other';
+    const isIDCompany = derivedCompanyType === 'interior_design';
+
     if (company_id) {
       // Legacy: link to existing company (used by invited users or
       // pre-Zoe-seeded flows).
@@ -158,23 +170,8 @@ export async function POST(req: NextRequest) {
       // partner_companies_uen_key (upper(uen)) so concurrent races end
       // up with only one row.
       //
-      // Map the user's step-0 business-type pick into partner_companies.
-      // company_type so downstream flows (booking wizard filters,
-      // BrandSelector for ID) route correctly.
-      const companyTypeMap: Record<string, string> = {
-        interior_designer: 'interior_design',
-        agent: 'property_manager',
-        other: 'other',
-      };
-      const derivedCompanyType = companyTypeMap[partner_role ?? ''] ?? 'other';
-
-      // Non-ID companies (agents/other) don't upload docs at signup —
-      // they'd be stuck on the onboarding gate forever waiting for
-      // docs the wizard never asked for. Approve them immediately;
-      // Zoe still gates ability-to-book via payment_terms='pending_review'.
-      // ID companies stay 'pending' — the doc upload route auto-flips
-      // them to 'approved' once ACRA + UEN land.
-      const isIDCompany = derivedCompanyType === 'interior_design';
+      // (companyTypeMap + isIDCompany hoisted above so the outer scope can
+      // key the approval branch + ID-admin WhatsApp fanout off them too.)
 
       const { data: created, error: coErr } = await supabase
         .from('partner_companies')
@@ -219,12 +216,20 @@ export async function POST(req: NextRequest) {
     const password_hash = password ? await bcrypt.hash(password, 12) : null;
     const now = new Date().toISOString();
 
-    // Self-signup bosses come in auto-approved at the USER level — they
-    // still can't book until the company docs are uploaded (company_status)
-    // AND Zoe sets payment_terms. Legacy invited flow stays 'pending'
-    // so the admin who seeded the company still gates them.
+    // Self-signup approval rules:
+    //   - ID (interior_design) → 'pending'. Zoe reviews docs + credit-worthiness
+    //     via /dashboard/partners/pending, then main-web's /api/partners/approve
+    //     flips to 'approved' AND fires the existing partner-approved WhatsApp.
+    //     Skipping this step (auto-approve) also skipped the WhatsApp, leaving
+    //     partners logging in with no signal they'd been onboarded.
+    //   - Non-ID (Agents / Other) → 'approved'. Lower-risk business types
+    //     (property managers, one-off other) can log in immediately. Zoe still
+    //     gates booking via payment_terms='pending_review'.
+    //   - Legacy invited flow (has company_id) → 'pending' so the seeding
+    //     admin still gates them.
     const isSelfSignup = !company_id;
-    const initialApproval = isSelfSignup ? 'approved' : 'pending';
+    const initialApproval =
+      isSelfSignup && !isIDCompany ? 'approved' : 'pending';
 
     const { data: inserted, error: insErr } = await supabase
       .from('partner_user')
@@ -310,6 +315,53 @@ export async function POST(req: NextRequest) {
       maxAge: 60 * 60 * 24,
       path: '/',
     });
+
+    // Fire-and-forget: WhatsApp every admin with a phone when an ID partner
+    // self-signs up so Zoe can review + approve + set payment terms. Fires
+    // ONLY for ID self-signups because non-ID auto-approves and doesn't need
+    // her review; legacy invited flow already has an admin sponsor.
+    //
+    // Runs async — signup response returns immediately even if the WA fanout
+    // is slow or the edge function is cold. `.catch(() => null)` swallows
+    // errors deliberately — a WhatsApp delivery failure must not block the
+    // user's signup response, and the notify-admin flow is best-effort by
+    // design (fallback: admin also sees the pending queue in main-web).
+    if (isSelfSignup && isIDCompany && inserted?.id) {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (supabaseUrl && supabaseServiceKey) {
+        (async () => {
+          try {
+            const { data: admins } = await supabase
+              .from('user')
+              .select('username, full_name, whatsapp_phone')
+              .in('role', ['admin', 'super_admin'])
+              .not('whatsapp_phone', 'is', null);
+            if (!admins || admins.length === 0) return;
+            const applicantName = full_name.trim();
+            const applicantCoName = (company_name ?? '').trim() || 'a new ID company';
+            const msg =
+              `🆕 New Doctor Clean ID partner application\n\n` +
+              `Applicant: ${applicantName}\n` +
+              `Company: ${applicantCoName}\n\n` +
+              `Please review, approve, and set payment terms:\n` +
+              `https://www.securedoctorclean.org/dashboard/partners/pending`;
+            await Promise.all(admins.map((a) =>
+              fetch(`${supabaseUrl}/functions/v1/send-whatsapp-notification`, {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${supabaseServiceKey}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ to: a.whatsapp_phone, message: msg, type: 'text' }),
+              }).catch(() => null)
+            ));
+          } catch (err) {
+            console.warn('[signup] admin ID-app WA notify failed:', err);
+          }
+        })();
+      }
+    }
 
     return response;
   } catch (err) {
