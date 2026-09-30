@@ -282,8 +282,17 @@ export async function POST(req: NextRequest) {
       // fields even though a rebate was applied. Discount is scoped to the
       // FULL total (base + add-ons), matching how partner_companies is
       // modelled — no discount_scope column exists on partner_companies.
-      discount_type:  company.discount_type ?? null,
-      discount_value: company.discount_value ?? null,
+      //
+      // Translate the enum: partner_companies uses 'percent'/'flat', but
+      // events.discount_type has a check constraint that only accepts
+      // 'percentage'/'fixed' (must match main-web's CreateEventModal enum).
+      // Writing 'percent' directly here blows up with a 23514 check-constraint
+      // violation and breaks the whole submit. Only write when we actually
+      // applied a discount — otherwise leave NULL (rebate = 0).
+      discount_type:  companyDiscount > 0
+        ? (company.discount_type === 'percent' ? 'percentage' : 'fixed')
+        : null,
+      discount_value: companyDiscount > 0 ? (company.discount_value ?? null) : null,
       discount_reason: companyDiscount > 0 ? `Partner discount: ${company.name}` : null,
       rebate_amount:  companyDiscount > 0 ? companyDiscount : null,
       status: isInvoiced ? 'confirmed' : 'pending',
