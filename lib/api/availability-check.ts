@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import * as Sentry from '@sentry/nextjs';
+import { getFloatSlotWeight } from '@/lib/utils/float-slot-weight';
 
 export class AvailabilityLookupError extends Error {
   constructor(message: string, public cause?: unknown) {
@@ -64,7 +65,12 @@ export async function validateBookingAvailability(
   startTimeDisplay: string,
   endTimeDisplay: string,
   durationOverrideMins?: number,
-  propertyType?: string
+  propertyType?: string,
+  // Optional sqft band (e.g. "1521sqft - 1600sqft", "2300 sqft & above")
+  // — lets us reserve 2/1 slots or 2/2 slots for larger units the same
+  // way booking-web does via getFloatSlotWeight. Callers that don't pass
+  // this fall back to the old Landed=2/else=1 rule.
+  unitSubType?: string
 ): Promise<AvailabilityResult> {
   const supabase = await createClient();
   const dbService = SERVICE_MAP[serviceKey] || serviceKey;
@@ -131,7 +137,13 @@ export async function validateBookingAvailability(
     if (slotRecord) {
       const booked = slotRecord.booked_count || 0;
       const limit = slotRecord.capacity || 0;
-      const slotsNeeded = (dbService === 'Float' && propertyType === 'landed') ? 2 : 1;
+      // For Float, use the shared sqft-aware helper (same one booking-web
+      // uses on create/slots) so partner-portal + retail reserve the same
+      // number of slots per property size. Landed → primary=2 stays for
+      // callers that don't pass a sqft band.
+      const slotsNeeded = dbService === 'Float'
+        ? getFloatSlotWeight(propertyType, unitSubType).primary
+        : 1;
       if (booked + slotsNeeded > limit) {
         return {
           available: false,

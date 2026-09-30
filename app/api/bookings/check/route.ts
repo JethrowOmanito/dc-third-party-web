@@ -53,6 +53,9 @@ export async function GET(req: NextRequest) {
   const end          = searchParams.get('end');
   const duration     = searchParams.get('duration');
   const propertyType = searchParams.get('property') ?? undefined;
+  // sqft band (e.g. "1521sqft - 1600sqft") — drives Float slot weight
+  // via getFloatSlotWeight so larger units correctly reserve 2 or 2+2.
+  const unitSubType  = searchParams.get('unitSubType') ?? undefined;
 
   if (!service || !date || !start || !end) {
     return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
@@ -65,7 +68,8 @@ export async function GET(req: NextRequest) {
       start,
       end,
       duration ? parseInt(duration) : undefined,
-      propertyType
+      propertyType,
+      unitSubType
     );
     return NextResponse.json(res);
   } catch (err) {

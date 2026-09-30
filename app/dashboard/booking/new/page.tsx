@@ -124,7 +124,10 @@ function getSuperStep(step: string): number {
   }
 }
 
-const SLOTS: BookingSlot[] = [
+// Fallback used only when /api/booking/float-slots (which reads
+// admin-configurable `float_slot_config`) fails. Matches the last
+// known-good arrival windows so the wizard degrades gracefully.
+const SLOTS_FALLBACK: BookingSlot[] = [
   { label: '9:00–9:30 AM Arrival',         start: '9:00 AM',  end: '9:30 AM',  additionalFee: 0 },
   { label: '2:00–4:00 PM Arrival',         start: '2:00 PM',  end: '4:00 PM',  additionalFee: 0 },
   { label: '6:00–8:00 PM Arrival (+S$50)', start: '6:00 PM',  end: '8:00 PM',  additionalFee: 50 },
@@ -236,6 +239,10 @@ export default function BookingNewPage() {
   // slot. If errorCode is 'scheduling_rule', a "Pick another slot" CTA
   // bounces the user back to the datetime step.
   const [bookingError, setBookingError] = useState<{ message: string; kind: 'scheduling' | 'generic' } | null>(null);
+  // Deep Cleaning arrival windows fetched from float_slot_config so
+  // admin edits to slot times / surcharges land in the wizard without
+  // a redeploy. Falls back to SLOTS_FALLBACK on network failure.
+  const [floatSlots, setFloatSlots] = useState<BookingSlot[]>(SLOTS_FALLBACK);
 
   // ── Pricing modifiers (mirror booking-web) ──
   const [springHipSqftBand, setSpringHipSqftBand]           = useState<string | null>(null);
@@ -893,14 +900,33 @@ export default function BookingNewPage() {
   // ─── Availability ─────────────────────────────────────────────────────────
 
   const getDisplaySlots = useMemo<BookingSlot[]>(() => {
-    if (bookingMode !== 'general') return SLOTS;
+    if (bookingMode !== 'general') return floatSlots;
     const times = ['9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM','6:00 PM'];
     return times.map(t => ({
       label: `${t} Arrival${t === '6:00 PM' ? ' (+S$50)' : ''}`,
       start: t, end: t,
       additionalFee: t === '6:00 PM' ? 50 : 0,
     }));
-  }, [bookingMode]);
+  }, [bookingMode, floatSlots]);
+
+  // Load admin-configured Float arrival windows once on mount. If the
+  // fetch fails or returns empty, floatSlots stays on SLOTS_FALLBACK
+  // and the wizard degrades gracefully.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/booking/float-slots', { cache: 'no-store' });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (cancelled) return;
+        if (Array.isArray(json?.slots) && json.slots.length > 0) {
+          setFloatSlots(json.slots as BookingSlot[]);
+        }
+      } catch { /* keep fallback */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     setSlot(null);
