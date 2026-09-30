@@ -520,11 +520,15 @@ export default function BookingNewPage() {
     }
 
     if (!selectedTccIdRow || !selectedTccIdTier) return null;
+    // Brand-specific tier suffix — shown in the Realtime Summary primary
+    // label. Keeps the SAME wording the size-picker uses so partners see
+    // the exact service name they clicked.
+    const tierBase = partnerBrand === 'tcc' ? 'Standard Cleaning' : 'Post-Renovation';
     const tierSuffix = selectedTccIdTier === 'ala_carte'
-      ? 'Ala-Carte'
+      ? tierBase
       : selectedTccIdTier === 'scrubbing'
-        ? '+ Scrubbing'
-        : '+ Scrubbing + Formaldehyde';
+        ? `${tierBase} + Deep floor scrubbing`
+        : `${tierBase} + Deep floor scrubbing + Formaldehyde`;
     return {
       primaryLabel: `${selectedTccIdRow.unit_label}${selectedTccIdRow.sqft_label ? ` (${selectedTccIdRow.sqft_label})` : ''} — ${tierSuffix}`,
       primaryPrice: selectedTccIdPrice,
@@ -1574,13 +1578,15 @@ export default function BookingNewPage() {
   // `step` and every stepper transition assumes service/subtype/size/etc.
   if (isInteriorDesignPartner && !partnerBrand) {
     return (
-      // Fill the viewport — no max-w on the outer wrap, generous side
-      // padding so the card touches the edges on wide monitors and the
-      // page background grey never leaks through as empty margins.
-      // The card itself handles internal padding.
-      <div className="min-h-screen bg-white -mt-4 sm:-mt-6 pb-16">
-        <div className="mx-auto px-4 sm:px-8 lg:px-12 xl:px-16 pt-6 sm:pt-10 lg:pt-14">
-          <div className="bg-white rounded-3xl ring-1 ring-slate-100 shadow-sm p-6 sm:p-10 lg:p-14 xl:p-20">
+      // Cancel the DashboardLayout's `p-4 sm:p-6` on all four sides via
+      // negative margins so the brand-select card can go true edge-to-edge.
+      // Previously we only cancelled the top with -mt-4/-mt-6 — the outer
+      // grey (bg-slate-50) still bled through as ~16-24px gutters on both
+      // sides of the card, which is what the user kept seeing as "grey".
+      // Now the white surface fills the whole viewport below the TopBar.
+      <div className="min-h-screen bg-white -m-4 sm:-m-6 pb-16">
+        <div className="px-4 sm:px-8 lg:px-12 xl:px-16 pt-6 sm:pt-10 lg:pt-14">
+          <div className="bg-white p-6 sm:p-10 lg:p-14 xl:p-20">
             <BrandSelector
               selected={partnerBrand}
               onSelect={(brand) => bookingStore.setPartnerBrand(brand)}
@@ -2339,10 +2345,21 @@ export default function BookingNewPage() {
                             const alaPrice = row.ala_carte_price == null ? null : Number(row.ala_carte_price);
                             const scrubPrice = row.scrubbing_price == null ? null : Number(row.scrubbing_price);
                             const formalPrice = row.scrubbing_formaldehyde_price == null ? null : Number(row.scrubbing_formaldehyde_price);
+                            // Tier labels are brand-specific — partners want to
+                            // see the actual service name they're buying, not
+                            // the generic pricing-tier label.
+                            //   Doctor Clean ID → Post-Renovation family
+                            //   TCC             → Standard Cleaning family
+                            // Same underlying tier key + price, just the human
+                            // label swaps. selectedTccIdTier stays 'ala_carte'
+                            // etc. under the hood so downstream code (server
+                            // subtype write, service_subtype rendering,
+                            // Extra_Service composition) doesn't change.
+                            const tierBase = partnerBrand === 'tcc' ? 'Standard Cleaning' : 'Post-Renovation';
                             const tiers: { key: TccIdTier; label: string; price: number | null }[] = [
-                              { key: 'ala_carte',              label: 'Ala-Carte',                    price: alaPrice },
-                              { key: 'scrubbing',              label: '+ Scrubbing',                  price: scrubPrice },
-                              { key: 'scrubbing_formaldehyde', label: '+ Scrubbing + Formaldehyde',   price: formalPrice },
+                              { key: 'ala_carte',              label: tierBase,                                                     price: alaPrice },
+                              { key: 'scrubbing',              label: `${tierBase} + Deep floor scrubbing`,                         price: scrubPrice },
+                              { key: 'scrubbing_formaldehyde', label: `${tierBase} + Deep floor scrubbing + Formaldehyde`,          price: formalPrice },
                             ];
                             return (
                               <div
