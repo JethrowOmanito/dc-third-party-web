@@ -17,7 +17,7 @@ import {
   Loader2, Clock, Send, Sparkles, X, Plus, Minus,
   Home, Sofa, Wind, Layers, Building2, ShieldCheck,
   MapPin, Calendar as CalendarIcon, Info, Waves, MessageCircle,
-  AlertTriangle, WashingMachine, SprayCan,
+  AlertTriangle, Disc3, SprayCan,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -2392,7 +2392,7 @@ export default function BookingNewPage() {
                               },
                               {
                                 key: 'scrubbing', label: `${tierBase} + Deep floor scrubbing`, price: scrubPrice,
-                                Icon: WashingMachine,
+                                Icon: Disc3,
                                 iconBg: 'bg-teal-100',
                                 iconColor: 'text-teal-600',
                                 underline: 'bg-teal-500',

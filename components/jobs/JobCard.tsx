@@ -17,7 +17,7 @@ import {
   Sparkles,
   SprayCan,
   User,
-  WashingMachine,
+  Disc3,
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -37,8 +37,8 @@ const SERVICE_STYLES: Record<string, ServiceStyle> = {
   office:               { icon: Building2,  bg: 'bg-violet-50',  text: 'text-violet-600'  },
   upholstery:           { icon: Sofa,       bg: 'bg-amber-50',   text: 'text-amber-600'   },
   curtain:              { icon: Blinds,     bg: 'bg-indigo-50',  text: 'text-indigo-600'  },
-  scrubbing_machine:    { icon: WashingMachine, bg: 'bg-teal-50',    text: 'text-teal-600'    },
-  scrubbing:            { icon: WashingMachine, bg: 'bg-teal-50',    text: 'text-teal-600'    },
+  scrubbing_machine:    { icon: Disc3, bg: 'bg-teal-50',    text: 'text-teal-600'    },
+  scrubbing:            { icon: Disc3, bg: 'bg-teal-50',    text: 'text-teal-600'    },
   coating:              { icon: PaintRoller,    bg: 'bg-slate-50',   text: 'text-slate-600'   },
   carpet:               { icon: Layers,         bg: 'bg-orange-50',  text: 'text-orange-600'  },
   formaldehyde_removal: { icon: SprayCan,       bg: 'bg-violet-50',  text: 'text-violet-600'  },
