@@ -201,7 +201,6 @@ export default function SignupPage() {
   const [coName, setCoName]         = useState('');
   const [coUen, setCoUen]           = useState('');
   const [coAddress, setCoAddress]   = useState('');
-  const [hdbDrc, setHdbDrc]         = useState('');
   const [acctName, setAcctName]     = useState('');
   const [acctEmail, setAcctEmail]   = useState('');
   const [acctPhone, setAcctPhone]   = useState('');
@@ -624,7 +623,6 @@ export default function SignupPage() {
     coName.trim().length >= 2 &&
     coUen.trim().length >= 6 &&
     coAddress.trim().length >= 4 &&
-    (!requiresHdbDrc || hdbDrc.trim().length >= 3) &&
     acctName.trim().length >= 2 &&
     /^\S+@\S+\.\S+$/.test(acctEmail.trim()) &&
     acctPhone.trim().length >= 6;
@@ -722,9 +720,8 @@ export default function SignupPage() {
         company_name:    coName.trim(),
         company_uen:     coUen.trim().toUpperCase(),
         company_address: coAddress.trim(),
-        // Only send HDB DRC when the user is an Interior Designer —
-        // agents / other don't need it.
-        ...(requiresHdbDrc ? { hdb_drc_license: hdbDrc.trim() } : {}),
+        // HDB DRC no longer collected at signup — captured later during
+        // onboarding when ID partners upload their ACRA/UEN docs.
         accounts_name:   acctName.trim(),
         accounts_email:  acctEmail.trim().toLowerCase(),
         accounts_phone:  acctPhone.trim(),
@@ -1230,22 +1227,6 @@ export default function SignupPage() {
                     />
                   </div>
 
-                  {requiresHdbDrc && (
-                    <div className="dc-field">
-                      <label className="dc-label">HDB DRC License Number</label>
-                      <input
-                        type="text"
-                        value={hdbDrc}
-                        onChange={(e) => setHdbDrc(e.target.value)}
-                        placeholder="HDB/DRC/12345"
-                        className="dc-input"
-                      />
-                      <p className="dc-field__hint">
-                        Required by law for Interior Designers doing HDB renovation work. Verifiable on the HDB DRC portal.
-                      </p>
-                    </div>
-                  )}
-
                   <div className="dc-field" style={{ borderTop: '1px solid #e5e7eb', paddingTop: 14, marginTop: 6 }}>
                     <label className="dc-label" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748b', marginBottom: 6 }}>
                       Accounts / Billing Contact
@@ -1345,9 +1326,6 @@ export default function SignupPage() {
                       <div><dt>Company</dt><dd>{coName.trim() || '—'}</dd></div>
                       <div><dt>UEN</dt><dd>{coUen.trim().toUpperCase() || '—'}</dd></div>
                       <div><dt>Address</dt><dd>{coAddress.trim() || '—'}</dd></div>
-                      {requiresHdbDrc && (
-                        <div><dt>HDB DRC</dt><dd>{hdbDrc.trim() || '—'}</dd></div>
-                      )}
                       <div><dt>Accounts contact</dt><dd>{acctName.trim() ? `${acctName.trim()} · ${acctEmail.trim()} · ${acctPhone.trim()}` : '—'}</dd></div>
                       {requiresHdbDrc && (
                         <div>

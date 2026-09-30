@@ -118,16 +118,11 @@ export const signupSchema = signupObjectSchema
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: [String(key)], message: msg });
       }
     }
-    // HDB DRC License is only required for Interior Designers — agents
-    // and other business types don't do HDB renovation work, so they
-    // don't need a DRC license.
-    if (v.partner_role === 'interior_designer' && !v.hdb_drc_license) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['hdb_drc_license'],
-        message: 'HDB DRC license number is required for Interior Designers',
-      });
-    }
+    // HDB DRC License is no longer collected at signup (removed 2026-09-30
+    // per product decision — too much friction at the top of funnel).
+    // Interior Designers can supply it later via Onboarding → Company Details
+    // when uploading their ACRA + UEN. Backend column stays nullable so
+    // legacy admin-invited flows and the onboarding route can still write it.
   });
 
 export type LoginInput = z.infer<typeof loginSchema>;
