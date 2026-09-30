@@ -34,7 +34,7 @@ import BrandSelector from '@/components/booking/BrandSelector';
 import PartnerScopeOfWork from '@/components/booking/PartnerScopeOfWork';
 import ServiceScopeOfWork from '@/components/booking/ServiceScopeOfWork';
 import { resolveDeepCleaningScope } from '@/lib/scope-of-work';
-import { cn, convertTo24Hour, isServiceablePostal } from '@/lib/utils';
+import { cn, convertTo24Hour, isServiceablePostal, isSlotTooSoon } from '@/lib/utils';
 import { bookingContactSchema } from '@/lib/validations/booking.schema';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
@@ -2881,35 +2881,63 @@ export default function BookingNewPage() {
                             </button>
                           </div>
                           <div className="overflow-y-auto flex-1 p-4 space-y-4" style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom, 2rem))' }}>
+                            {/* Legend — explains what each pill / status means.
+                                Only rendered once we have slots to show. */}
+                            {!loadingAvail && slotGroups.length > 0 && (
+                              <div className="flex flex-wrap gap-x-4 gap-y-1.5 items-center px-1 py-2 rounded-xl bg-slate-50 border border-slate-100">
+                                <div className="inline-flex items-center gap-1.5">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                                  <span className="text-[11px] font-semibold text-slate-600">Available</span>
+                                </div>
+                                <div className="inline-flex items-center gap-1.5">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-orange-400" />
+                                  <span className="text-[11px] font-semibold text-slate-600">Fully booked (waitlist)</span>
+                                </div>
+                                <div className="inline-flex items-center gap-1.5">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-slate-300" />
+                                  <span className="text-[11px] font-semibold text-slate-600">Too soon (needs ≥ 2 h lead)</span>
+                                </div>
+                              </div>
+                            )}
                             {loadingAvail ? (
                               <div className="py-12 flex flex-col items-center gap-2 opacity-40">
                                 <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Checking availability…</p>
+                                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Checking availability…</p>
                               </div>
                             ) : slotGroups.length === 0 ? (
                               <div className="py-10 flex flex-col items-center gap-2 text-center">
                                 <span className="text-3xl">📅</span>
-                                <p className="text-sm font-black text-slate-700">No slots available</p>
-                                <p className="text-xs text-slate-400 max-w-[220px]">All arrival windows are fully booked for this date. Please try another day.</p>
+                                <p className="text-base font-black text-slate-700">No slots available</p>
+                                <p className="text-sm text-slate-500 max-w-[260px]">All arrival windows are fully booked for this date. Please try another day.</p>
                               </div>
                             ) : (
                               slotGroups.map((group) => (
                                 <div key={group.label}>
                                   <div className="flex items-center gap-2 mb-2 px-1">
                                     <span className="text-base leading-none">{group.icon}</span>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{group.label}</p>
-                                    <span className="text-[9px] text-slate-300">·</span>
-                                    <span className="text-[9px] text-slate-400">{group.range}</span>
+                                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{group.label}</p>
+                                    <span className="text-[11px] text-slate-300">·</span>
+                                    <span className="text-[11px] text-slate-500">{group.range}</span>
                                   </div>
                                   <div className="grid gap-2">
                                     {group.slots.map((s) => {
                                       const avail = availability[s.start];
                                       const isFull = avail && !avail.available;
                                       const isSelected = slot?.start === s.start;
+                                      // Same-day lead-time gate (ported from
+                                      // booking-web). Blocks slots < 2 h from
+                                      // now if the partner picked today.
+                                      // Future dates always pass. Never let
+                                      // a partner submit a slot ops can't fulfill.
+                                      const selectedYMD = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
+                                      const isTooSoon = isSlotTooSoon(selectedYMD, s.start);
+                                      const disabled = isTooSoon;
                                       return (
                                         <button
                                           key={s.start}
+                                          disabled={disabled}
                                           onClick={() => {
+                                            if (disabled) return;
                                             setSlot(s);
                                             setShowSlotPicker(false);
                                             setTimeout(() => {
@@ -2921,14 +2949,28 @@ export default function BookingNewPage() {
                                             'flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left',
                                             isSelected
                                               ? 'bg-emerald-500 border-emerald-500 text-white shadow-md'
+                                              : isTooSoon
+                                              ? 'bg-slate-50 border-slate-100 opacity-50 cursor-not-allowed'
                                               : isFull
                                               ? 'bg-slate-50 border-slate-100 opacity-60'
                                               : 'bg-white border-slate-100 hover:border-emerald-200'
                                           )}
                                         >
                                           <div>
-                                            <p className={cn('text-xs font-bold', isSelected ? 'text-white' : 'text-slate-700')}>{s.label}</p>
-                                            {isFull && <p className="text-[9px] text-orange-500 font-bold mt-0.5">Fully booked — waitlist available</p>}
+                                            <p className={cn('text-sm font-bold', isSelected ? 'text-white' : 'text-slate-800')}>{s.label}</p>
+                                            {isTooSoon && (
+                                              <p className="text-[11px] text-slate-500 font-semibold mt-1 leading-snug">
+                                                Too soon — needs ≥ 2 h lead time. Pick a later slot or tomorrow.
+                                              </p>
+                                            )}
+                                            {!isTooSoon && isFull && (
+                                              <p className="text-[11px] text-orange-600 font-semibold mt-1 leading-snug">
+                                                Fully booked — client will be added to the priority waitlist. Admin confirms within 24 h.
+                                              </p>
+                                            )}
+                                            {!isTooSoon && !isFull && !isSelected && (
+                                              <p className="text-[11px] text-emerald-600 font-semibold mt-1">Available</p>
+                                            )}
                                           </div>
                                           {isSelected
                                             ? <CheckCircle2 className="w-4 h-4 text-white" />

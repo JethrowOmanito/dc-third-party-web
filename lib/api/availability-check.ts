@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import * as Sentry from '@sentry/nextjs';
 import { getFloatSlotWeight } from '@/lib/utils/float-slot-weight';
+import { isSlotTooSoon } from '@/lib/utils';
 
 export class AvailabilityLookupError extends Error {
   constructor(message: string, public cause?: unknown) {
@@ -37,7 +38,7 @@ function toMinutes(t: string | null | undefined): number {
 export interface AvailabilityResult {
   available: boolean;
   reason?: string;
-  errorCode?: 'CAPACITY_FULL' | 'NO_CLEANERS' | 'INVALID_TIME' | 'DURATION_TOO_SHORT';
+  errorCode?: 'CAPACITY_FULL' | 'NO_CLEANERS' | 'INVALID_TIME' | 'DURATION_TOO_SHORT' | 'TOO_SOON';
 }
 
 const SERVICE_MAP: Record<string, string> = {
@@ -74,7 +75,18 @@ export async function validateBookingAvailability(
 ): Promise<AvailabilityResult> {
   const supabase = await createClient();
   const dbService = SERVICE_MAP[serviceKey] || serviceKey;
-  
+
+  // 0. Same-day lead-time gate (parity with booking-web). Blocks slots
+  // that start within 2 hours from now on today. Server-side backstop
+  // so a partner who bypasses the disabled UI button still can't submit.
+  if (isSlotTooSoon(date, startTimeDisplay)) {
+    return {
+      available: false,
+      reason: 'Slot must start at least 2 hours from now. Please pick a later slot or a future date.',
+      errorCode: 'TOO_SOON',
+    };
+  }
+
   const startTimeMins = toMinutes(startTimeDisplay);
   const endTimeMins = toMinutes(endTimeDisplay);
   const durationMins = durationOverrideMins || (endTimeMins - startTimeMins);

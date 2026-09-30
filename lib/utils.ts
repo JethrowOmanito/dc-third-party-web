@@ -28,6 +28,47 @@ export function isServiceablePostal(code: string): boolean {
 // Re-export from centralised rate limiter (uses globalThis for cross-request persistence)
 export { checkRateLimit, resetRateLimit } from '@/lib/rate-limit';
 
+// ── Same-day lead-time gate ─────────────────────────────────────────────────
+// Ported from booking-web (lib/utils.ts) so partner + customer bookings
+// share the same rule. Partners cannot book a slot that starts within the
+// lead window. Applies only to same-day (SGT); future dates always pass.
+// Two hours default — gives cleaners time to prep + travel.
+export const SAME_DAY_LEAD_MINS = 120;
+
+function parseDisplayToMins(display: string): number | null {
+  const m = display.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  const mm = parseInt(m[2], 10);
+  const ampm = m[3]?.toUpperCase();
+  if (ampm === 'PM' && h !== 12) h += 12;
+  if (ampm === 'AM' && h === 12) h = 0;
+  return h * 60 + mm;
+}
+
+/**
+ * True if the slot start on the given YMD date is closer than
+ * SAME_DAY_LEAD_MINS from now (SGT). Slots on future dates always return
+ * false. Example: at 5 PM SGT, any slot on today whose start ≤ 6:59 PM
+ * returns true (6 PM blocked; 7 PM bookable — 2 h lead).
+ */
+export function isSlotTooSoon(
+  dateYMD: string,
+  slotStartDisplay: string,
+  leadTimeMins: number = SAME_DAY_LEAD_MINS,
+): boolean {
+  if (!dateYMD || !slotStartDisplay) return false;
+  const SGT_OFFSET_MS = 8 * 60 * 60 * 1000;
+  const nowSgtMs = Date.now() + SGT_OFFSET_MS;
+  const todayYMD = new Date(nowSgtMs).toISOString().slice(0, 10);
+  if (dateYMD !== todayYMD) return false; // only gates same-day
+  const nowMins =
+    new Date(nowSgtMs).getUTCHours() * 60 + new Date(nowSgtMs).getUTCMinutes();
+  const slotMins = parseDisplayToMins(slotStartDisplay);
+  if (slotMins === null) return false;
+  return slotMins < nowMins + leadTimeMins;
+}
+
 
 export function formatDate(dateStr?: string) {
   if (!dateStr) return '—';
