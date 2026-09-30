@@ -112,10 +112,20 @@ export async function validateBookingAvailability(
   }
 
   if (capRecords && capRecords.length > 0) {
-    const slotRecord = capRecords.find(r => {
-      if (!r.Start_Time) return false;
+    // Match by window containment (arrival time falls within Capacity's
+    // Start_Time → End_Time), not by proximity. The old ±15-min proximity
+    // check silently skipped the capacity lookup for Float — the Capacity
+    // table records slots as 08:00-12:00 / 12:00-18:00 / 18:00-24:00 but
+    // the wizard sends arrival windows like "9:00 AM" (540 min). 540 vs
+    // 480 (8:00 AM) is 60 min apart, way outside the 15-min tolerance, so
+    // we'd fall through and only the DB trigger caught it at submit-time.
+    const slotRecord = capRecords.find((r) => {
+      if (!r.Start_Time || !r.End_Time) return false;
       const dbStartMins = toMinutes(r.Start_Time);
-      return Math.abs(dbStartMins - startTimeMins) < 15; // Within 15 min tolerance
+      const dbEndMins = toMinutes(r.End_Time);
+      // Closed interval on start, open on end so an arrival at exactly
+      // 12:00 PM maps to the afternoon slot, not the morning one.
+      return startTimeMins >= dbStartMins && startTimeMins < dbEndMins;
     });
 
     if (slotRecord) {
