@@ -17,7 +17,7 @@ import {
   Loader2, Clock, Send, Sparkles, X, Plus, Minus,
   Home, Sofa, Wind, Layers, Building2, ShieldCheck,
   MapPin, Calendar as CalendarIcon, Info, Waves, MessageCircle,
-  AlertTriangle,
+  AlertTriangle, Droplets, Leaf,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -2347,37 +2347,67 @@ export default function BookingNewPage() {
                             const formalPrice = row.scrubbing_formaldehyde_price == null ? null : Number(row.scrubbing_formaldehyde_price);
                             // Tier labels are brand-specific — partners want to
                             // see the actual service name they're buying, not
-                            // the generic pricing-tier label.
-                            //   Doctor Clean ID → Post-Renovation family
-                            //   TCC             → Standard Cleaning family
-                            // Same underlying tier key + price, just the human
-                            // label swaps. selectedTccIdTier stays 'ala_carte'
-                            // etc. under the hood so downstream code (server
-                            // subtype write, service_subtype rendering,
-                            // Extra_Service composition) doesn't change.
+                            // the generic pricing-tier label. Same underlying
+                            // tier key + price, just the human label swaps.
                             const tierBase = partnerBrand === 'tcc' ? 'Standard Cleaning' : 'Post-Renovation';
-                            const tiers: { key: TccIdTier; label: string; price: number | null }[] = [
-                              { key: 'ala_carte',              label: tierBase,                                                     price: alaPrice },
-                              { key: 'scrubbing',              label: `${tierBase} + Deep floor scrubbing`,                         price: scrubPrice },
-                              { key: 'scrubbing_formaldehyde', label: `${tierBase} + Deep floor scrubbing + Formaldehyde`,          price: formalPrice },
+                            const tiers: {
+                              key: TccIdTier;
+                              label: string;
+                              price: number | null;
+                              // Per-tier accent — mirrors the design mock:
+                              // blue for base, emerald for scrubbing, purple
+                              // for the top formaldehyde tier.
+                              Icon: typeof Sparkles;
+                              iconBg: string;
+                              iconColor: string;
+                              underline: string;
+                              curve: string;
+                            }[] = [
+                              {
+                                key: 'ala_carte', label: tierBase, price: alaPrice,
+                                Icon: Sparkles,
+                                iconBg: 'bg-sky-100',
+                                iconColor: 'text-sky-600',
+                                underline: 'bg-sky-500',
+                                curve: 'from-sky-100/80',
+                              },
+                              {
+                                key: 'scrubbing', label: `${tierBase} + Deep floor scrubbing`, price: scrubPrice,
+                                Icon: Droplets,
+                                iconBg: 'bg-emerald-100',
+                                iconColor: 'text-emerald-600',
+                                underline: 'bg-emerald-500',
+                                curve: 'from-emerald-100/80',
+                              },
+                              {
+                                key: 'scrubbing_formaldehyde', label: `${tierBase} + Deep floor scrubbing + Formaldehyde`, price: formalPrice,
+                                Icon: Leaf,
+                                iconBg: 'bg-violet-100',
+                                iconColor: 'text-violet-600',
+                                underline: 'bg-violet-500',
+                                curve: 'from-violet-100/80',
+                              },
                             ];
                             return (
                               <div
                                 key={row.id}
                                 className={cn(
-                                  'p-4 rounded-2xl border-2 transition-all',
-                                  isSelectedRow ? 'border-emerald-500 bg-emerald-50/40 shadow-md' : 'border-slate-100 bg-white'
+                                  'p-5 rounded-3xl transition-all',
+                                  isSelectedRow ? 'bg-emerald-50/40 ring-2 ring-emerald-200' : 'bg-slate-50/60',
                                 )}
                               >
-                                <div className="flex items-start justify-between gap-3 mb-3">
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-black text-slate-900">{row.unit_label}</p>
-                                    {row.sqft_label && (
-                                      <p className="text-[10px] font-semibold text-slate-500 mt-0.5">{row.sqft_label}</p>
-                                    )}
+                                {/* Room-header pill — deep indigo per the mock.
+                                    Home icon + unit label + sqft next to it. */}
+                                <div className="flex items-center gap-3 mb-4 flex-wrap">
+                                  <div className="inline-flex items-center gap-2 bg-indigo-600 text-white rounded-full px-4 py-2 shadow-sm">
+                                    <Home className="w-4 h-4" />
+                                    <span className="text-xs font-black uppercase tracking-widest">{row.unit_label}</span>
                                   </div>
+                                  {row.sqft_label && (
+                                    <span className="text-xs font-semibold text-slate-500">{row.sqft_label}</span>
+                                  )}
                                   {row.is_tbq && (
-                                    <span className="text-[9px] font-black text-amber-700 bg-amber-50 ring-1 ring-amber-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                    <span className="text-[9px] font-black text-amber-700 bg-amber-50 ring-1 ring-amber-100 px-2 py-0.5 rounded-full uppercase tracking-widest ml-auto">
                                       Quote on Request
                                     </span>
                                   )}
@@ -2387,15 +2417,16 @@ export default function BookingNewPage() {
                                     href={`https://wa.me/6588656751?text=${encodeURIComponent(`Hi Doctor Clean! I'd like a quote for ${row.unit_label} post-renovation cleaning (${partnerBrand === 'tcc' ? 'TCC' : 'Doctor Clean ID'} pricing).`)}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="block w-full text-center py-2 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 text-[11px] font-black text-amber-700 uppercase tracking-widest hover:bg-amber-100"
+                                    className="block w-full text-center py-3 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 text-xs font-black text-amber-700 uppercase tracking-widest hover:bg-amber-100"
                                   >
                                     Chat Admin for Quote →
                                   </a>
                                 ) : (
-                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 lg:gap-4">
                                     {tiers.map((t) => {
                                       const isActiveTier = isSelectedRow && selectedTccIdTier === t.key;
                                       const disabled = t.price == null;
+                                      const Icon = t.Icon;
                                       return (
                                         <button
                                           key={t.key}
@@ -2410,20 +2441,55 @@ export default function BookingNewPage() {
                                             }, 300);
                                           }}
                                           className={cn(
-                                            'flex flex-col items-start p-3 rounded-xl border-2 transition-all text-left active:scale-[0.98]',
+                                            'group relative overflow-hidden text-left bg-white rounded-2xl border-2 shadow-sm transition-all active:scale-[0.99] p-4 sm:p-5 min-h-[132px]',
                                             isActiveTier
-                                              ? 'bg-emerald-500 border-emerald-500 text-white shadow'
+                                              ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-lg'
                                               : disabled
-                                                ? 'bg-slate-50 border-slate-100 opacity-40 cursor-not-allowed'
-                                                : 'bg-white border-slate-100 hover:border-emerald-300'
+                                                ? 'border-slate-100 opacity-40 cursor-not-allowed'
+                                                : 'border-slate-100 hover:border-slate-200 hover:shadow-md hover:-translate-y-0.5',
                                           )}
                                         >
-                                          <span className={cn('text-[10px] font-black uppercase tracking-widest', isActiveTier ? 'text-emerald-50' : 'text-slate-400')}>
-                                            {t.label}
-                                          </span>
-                                          <span className={cn('text-base font-black tracking-tight mt-1', isActiveTier ? 'text-white' : 'text-slate-900')}>
+                                          {/* Curved right-edge accent — SVG
+                                              clip-path so it hugs the card
+                                              corner without a raster image. */}
+                                          <div
+                                            className={cn(
+                                              'absolute inset-y-0 right-0 w-1/2 bg-gradient-to-l to-transparent pointer-events-none',
+                                              t.curve,
+                                            )}
+                                            style={{ clipPath: 'ellipse(80% 130% at 100% 50%)' }}
+                                          />
+
+                                          <div className="relative flex items-start gap-3">
+                                            {/* Icon badge */}
+                                            <div
+                                              className={cn(
+                                                'flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center',
+                                                t.iconBg,
+                                              )}
+                                            >
+                                              <Icon className={cn('w-5 h-5', t.iconColor)} />
+                                            </div>
+
+                                            <div className="min-w-0 flex-1">
+                                              <p className="text-[13px] sm:text-sm font-bold text-slate-900 leading-snug">
+                                                {t.label}
+                                              </p>
+                                              <div className={cn('h-0.5 w-8 rounded-full mt-2', t.underline)} />
+                                            </div>
+                                          </div>
+
+                                          {/* Price row — big and grounded at
+                                              the bottom-left of the card. */}
+                                          <p className="relative mt-4 text-2xl sm:text-[26px] font-black text-slate-900 tracking-tight">
                                             {disabled ? '—' : `S$${t.price}`}
-                                          </span>
+                                          </p>
+
+                                          {isActiveTier && (
+                                            <span className="absolute top-3 right-3 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shadow">
+                                              <CheckCircle2 className="w-4 h-4 text-white" />
+                                            </span>
+                                          )}
                                         </button>
                                       );
                                     })}
