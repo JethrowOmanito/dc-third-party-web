@@ -89,6 +89,100 @@ const STEP_LABELS_ID    = ['Account', 'Company', 'Documents', 'Terms'] as const;
 const STEP_LABELS_OTHER = ['Account', 'Company', 'Terms'] as const;
 type StepIdx = 0 | 1 | 2 | 3;
 
+// Styled document-upload field. Native <input type="file"> has no
+// "picker opened" event, so a click gave zero visual feedback while the
+// OS spawned the file dialog (1–3s on some machines) — users thought
+// the app was stuck. We hide the input, show a styled button, and flip
+// to "Opening file picker…" the instant it's clicked. The state clears
+// on either the change event (file selected) OR the window focus event
+// (picker cancelled), covering both close paths.
+function DocUploadField({
+  label,
+  file,
+  onFileChange,
+}: {
+  label: string;
+  file: File | null;
+  onFileChange: (f: File | null) => void;
+}) {
+  const [opening, setOpening] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!opening) return;
+    // Delay the clear so onChange fires first — otherwise the button
+    // flashes "Opening…" → "Choose file" for a beat before showing
+    // "Selected". Also acts as a max-timeout backstop if focus never
+    // fires (rare, but some picker overlays don't blur the window).
+    const clear = () => setTimeout(() => setOpening(false), 300);
+    window.addEventListener('focus', clear);
+    const safety = setTimeout(() => setOpening(false), 8000);
+    return () => {
+      window.removeEventListener('focus', clear);
+      clearTimeout(safety);
+    };
+  }, [opening]);
+
+  return (
+    <div className="dc-field" style={{
+      background: file ? '#ecfdf5' : '#f8fafc',
+      border: '1px solid ' + (file ? '#bbf7d0' : '#e5e7eb'),
+      borderRadius: 8,
+      padding: 12,
+    }}>
+      <label className="dc-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>{label}</span>
+        {file && <span style={{ fontSize: 11, color: '#059669', fontWeight: 700 }}>✓ Selected</span>}
+      </label>
+      <button
+        type="button"
+        onClick={() => {
+          setOpening(true);
+          inputRef.current?.click();
+        }}
+        disabled={opening}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          marginTop: 6,
+          padding: '8px 14px',
+          fontSize: 12,
+          fontWeight: 600,
+          background: opening ? '#e2e8f0' : (file ? '#059669' : '#ffffff'),
+          color:      opening ? '#475569' : (file ? '#ffffff' : '#0f172a'),
+          border:     '1px solid ' + (opening ? '#cbd5e1' : (file ? '#059669' : '#cbd5e1')),
+          borderRadius: 6,
+          cursor: opening ? 'wait' : 'pointer',
+          transition: 'all .15s',
+        }}
+      >
+        {opening ? (
+          <>
+            <Loader2 size={12} className="dc-spin" />
+            Opening file picker…
+          </>
+        ) : file ? 'Change file' : 'Choose file'}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/pdf,image/png,image/jpeg"
+        onChange={(e) => {
+          setOpening(false);
+          onFileChange(e.target.files?.[0] ?? null);
+        }}
+        style={{ display: 'none' }}
+      />
+      {file && (
+        <p style={{ fontSize: 11, color: '#334155', marginTop: 4, wordBreak: 'break-all' }}>
+          {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const { setUser } = useAuthStore();
@@ -1221,28 +1315,12 @@ export default function SignupPage() {
                         docType === 'uen'  ? setUenFile  :
                         setNricFile;
                       return (
-                        <div key={docType} className="dc-field" style={{
-                          background: file ? '#ecfdf5' : '#f8fafc',
-                          border: '1px solid ' + (file ? '#bbf7d0' : '#e5e7eb'),
-                          borderRadius: 8,
-                          padding: 12,
-                        }}>
-                          <label className="dc-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>{label}</span>
-                            {file && <span style={{ fontSize: 11, color: '#059669', fontWeight: 700 }}>✓ Selected</span>}
-                          </label>
-                          <input
-                            type="file"
-                            accept="application/pdf,image/png,image/jpeg"
-                            onChange={(e) => setter(e.target.files?.[0] ?? null)}
-                            style={{ display: 'block', marginTop: 6, fontSize: 12 }}
-                          />
-                          {file && (
-                            <p style={{ fontSize: 11, color: '#334155', marginTop: 4, wordBreak: 'break-all' }}>
-                              {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
-                            </p>
-                          )}
-                        </div>
+                        <DocUploadField
+                          key={docType}
+                          label={label}
+                          file={file}
+                          onFileChange={setter}
+                        />
                       );
                     })}
 
