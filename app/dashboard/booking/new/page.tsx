@@ -939,10 +939,20 @@ export default function BookingNewPage() {
       const slots = getDisplaySlots;
       const results: Record<string, { available: boolean; reason?: string }> = {};
 
+      // Mirror the same unit_sub_type value the submit route sends, so
+      // getFloatSlotWeight() on the server sees the same sqft band and
+      // reserves the correct number of slots (2 for 1501-1900, 2+1 for
+      // 1901-2299, 2+2 for 2300+). Without this the check was silently
+      // falling back to Landed-vs-else and larger units were passing
+      // the check but hitting the DB trigger at submit.
+      const unitSubType = isBrandedIdFlow
+        ? (selectedTccIdRow?.unit_label ?? undefined)
+        : (selectedHKPricing?.label ?? selectedPricing?.unit_label ?? undefined);
+
       await Promise.all(slots.map(async (s) => {
         try {
           const durationMins = selectedHKPricing ? selectedHKPricing.hours * 60 : undefined;
-          const url = `/api/bookings/check?service=${service}&date=${dateStr}&start=${encodeURIComponent(s.start)}&end=${encodeURIComponent(s.end)}${durationMins ? `&duration=${durationMins}` : ''}${postalCode ? `&postal=${postalCode}` : ''}${propertyType ? `&property=${propertyType}` : ''}`;
+          const url = `/api/bookings/check?service=${service}&date=${dateStr}&start=${encodeURIComponent(s.start)}&end=${encodeURIComponent(s.end)}${durationMins ? `&duration=${durationMins}` : ''}${postalCode ? `&postal=${postalCode}` : ''}${propertyType ? `&property=${propertyType}` : ''}${unitSubType ? `&unitSubType=${encodeURIComponent(unitSubType)}` : ''}`;
           const res = await fetch(url);
           const data = await res.json();
           results[s.start] = { available: data.available, reason: data.reason };
@@ -955,8 +965,14 @@ export default function BookingNewPage() {
       setLoadingAvail(false);
     };
     check();
+  // Re-run when the sqft band changes so a user who changes their
+  // size pick before locking a slot gets an accurate availability
+  // re-check (2 slots needed for 1901+ sqft, etc). Also re-run when
+  // floatSlots resolves from the DB fetch, otherwise a user who picked
+  // a date before the fetch completed would see availability keyed to
+  // the fallback slot start times, not the admin-configured ones.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, service, selectedHKPricing]);
+  }, [selectedDate, service, selectedHKPricing, selectedPricing?.unit_label, selectedTccIdRow?.unit_label, isBrandedIdFlow, floatSlots]);
 
   // ─── Pricing fetch ────────────────────────────────────────────────────────
 
