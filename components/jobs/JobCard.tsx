@@ -2,38 +2,51 @@
 import { getServiceDisplayName } from '@/lib/utils';
 import type { Job } from '@/types';
 import {
+  Blinds,
+  Brush,
+  Building2,
   Calendar,
   ChevronRight,
   Clock,
-  Sparkles,
-  Home,
-  Sofa,
-  Wind,
-  Building2,
-  Layers,
-  Waves,
-  ShieldCheck,
   Droplets,
+  Hammer,
+  Home,
+  Layers,
+  Leaf,
+  PaintRoller,
+  ShieldCheck,
+  Sofa,
+  Sparkles,
   User,
+  Waves,
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 type ServiceStyle = { icon: React.ComponentType<{ className?: string }>; bg: string; text: string };
 
+// Per-service icon + accent. Icons chosen to be immediately recognisable
+// at 24px — no more Wind-for-Curtain (blinds is the actual product) or
+// ShieldCheck-for-Formaldehyde (leaf reads as air-purity, matches the
+// booking wizard's per-tier decoration).
 const SERVICE_STYLES: Record<string, ServiceStyle> = {
-  deep_cleaning: { icon: Sparkles, bg: 'bg-emerald-50', text: 'text-emerald-600' },
-  housekeeping: { icon: Home, bg: 'bg-sky-50', text: 'text-sky-600' },
-  office: { icon: Building2, bg: 'bg-violet-50', text: 'text-violet-600' },
-  upholstery: { icon: Sofa, bg: 'bg-amber-50', text: 'text-amber-600' },
-  curtain: { icon: Wind, bg: 'bg-emerald-50', text: 'text-emerald-600' },
-  scrubbing_machine: { icon: Waves, bg: 'bg-sky-50', text: 'text-sky-600' },
-  scrubbing: { icon: Waves, bg: 'bg-sky-50', text: 'text-sky-600' },
-  coating: { icon: Layers, bg: 'bg-slate-50', text: 'text-slate-600' },
-  carpet: { icon: Layers, bg: 'bg-orange-50', text: 'text-orange-600' },
-  formaldehyde_removal: { icon: ShieldCheck, bg: 'bg-cyan-50', text: 'text-cyan-600' },
-  disinfection: { icon: Droplets, bg: 'bg-teal-50', text: 'text-teal-600' },
-  float: { icon: Sparkles, bg: 'bg-emerald-50', text: 'text-emerald-600' },
+  deep_cleaning:        { icon: Sparkles,   bg: 'bg-emerald-50', text: 'text-emerald-600' },
+  float:                { icon: Sparkles,   bg: 'bg-emerald-50', text: 'text-emerald-600' },
+  post_renovation:      { icon: Hammer,     bg: 'bg-amber-50',   text: 'text-amber-600'   },
+  housekeeping:         { icon: Home,       bg: 'bg-sky-50',     text: 'text-sky-600'     },
+  'contract-hskp':      { icon: Home,       bg: 'bg-sky-50',     text: 'text-sky-600'     },
+  office:               { icon: Building2,  bg: 'bg-violet-50',  text: 'text-violet-600'  },
+  upholstery:           { icon: Sofa,       bg: 'bg-amber-50',   text: 'text-amber-600'   },
+  curtain:              { icon: Blinds,     bg: 'bg-indigo-50',  text: 'text-indigo-600'  },
+  scrubbing_machine:    { icon: Brush,      bg: 'bg-teal-50',    text: 'text-teal-600'    },
+  scrubbing:            { icon: Brush,      bg: 'bg-teal-50',    text: 'text-teal-600'    },
+  coating:              { icon: PaintRoller,bg: 'bg-slate-50',   text: 'text-slate-600'   },
+  carpet:               { icon: Layers,     bg: 'bg-orange-50',  text: 'text-orange-600'  },
+  formaldehyde_removal: { icon: Leaf,       bg: 'bg-violet-50',  text: 'text-violet-600'  },
+  formaldehyde:         { icon: Leaf,       bg: 'bg-violet-50',  text: 'text-violet-600'  },
+  disinfection:         { icon: Droplets,   bg: 'bg-cyan-50',    text: 'text-cyan-600'    },
+  site_visit:           { icon: ShieldCheck,bg: 'bg-slate-50',   text: 'text-slate-600'   },
+  touch_up:             { icon: ShieldCheck,bg: 'bg-slate-50',   text: 'text-slate-600'   },
 };
 
 const STATUS_STYLES: Record<string, { label: string; className: string }> = {
@@ -44,9 +57,19 @@ const STATUS_STYLES: Record<string, { label: string; className: string }> = {
   cancelled:  { label: 'Cancelled',  className: 'bg-rose-50 text-rose-700 ring-1 ring-rose-100' },
 };
 
-function serviceKeyFor(service?: string) {
+function serviceKeyFor(service?: string, subtype?: string | null) {
+  // service_subtype takes precedence when it maps to something we style
+  // distinctly (Post-Renovation, Standard Cleaning, etc.) — otherwise
+  // fall back to Service_Type. Handles the branded ID/TCC flows where
+  // Service_Type='Float' but the more useful icon is subtype-driven.
+  if (subtype) {
+    const s = subtype.toLowerCase().replace(/[\s-]+/g, '_');
+    if (s.startsWith('post_renovation')) return 'post_renovation';
+    if (s.startsWith('standard_cleaning')) return 'deep_cleaning';
+    if (s.startsWith('formaldehyde')) return 'formaldehyde';
+  }
   if (!service) return 'deep_cleaning';
-  return service.toLowerCase().replace(/\s+/g, '_');
+  return service.toLowerCase().replace(/[\s-]+/g, '_');
 }
 
 function formatDate(d?: string) {
@@ -72,7 +95,7 @@ function countCleaners(val: unknown): number {
 
 export function JobCard({ job }: { job: Job }) {
   const status = STATUS_STYLES[job.lifecycle_state || 'not_ready'] || STATUS_STYLES.not_ready;
-  const key = serviceKeyFor(job.Service_Type);
+  const key = serviceKeyFor(job.Service_Type, job.service_subtype);
   const style = SERVICE_STYLES[key] || SERVICE_STYLES.deep_cleaning;
   const Icon = style.icon;
   const serviceDisplay = getServiceDisplayName(job.Service_Type, job.service_subtype);

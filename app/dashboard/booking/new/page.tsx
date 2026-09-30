@@ -332,8 +332,22 @@ export default function BookingNewPage() {
 
   // ─── Derived ─────────────────────────────────────────────────────────────
 
-  const serviceLabel = useMemo(() => SERVICES.find(s => s.key === service)?.label || '', [service]);
-  const serviceDbName = useMemo(() => SERVICE_DB_MAP[serviceLabel] || 'Float', [serviceLabel]);
+  // Base label from the SERVICES config. Overridden for the TCC branded
+  // flow so the Booking Summary shows "Standard Cleaning" (TCC's actual
+  // service name) instead of "Deep Cleaning" (the internal service key
+  // that drives pricing/capacity). The DB name mapping (Float) stays
+  // keyed to the internal label so capacity + scheduling still work.
+  const serviceLabel = useMemo(() => {
+    const base = SERVICES.find(s => s.key === service)?.label || '';
+    if (isBrandedIdFlow && partnerBrand === 'tcc' && base === 'Deep Cleaning') {
+      return 'Standard Cleaning';
+    }
+    return base;
+  }, [service, isBrandedIdFlow, partnerBrand]);
+  const serviceDbName = useMemo(() => {
+    const key = SERVICES.find(s => s.key === service)?.label || '';
+    return SERVICE_DB_MAP[key] || 'Float';
+  }, [service]);
 
   // Partner pricing: prefer partner_price. Skip promo_price entirely (NO FURTHER REBATE for partners).
   const effectivePrice = (row: PricingRow | null) =>
@@ -1607,41 +1621,40 @@ export default function BookingNewPage() {
     <div className="min-h-screen bg-white -m-4 sm:-m-6 pb-32 md:pb-0">
       <div className="max-w-none xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 pt-4 pb-3 space-y-2 lg:space-y-3">
 
-        {/* Brand chip for ID users — reminds them which catalog is active
-            and lets them switch without going through Clear. */}
-        {isInteriorDesignPartner && partnerBrand && partnerBrand !== 'agents' && (
-          <div className="flex items-center justify-between px-3 py-2 rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Pricing
-              </span>
-              <span className={cn(
-                'text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full',
-                partnerBrand === 'tcc'
-                  ? 'bg-emerald-50 text-emerald-700'
-                  : 'bg-orange-50 text-orange-700'
-              )}>
-                {partnerBrand === 'tcc' ? 'The Cleaning Crew' : 'Doctor Clean ID'}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                bookingStore.setPartnerBrand(null);
-                setSelectedTccIdRowId(null);
-                setSelectedTccIdTier(null);
-                setTccIdAlaCarteAddons({});
-                setStep('service');
-              }}
-              className="text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700"
-            >
-              Change
-            </button>
-          </div>
-        )}
-
-        {/* ── 5-step tracker ── */}
+        {/* Combined chrome — brand chip (ID users only) sits on the left
+            of the same card as the 5-step tracker. Previously two stacked
+            cards; merged so the chrome above the wizard is one strip. */}
         <nav className="rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm px-3 lg:px-6 py-2 lg:py-2">
+          {isInteriorDesignPartner && partnerBrand && partnerBrand !== 'agents' && (
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Pricing
+                </span>
+                <span className={cn(
+                  'text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full',
+                  partnerBrand === 'tcc'
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-orange-50 text-orange-700'
+                )}>
+                  {partnerBrand === 'tcc' ? 'The Cleaning Crew' : 'Doctor Clean ID'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  bookingStore.setPartnerBrand(null);
+                  setSelectedTccIdRowId(null);
+                  setSelectedTccIdTier(null);
+                  setTccIdAlaCarteAddons({});
+                  setStep('service');
+                }}
+                className="text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700"
+              >
+                Change
+              </button>
+            </div>
+          )}
           {/* Compact tracker (mobile) — dots + active label */}
           <div className="flex items-center gap-2 md:hidden">
             {SUPER_STEPS.map((s, idx) => {
