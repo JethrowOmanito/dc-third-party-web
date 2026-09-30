@@ -117,10 +117,20 @@ export function FloatingChatbot() {
   const nonGreetingCount = messages.filter(m => m.id !== 'greeting').length;
 
   return (
-    <div className="fixed right-4 lg:right-6 z-[100] flex flex-col items-end gap-4 pointer-events-none bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:bottom-6">
-      {/* Chat Window */}
+    <div
+      className={cn(
+        'z-[100] pointer-events-none',
+        // Full-screen container on mobile when open so Clara can fill
+        // the viewport; on sm+ we anchor to the bottom-right corner as
+        // a floating widget.
+        isOpen
+          ? 'fixed inset-0 sm:inset-auto sm:right-4 lg:right-6 sm:bottom-6 sm:top-auto sm:left-auto flex flex-col sm:items-end sm:gap-4'
+          : 'fixed right-4 lg:right-6 flex flex-col items-end gap-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:bottom-6',
+      )}
+    >
+      {/* Chat Window — full-screen on mobile, floating card on sm+ */}
       {isOpen && (
-        <div className="pointer-events-auto w-[calc(100vw-2rem)] max-w-[380px] h-[min(560px,calc(100vh-9rem))] bg-white rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 duration-500">
+        <div className="pointer-events-auto w-full h-full sm:w-[calc(100vw-2rem)] sm:max-w-[380px] sm:h-[min(560px,calc(100vh-9rem))] bg-white sm:rounded-3xl shadow-2xl border-0 sm:border sm:border-slate-100 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 duration-500">
           {/* Header */}
           <div className="bg-emerald-600 p-4 pt-6 text-white relative">
             <div className="absolute top-0 right-0 p-3 flex gap-2">
@@ -269,7 +279,11 @@ export function FloatingChatbot() {
         className={cn(
           'pointer-events-auto w-14 h-14 rounded-full shadow-xl hover:shadow-emerald-500/30 hover:-translate-y-1 active:scale-95 transition-all flex items-center justify-center group ring-2 ring-white overflow-hidden',
           isOpen ? 'bg-emerald-600' : 'bg-white',
-          hideFabOnMobile && 'hidden lg:flex',
+          // On mobile when Clara is open she covers the screen — hide
+          // the FAB there, the header X button handles close. On sm+
+          // she's a floating card, so the FAB stays visible for close.
+          isOpen && 'hidden sm:flex',
+          hideFabOnMobile && !isOpen && 'hidden lg:flex',
         )}
       >
         {isOpen ? (
