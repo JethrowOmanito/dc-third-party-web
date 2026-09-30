@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuthStore } from '@/store/authStore';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { ArrowRight, CheckCircle2, Clock, MessageCircle, Shield } from 'lucide-react';
 import Link from 'next/link';
@@ -32,10 +33,48 @@ export default function SignupSuccessPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [_hasHydrated]);
 
-  // Aggressive poll while the partner is on this page — refreshes every
-  // 10s so if Zoe approves or sets payment_terms in the next few minutes,
-  // the copy updates live without a hard refresh. Pauses when the tab
-  // isn't visible so we don't hammer the API on backgrounded windows.
+  // Real-time updates via Supabase Broadcast — main-web fires an event
+  // on the partner-user:<id> channel when Zoe approves/rejects, and on
+  // partner-company:<id> when she PATCHes anything on the company
+  // (payment_terms, name, etc.). We just call refresh() on receipt —
+  // /api/auth/me returns the fresh state and the stage flips.
+  //
+  // Broadcast doesn't need partner_user or partner_companies to be on
+  // the realtime publication (both were trimmed 2026-09-11), it's a
+  // pure pub/sub channel keyed by name.
+  //
+  // Falls back to a 10s poll below in case the broadcast connection is
+  // slow to establish or Zoe's PATCH races the client's subscribe. Poll
+  // is paused on hidden tabs so backgrounded windows don't spam.
+  useEffect(() => {
+    if (!_hasHydrated || !user || !refresh) return;
+    const supabase = getSupabaseClient();
+    const channels = [
+      supabase
+        .channel(`partner-user:${user.id}`)
+        .on('broadcast', { event: '*' }, () => {
+          refresh?.().catch(() => { /* silent */ });
+        })
+        .subscribe(),
+    ];
+    if (user.company_id) {
+      channels.push(
+        supabase
+          .channel(`partner-company:${user.company_id}`)
+          .on('broadcast', { event: '*' }, () => {
+            refresh?.().catch(() => { /* silent */ });
+          })
+          .subscribe(),
+      );
+    }
+    return () => {
+      channels.forEach((ch) => { supabase.removeChannel(ch); });
+    };
+  }, [_hasHydrated, user, refresh]);
+
+  // Fallback poll — covers the small window between mount and channel
+  // SUBSCRIBED state, plus any broadcast delivery misses. 10s cadence,
+  // paused on hidden tabs.
   useEffect(() => {
     if (!_hasHydrated || !user || !refresh) return;
     const tick = () => {
