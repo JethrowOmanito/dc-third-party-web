@@ -181,19 +181,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: patchErr.message }, { status: 500 });
   }
 
-  // Auto-approve when the newly-uploaded doc completes the set. Same
-  // gate as /api/onboarding/company POST — HDB DRC only required for
-  // interior designers; agents / other business types skip that check.
+  // Auto-approve when the newly-uploaded doc completes the set.
+  // HDB DRC is NOT part of this gate anymore — removed 2026-09-30 when
+  // the field came out of the signup wizard. ID partners can still supply
+  // it later via the onboarding form (it stays in DB for HDB compliance
+  // records) but its absence must not block company_status flipping to
+  // 'approved'.
   const { data: current } = await db
     .from('partner_companies')
-    .select('name, uen, address, hdb_drc_license, accounts_email, acra_doc_url, uen_doc_url, company_status, company_type')
+    .select('name, uen, address, accounts_email, acra_doc_url, uen_doc_url, company_status')
     .eq('id', partner.company_id)
     .single();
 
-  const isID = current?.company_type === 'interior_design';
   const readyToApprove =
     current?.name && current?.uen && current?.address &&
-    (!isID || current?.hdb_drc_license) &&
     current?.accounts_email &&
     current?.acra_doc_url && current?.uen_doc_url &&
     current?.company_status !== 'approved';

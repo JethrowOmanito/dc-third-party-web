@@ -114,33 +114,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Look up company_type so we can enforce HDB DRC per-role. Only ID
-  // firms are required to provide the license.
-  const { data: companyRow } = await db
-    .from('partner_companies')
-    .select('company_type')
-    .eq('id', partner.company_id)
-    .single();
-  const isIDCompany = companyRow?.company_type === 'interior_design';
-  if (isIDCompany && (!parsed.data.hdb_drc_license || parsed.data.hdb_drc_license.length < 3)) {
-    return NextResponse.json(
-      { error: 'HDB DRC license number is required for Interior Designers.' },
-      { status: 400 }
-    );
-  }
-
-  // Save company fields. Don't touch acra_doc_url / uen_doc_url — those
-  // are only set by the upload route so we don't accidentally wipe them
-  // when the user re-saves the form.
+  // HDB DRC used to be a hard-required field for ID firms. Removed as a
+  // gate on 2026-09-30 to match the signup wizard simplification (field
+  // moved out of signup, and Zoe's approve flow shouldn't be blocked
+  // waiting on this compliance field). It's still WRITTEN when supplied
+  // — just no longer refuses the save.
   const { error: updErr } = await db
     .from('partner_companies')
     .update({
       name: parsed.data.name,
       uen: parsed.data.uen,
       address: parsed.data.address,
-      // Only write HDB DRC for ID firms — undefined for non-ID so we
-      // don't overwrite an existing value with an empty string.
-      ...(isIDCompany ? { hdb_drc_license: parsed.data.hdb_drc_license } : {}),
+      ...(parsed.data.hdb_drc_license
+        ? { hdb_drc_license: parsed.data.hdb_drc_license }
+        : {}),
       accounts_name: parsed.data.accounts_name,
       accounts_email: parsed.data.accounts_email,
       accounts_phone: parsed.data.accounts_phone,
@@ -159,21 +146,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: updErr.message }, { status: 500 });
   }
 
-  // Auto-approve when both docs AND all required text fields are on
-  // file. HDB DRC + accounts contact are Tier-1 must-haves per the
-  // credit T&C (see project_credit_application_flow_plan memory).
+  // Auto-approve when both docs + all required text fields are on file.
+  // HDB DRC removed from the gate 2026-09-30 (same reason as upload
+  // route: field left the signup wizard, so its absence must not block
+  // company_status flipping to 'approved').
   const { data: current } = await db
     .from('partner_companies')
-    .select('name, uen, address, hdb_drc_license, accounts_email, acra_doc_url, uen_doc_url, company_status, company_type')
+    .select('name, uen, address, accounts_email, acra_doc_url, uen_doc_url, company_status')
     .eq('id', partner.company_id)
     .single();
 
-  // HDB DRC is only required for interior designers — property
-  // managers / agents don't do HDB renovation work.
-  const isID = current?.company_type === 'interior_design';
   const readyToApprove =
     current?.name && current?.uen && current?.address &&
-    (!isID || current?.hdb_drc_license) &&
     current?.accounts_email &&
     current?.acra_doc_url && current?.uen_doc_url &&
     current?.company_status !== 'approved';

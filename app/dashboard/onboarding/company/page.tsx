@@ -152,11 +152,14 @@ export default function CompanyOnboardingPage() {
     }
   }, [refresh, router, bounceIfExpired]);
 
+  // HDB DRC is optional at onboarding — it left the signup wizard and
+  // is no longer a hard-required gate anywhere. Field is still shown and
+  // saved when supplied, but "Save Company Details" no longer refuses
+  // submission without it.
   const detailsValid =
     name.trim().length >= 2 &&
     uen.trim().length >= 6 &&
     address.trim().length >= 4 &&
-    hdbDrc.trim().length >= 3 &&
     acctName.trim().length >= 2 &&
     /^\S+@\S+\.\S+$/.test(acctEmail.trim()) &&
     acctPhone.trim().length >= 6;
