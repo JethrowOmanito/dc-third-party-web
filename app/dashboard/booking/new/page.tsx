@@ -2392,19 +2392,19 @@ export default function BookingNewPage() {
                               <div
                                 key={row.id}
                                 className={cn(
-                                  'p-5 rounded-3xl transition-all',
-                                  isSelectedRow ? 'bg-emerald-50/40 ring-2 ring-emerald-200' : 'bg-slate-50/60',
+                                  'p-4 rounded-2xl transition-all',
+                                  isSelectedRow ? 'bg-emerald-50/40 ring-2 ring-emerald-200' : 'bg-slate-50/70',
                                 )}
                               >
-                                {/* Room-header pill — deep indigo per the mock.
-                                    Home icon + unit label + sqft next to it. */}
-                                <div className="flex items-center gap-3 mb-4 flex-wrap">
-                                  <div className="inline-flex items-center gap-2 bg-indigo-600 text-white rounded-full px-4 py-2 shadow-sm">
-                                    <Home className="w-4 h-4" />
-                                    <span className="text-xs font-black uppercase tracking-widest">{row.unit_label}</span>
+                                {/* Room-header pill — muted slate-blue per the
+                                    mock. Home icon + unit label + sqft caption. */}
+                                <div className="flex items-center gap-3 mb-3 flex-wrap">
+                                  <div className="inline-flex items-center gap-2 bg-slate-600 text-white rounded-full px-3.5 py-1.5">
+                                    <Home className="w-3.5 h-3.5" />
+                                    <span className="text-[11px] font-black uppercase tracking-widest">{row.unit_label}</span>
                                   </div>
                                   {row.sqft_label && (
-                                    <span className="text-xs font-semibold text-slate-500">{row.sqft_label}</span>
+                                    <span className="text-[11px] font-semibold text-slate-500 pl-2 border-l border-slate-200">{row.sqft_label}</span>
                                   )}
                                   {row.is_tbq && (
                                     <span className="text-[9px] font-black text-amber-700 bg-amber-50 ring-1 ring-amber-100 px-2 py-0.5 rounded-full uppercase tracking-widest ml-auto">
@@ -2422,7 +2422,7 @@ export default function BookingNewPage() {
                                     Chat Admin for Quote →
                                   </a>
                                 ) : (
-                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 lg:gap-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 lg:gap-3">
                                     {tiers.map((t) => {
                                       const isActiveTier = isSelectedRow && selectedTccIdTier === t.key;
                                       const disabled = t.price == null;
@@ -2441,53 +2441,52 @@ export default function BookingNewPage() {
                                             }, 300);
                                           }}
                                           className={cn(
-                                            'group relative overflow-hidden text-left bg-white rounded-2xl border-2 shadow-sm transition-all active:scale-[0.99] p-4 sm:p-5 min-h-[132px]',
+                                            'group relative overflow-hidden text-left bg-white rounded-xl border transition-all active:scale-[0.99] p-3.5',
                                             isActiveTier
-                                              ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-lg'
+                                              ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-md'
                                               : disabled
                                                 ? 'border-slate-100 opacity-40 cursor-not-allowed'
-                                                : 'border-slate-100 hover:border-slate-200 hover:shadow-md hover:-translate-y-0.5',
+                                                : 'border-slate-200/70 hover:border-slate-300 hover:shadow-sm',
                                           )}
                                         >
-                                          {/* Curved right-edge accent — SVG
-                                              clip-path so it hugs the card
-                                              corner without a raster image. */}
+                                          {/* Curved right-edge accent — soft
+                                              tinted blob, kept subtle so the
+                                              card reads as compact. */}
                                           <div
                                             className={cn(
-                                              'absolute inset-y-0 right-0 w-1/2 bg-gradient-to-l to-transparent pointer-events-none',
+                                              'absolute inset-y-0 right-0 w-2/5 bg-gradient-to-l to-transparent pointer-events-none opacity-70',
                                               t.curve,
                                             )}
-                                            style={{ clipPath: 'ellipse(80% 130% at 100% 50%)' }}
+                                            style={{ clipPath: 'ellipse(90% 130% at 100% 50%)' }}
                                           />
 
-                                          <div className="relative flex items-start gap-3">
+                                          <div className="relative flex items-start gap-2.5">
                                             {/* Icon badge */}
                                             <div
                                               className={cn(
-                                                'flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center',
+                                                'flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center',
                                                 t.iconBg,
                                               )}
                                             >
-                                              <Icon className={cn('w-5 h-5', t.iconColor)} />
+                                              <Icon className={cn('w-[18px] h-[18px]', t.iconColor)} />
                                             </div>
 
-                                            <div className="min-w-0 flex-1">
-                                              <p className="text-[13px] sm:text-sm font-bold text-slate-900 leading-snug">
+                                            <div className="min-w-0 flex-1 pr-1">
+                                              <p className="text-[12.5px] font-bold text-slate-900 leading-snug">
                                                 {t.label}
                                               </p>
-                                              <div className={cn('h-0.5 w-8 rounded-full mt-2', t.underline)} />
+                                              <div className={cn('h-0.5 w-6 rounded-full mt-1.5', t.underline)} />
                                             </div>
                                           </div>
 
-                                          {/* Price row — big and grounded at
-                                              the bottom-left of the card. */}
-                                          <p className="relative mt-4 text-2xl sm:text-[26px] font-black text-slate-900 tracking-tight">
+                                          {/* Price */}
+                                          <p className="relative mt-3 text-xl font-black text-slate-900 tracking-tight">
                                             {disabled ? '—' : `S$${t.price}`}
                                           </p>
 
                                           {isActiveTier && (
-                                            <span className="absolute top-3 right-3 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shadow">
-                                              <CheckCircle2 className="w-4 h-4 text-white" />
+                                            <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center shadow">
+                                              <CheckCircle2 className="w-3 h-3 text-white" />
                                             </span>
                                           )}
                                         </button>
