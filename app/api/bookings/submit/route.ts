@@ -333,11 +333,21 @@ export async function POST(req: NextRequest) {
     }
 
     if (insErr || !event) {
+      // Also log to stderr — Sentry DSN isn't wired on this project,
+      // so captureException goes nowhere. Log the raw code + message
+      // so we can grep pm2 logs when a booking dies.
+      console.error('[bookings/submit] events insert failed', {
+        code: (insErr as { code?: string } | null)?.code,
+        message: (insErr as { message?: string } | null)?.message,
+        details: (insErr as { details?: string } | null)?.details,
+        hint: (insErr as { hint?: string } | null)?.hint,
+        partnerUserId,
+      });
       Sentry.captureException(insErr, {
         tags: { route: 'bookings/submit', op: 'events.insert' },
         extra: { partnerUserId },
       });
-      return NextResponse.json({ error: 'Failed to create booking' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to create booking', debug: (insErr as { message?: string } | null)?.message ?? null }, { status: 500 });
     }
 
     await admin.from('event_logs').insert({
