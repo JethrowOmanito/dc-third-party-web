@@ -269,9 +269,23 @@ export async function POST(req: NextRequest) {
       booking_expires_at: body.booking_expires_at ?? null,
 
       // ─── Server-authoritative (never trust client) ───
+      // Price + final_price both hold the NET amount (after partner rebate).
+      // Keeping them equal preserves main-web's cancel/refund math which
+      // reads event.Price directly (EventDetailModal cancelInfo, refund
+      // panel). The pre-discount total is reconstructable as
+      // Price + rebate_amount, so no info is lost.
       Price: finalNet,
       final_price: finalNet,
       amount_cents: amountCents,
+      // Persist the discount that was applied so Zoe's EventDetailModal can
+      // display it. Without these, partner bookings show blank discount
+      // fields even though a rebate was applied. Discount is scoped to the
+      // FULL total (base + add-ons), matching how partner_companies is
+      // modelled — no discount_scope column exists on partner_companies.
+      discount_type:  company.discount_type ?? null,
+      discount_value: company.discount_value ?? null,
+      discount_reason: companyDiscount > 0 ? `Partner discount: ${company.name}` : null,
+      rebate_amount:  companyDiscount > 0 ? companyDiscount : null,
       status: isInvoiced ? 'confirmed' : 'pending',
       payment_status: isInvoiced ? 'pending' : 'unpaid',
       payment_method: isInvoiced ? 'invoice' : null,
@@ -279,8 +293,14 @@ export async function POST(req: NextRequest) {
       owned_by_third_party: partnerUserId,
       partner_company_id: partner.company_id,
       partner_brand: partnerBrand,
-      // Canonical partner source code — actual company link lives in partner_company_id.
-      source: 'ID',
+      // Canonical 3-letter source code from partner_brand. Was hardcoded
+      // 'ID' regardless of brand which mis-tagged every Agents/TCC booking.
+      // company_code is free-form partner ID (e.g. "YI133", "UC-123") — do
+      // NOT put it here, it would break the enum-style source taxonomy.
+      source:
+        partnerBrand === 'agents' ? 'AGT' :
+        partnerBrand === 'tcc'    ? 'TCC' :
+                                    'ID',
       // NULL when either the client didn't send one OR the migration
       // hasn't run yet (INSERT of a NULL to a non-existent column throws
       // — see catch below).
