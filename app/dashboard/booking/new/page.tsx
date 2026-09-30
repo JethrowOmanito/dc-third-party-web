@@ -1260,8 +1260,16 @@ export default function BookingNewPage() {
         // service instead of the generic Service_Type. For TCC/ID branded
         // flows the "subtype" is really the tier name (Ala-Carte / +Scrubbing
         // / +Scrubbing + Formaldehyde) so admins can see at a glance.
+        // Match how normal (non-branded) bookings display:
+        //   service_subtype = the SERVICE ("Post-Renovation" / "Standard
+        //   Cleaning") — one line, cleaner-recognisable.
+        // Extra_Service = the actual add-ons, one per line.
+        // Previously we crammed the pricing TIER ("Ala-Carte + Scrubbing")
+        // into service_subtype which read like gibberish to cleaners.
         service_subtype: isBrandedIdFlow
-          ? (isAlaCarteFirstWash ? 'Ala Carte First Wash' : (tierLabel ?? 'Post-Renovation'))
+          ? (isAlaCarteFirstWash
+              ? 'Ala Carte First Wash'
+              : (effectivePartnerBrand === 'tcc' ? 'Standard Cleaning' : 'Post-Renovation'))
           : (subtype || null),
         calendar_id: calendarId,
         Unit_type: propertyType === 'hdb' ? 'HDB' : propertyType === 'landed' ? 'Landed' : propertyType === 'commercial' ? 'Commercial' : 'Condo/APT',
@@ -1273,11 +1281,17 @@ export default function BookingNewPage() {
           : selectedPricing?.duration_hours ? `${selectedPricing.duration_hours} hrs` : null,
         Extra_Service: isBrandedIdFlow
           ? [
-              // Branded flow: keep the audit trail tight — per-item ala-carte
-              // lines only (Ala Carte First Wash sub-flow). The tier name
-              // itself lives in service_subtype already; duplicating it here
-              // as "Tier: X" made main-app + main-web show the same tier
-              // twice (once as subtype, once as an extra) — pure noise.
+              // Decompose the branded tier into normal-booking add-on lines so
+              // cleaners read every booking the same way:
+              //   Ala-Carte tier              → []
+              //   Ala-Carte + Scrubbing       → ['Scrubbing']
+              //   Ala-Carte + Scrubbing + F.  → ['Scrubbing', 'Formaldehyde Removal']
+              // Machine (KM1/LC1) intentionally left off — the branded wizard
+              // doesn't collect it; ops assigns at scheduling. Matches how
+              // non-branded rows sometimes just say "Scrubbing" too.
+              ...(selectedTccIdTier === 'scrubbing' || selectedTccIdTier === 'scrubbing_formaldehyde'
+                  ? ['Scrubbing'] : []),
+              ...(selectedTccIdTier === 'scrubbing_formaldehyde' ? ['Formaldehyde Removal'] : []),
               ...(isAlaCarteFirstWash ? ['Ala Carte First Wash'] : []),
               ...Object.values(tccIdAlaCarteAddons).map(
                 (r) => `${r.unit_label} — $${r.ala_carte_price}`,
