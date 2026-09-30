@@ -48,7 +48,7 @@ const BRAND_CARDS: {
   {
     key: 'doctor_clean_id',
     title: 'Doctor Clean',
-    subtitle: 'ID',
+    subtitle: 'Interior Designer',
     tagline: 'Deep cleaning + renovation, 10% ID rebate',
     logo: '/doctor-clean-logo.png',
     accent: {

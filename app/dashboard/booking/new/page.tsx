@@ -1568,12 +1568,13 @@ export default function BookingNewPage() {
   // `step` and every stepper transition assumes service/subtype/size/etc.
   if (isInteriorDesignPartner && !partnerBrand) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] -mt-4 sm:-mt-6 pb-16">
-        {/* Widened from max-w-5xl to max-w-7xl on lg so the card stops
-            floating in a sea of grey on desktop. Cards inside get
-            comfortable min-h + p-12 at the largest breakpoint. */}
-        <div className="max-w-4xl md:max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 pt-8 sm:pt-12 lg:pt-16">
-          <div className="bg-white rounded-3xl ring-1 ring-slate-100 shadow-sm p-6 sm:p-10 lg:p-14 xl:p-16">
+      // Fill the viewport — no max-w on the outer wrap, generous side
+      // padding so the card touches the edges on wide monitors and the
+      // page background grey never leaks through as empty margins.
+      // The card itself handles internal padding.
+      <div className="min-h-screen bg-white -mt-4 sm:-mt-6 pb-16">
+        <div className="mx-auto px-4 sm:px-8 lg:px-12 xl:px-16 pt-6 sm:pt-10 lg:pt-14">
+          <div className="bg-white rounded-3xl ring-1 ring-slate-100 shadow-sm p-6 sm:p-10 lg:p-14 xl:p-20">
             <BrandSelector
               selected={partnerBrand}
               onSelect={(brand) => bookingStore.setPartnerBrand(brand)}
