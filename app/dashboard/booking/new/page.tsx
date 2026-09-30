@@ -1598,8 +1598,14 @@ export default function BookingNewPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] -mt-4 sm:-mt-6 pb-32 md:pb-0">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-3 space-y-2 lg:space-y-3">
+    // Cancel DashboardLayout's p-4/p-6 on all four sides via negative
+    // margins so the wizard chrome (progress bar, cards, summary) sits
+    // on a full-width white surface. Old code only killed the top
+    // padding (-mt-4/-mt-6) and left the slate-50 gutter showing on
+    // both sides on every viewport. Now edge-to-edge white below the
+    // TopBar.
+    <div className="min-h-screen bg-white -m-4 sm:-m-6 pb-32 md:pb-0">
+      <div className="max-w-none xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 pt-4 pb-3 space-y-2 lg:space-y-3">
 
         {/* Brand chip for ID users — reminds them which catalog is active
             and lets them switch without going through Clear. */}
