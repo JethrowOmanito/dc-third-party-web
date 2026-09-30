@@ -17,6 +17,7 @@ import {
   Loader2, Clock, Send, Sparkles, X, Plus, Minus,
   Home, Sofa, Wind, Layers, Building2, ShieldCheck,
   MapPin, Calendar as CalendarIcon, Info, Waves, MessageCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -229,6 +230,12 @@ export default function BookingNewPage() {
   const [monthOffset, setMonthOffset]   = useState(0);
   const [showSlotPicker, setShowSlotPicker] = useState(false);
   const [showMobileSummary, setShowMobileSummary] = useState(false);
+  // Error surfaced to the user via a modal (matches booking-web pattern)
+  // instead of the native alert() — main use case is capacity / scheduling
+  // errors raised by DB triggers when submitting a booking against a full
+  // slot. If errorCode is 'scheduling_rule', a "Pick another slot" CTA
+  // bounces the user back to the datetime step.
+  const [bookingError, setBookingError] = useState<{ message: string; kind: 'scheduling' | 'generic' } | null>(null);
 
   // ── Pricing modifiers (mirror booking-web) ──
   const [springHipSqftBand, setSpringHipSqftBand]           = useState<string | null>(null);
@@ -1304,7 +1311,11 @@ export default function BookingNewPage() {
       try { submitData = submitRaw ? JSON.parse(submitRaw) : {}; }
       catch { throw new Error(`Booking submit failed (${submitRes.status}).`); }
       if (!submitRes.ok || !submitData.booking) {
-        throw new Error(submitData.error || `Failed to create booking (status ${submitRes.status}).`);
+        // Tag the error so the catch handler can show a "Pick another slot"
+        // CTA in the modal for capacity / scheduling failures.
+        const err = new Error(submitData.error || `Failed to create booking (status ${submitRes.status}).`);
+        (err as { errorCode?: string }).errorCode = submitData.errorCode;
+        throw err;
       }
       const bData = submitData.booking as { id: string; Ref_ID?: string };
       const serverAmountCents: number = submitData.amount_cents ?? amountCents;
@@ -1346,7 +1357,14 @@ export default function BookingNewPage() {
       setCurrentRefId(bData.Ref_ID ?? null);
       setStep('confirm');
     } catch (err: any) {
-      alert(err.message || 'Something went wrong. Please try again.');
+      // Show a proper modal instead of native alert(). Scheduling-rule
+      // errors (capacity, blackout, missing calendar) get a "Pick
+      // another slot" CTA that bounces back to the datetime step.
+      const kind = err?.errorCode === 'scheduling_rule' ? 'scheduling' : 'generic';
+      setBookingError({
+        message: err?.message || 'Something went wrong. Please try again.',
+        kind,
+      });
     } finally {
       isSubmitting.current = false;
       setLoadingPayment(false);
@@ -3671,6 +3689,68 @@ export default function BookingNewPage() {
                 : <span className="flex items-center gap-2">Continue <ChevronRight className="w-4 h-4" /></span>
               }
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Booking-error modal (replaces the ugly native alert() when
+             booking submit or payment init fails). Scheduling-rule
+             errors get an extra "Pick another slot" CTA that jumps
+             back to the datetime step. ── */}
+      {bookingError && (
+        <div
+          className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setBookingError(null)}
+        >
+          <div
+            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col animate-in slide-in-from-bottom-4 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 sm:p-8">
+              <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mb-4">
+                <AlertTriangle className="w-7 h-7 text-red-600" strokeWidth={2.25} />
+              </div>
+              <h3 className="text-lg font-extrabold text-slate-900 mb-2">
+                {bookingError.kind === 'scheduling'
+                  ? 'This slot isn’t available'
+                  : 'We couldn’t create your booking'}
+              </h3>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                {bookingError.message}
+              </p>
+              {bookingError.kind === 'scheduling' && (
+                <p className="mt-3 text-xs text-slate-500 leading-relaxed">
+                  Please pick a different date or arrival window and try again.
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 p-6 sm:p-8 pt-0 pb-safe">
+              {bookingError.kind === 'scheduling' && (
+                <Button
+                  onClick={() => {
+                    setBookingError(null);
+                    setSlot(null);
+                    setAvailability({});
+                    setStep('datetime');
+                  }}
+                  className="flex-1 h-12 rounded-xl font-bold text-sm bg-emerald-600 text-white hover:bg-emerald-700"
+                >
+                  Pick another slot
+                </Button>
+              )}
+              <Button
+                onClick={() => setBookingError(null)}
+                variant={bookingError.kind === 'scheduling' ? 'outline' : 'default'}
+                className={cn(
+                  'flex-1 h-12 rounded-xl font-bold text-sm',
+                  bookingError.kind === 'scheduling'
+                    ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-700',
+                )}
+              >
+                Close
+              </Button>
+            </div>
           </div>
         </div>
       )}
