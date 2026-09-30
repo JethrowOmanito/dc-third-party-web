@@ -5,14 +5,25 @@ import { getSupabaseClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import type { Job } from '@/types';
 import {
+  CalendarDays,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Filter,
   Inbox,
+  List as ListIcon,
   Loader2,
   Search,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
+
+type ViewMode = 'list' | 'calendar';
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+const WEEKDAY_HEADERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 interface JobsListProps {
   filter?: 'today' | 'incoming' | 'all';
@@ -52,6 +63,17 @@ export function JobsList({ filter = 'all', title }: JobsListProps) {
   const [activeStatus, setActiveStatus] = useState<StatusKey>('all');
   const [sortKey, setSortKey] = useState<SortKey>('newest');
   const [sortOpen, setSortOpen] = useState(false);
+  // Calendar-view state — anchor month for the grid + optional selected
+  // day filter. Selecting a day in calendar view scopes the list under
+  // the grid to just that date so ops can drill in without leaving the
+  // page. Clearing (clicking the selected day again) shows the whole
+  // month.
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [calendarAnchor, setCalendarAnchor] = useState<Date>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const supabase = getSupabaseClient();
 
   const fetchJobs = useCallback(async () => {
@@ -113,6 +135,9 @@ export function JobsList({ filter = 'all', title }: JobsListProps) {
   const filtered = useMemo(() => {
     let list = jobs;
     if (activeStatus !== 'all') list = list.filter((j) => statusForJob(j) === activeStatus);
+    if (viewMode === 'calendar' && selectedDate) {
+      list = list.filter((j) => j.Start_Date === selectedDate);
+    }
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -176,8 +201,54 @@ export function JobsList({ filter = 'all', title }: JobsListProps) {
             <Filter className="w-4 h-4" />
             Filter
           </button>
+          {/* List / Calendar toggle — segmented control. Calendar view
+              shows a month grid above the results with a job-count dot
+              per day; clicking a day filters the list below to that
+              date. Clicking the same day again clears the filter. */}
+          <div className="h-11 inline-flex items-center rounded-xl bg-white ring-1 ring-slate-200 p-1">
+            <button
+              type="button"
+              onClick={() => { setViewMode('list'); setSelectedDate(null); }}
+              className={cn(
+                'inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium transition-colors',
+                viewMode === 'list'
+                  ? 'bg-emerald-600 text-white'
+                  : 'text-slate-600 hover:bg-slate-50',
+              )}
+              aria-pressed={viewMode === 'list'}
+            >
+              <ListIcon className="w-4 h-4" />
+              <span className="hidden sm:inline">List</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('calendar')}
+              className={cn(
+                'inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium transition-colors',
+                viewMode === 'calendar'
+                  ? 'bg-emerald-600 text-white'
+                  : 'text-slate-600 hover:bg-slate-50',
+              )}
+              aria-pressed={viewMode === 'calendar'}
+            >
+              <CalendarDays className="w-4 h-4" />
+              <span className="hidden sm:inline">Calendar</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Calendar grid — only rendered in calendar view. Sits above the
+          status tabs + list so ops sees the whole month at a glance. */}
+      {viewMode === 'calendar' && (
+        <CalendarGrid
+          anchor={calendarAnchor}
+          onAnchorChange={setCalendarAnchor}
+          jobs={jobs}
+          selectedDate={selectedDate}
+          onSelectDate={(d) => setSelectedDate((prev) => (prev === d ? null : d))}
+        />
+      )}
 
       {/* Status tabs */}
       <div className="flex items-center gap-2 lg:gap-3 mb-4 overflow-x-auto -mx-1 px-1 pb-1">
@@ -302,6 +373,214 @@ export function JobsList({ filter = 'all', title }: JobsListProps) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// Format a Date as YYYY-MM-DD in LOCAL time (not UTC — .toISOString() shifts
+// to UTC and drops us into the previous day for SGT users past 8 AM UTC).
+// The jobs table's Start_Date is stored as a plain YYYY-MM-DD string in
+// Singapore time so we must match that convention when keying the grid.
+function ymdLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+interface CalendarGridProps {
+  anchor: Date;
+  onAnchorChange: (d: Date) => void;
+  jobs: Job[];
+  selectedDate: string | null;
+  onSelectDate: (d: string) => void;
+}
+
+function CalendarGrid({ anchor, onAnchorChange, jobs, selectedDate, onSelectDate }: CalendarGridProps) {
+  // Group all fetched jobs by Start_Date → per-day counts + status flavour
+  // for the coloured dot rendered inside each cell. Only jobs on the
+  // currently-viewed month are surfaced, but the counts across the
+  // fetched set are still available if the user changes month.
+  const byDate = useMemo(() => {
+    const map: Record<string, { total: number; active: number; done: number; cancelled: number }> = {};
+    for (const j of jobs) {
+      const d = j.Start_Date;
+      if (!d) continue;
+      const s = (j.lifecycle_state || '').toLowerCase();
+      const bucket = map[d] ?? (map[d] = { total: 0, active: 0, done: 0, cancelled: 0 });
+      bucket.total++;
+      if (s === 'cancelled' || s === 'deleted') bucket.cancelled++;
+      else if (s === 'completed') bucket.done++;
+      else bucket.active++;
+    }
+    return map;
+  }, [jobs]);
+
+  const monthLabel = `${MONTH_NAMES[anchor.getMonth()]} ${anchor.getFullYear()}`;
+  const today = ymdLocal(new Date());
+
+  // Build a 6-row × 7-col grid (42 cells) starting on the Sunday on or
+  // before the 1st of the month. Simpler than variable-height grids and
+  // matches how most calendar UIs render.
+  const cells: { date: Date; iso: string; inMonth: boolean }[] = useMemo(() => {
+    const firstOfMonth = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    const gridStart = new Date(firstOfMonth);
+    gridStart.setDate(firstOfMonth.getDate() - firstOfMonth.getDay()); // roll back to Sunday
+    const out: { date: Date; iso: string; inMonth: boolean }[] = [];
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(gridStart);
+      d.setDate(gridStart.getDate() + i);
+      out.push({
+        date: d,
+        iso: ymdLocal(d),
+        inMonth: d.getMonth() === anchor.getMonth(),
+      });
+    }
+    return out;
+  }, [anchor]);
+
+  const stepMonth = (delta: number) => {
+    onAnchorChange(new Date(anchor.getFullYear(), anchor.getMonth() + delta, 1));
+  };
+  const jumpToday = () => {
+    const now = new Date();
+    onAnchorChange(new Date(now.getFullYear(), now.getMonth(), 1));
+  };
+
+  return (
+    <div className="rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm p-4 sm:p-5 mb-4">
+      {/* Header — month label + nav */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-base sm:text-lg font-bold text-slate-900">{monthLabel}</h2>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => stepMonth(-1)}
+            className="w-8 h-8 inline-flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors"
+            aria-label="Previous month"
+          >
+            <ChevronLeft className="w-4 h-4 text-slate-600" />
+          </button>
+          <button
+            type="button"
+            onClick={jumpToday}
+            className="h-8 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            onClick={() => stepMonth(1)}
+            className="w-8 h-8 inline-flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors"
+            aria-label="Next month"
+          >
+            <ChevronRight className="w-4 h-4 text-slate-600" />
+          </button>
+        </div>
+      </div>
+
+      {/* Weekday headers */}
+      <div className="grid grid-cols-7 gap-1 mb-1">
+        {WEEKDAY_HEADERS.map((w) => (
+          <div key={w} className="text-[10px] font-bold uppercase tracking-widest text-slate-400 text-center py-1">
+            {w}
+          </div>
+        ))}
+      </div>
+
+      {/* Day cells */}
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map(({ date, iso, inMonth }) => {
+          const bucket = byDate[iso];
+          const isToday = iso === today;
+          const isSelected = selectedDate === iso;
+          return (
+            <button
+              key={iso}
+              type="button"
+              onClick={() => onSelectDate(iso)}
+              disabled={!inMonth && !bucket}
+              className={cn(
+                'relative min-h-[48px] sm:min-h-[64px] rounded-lg text-left p-1.5 sm:p-2 transition-colors border',
+                isSelected
+                  ? 'bg-emerald-600 border-emerald-600 text-white'
+                  : isToday
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                  : inMonth
+                  ? 'bg-white border-slate-100 hover:bg-slate-50 text-slate-700'
+                  : 'bg-slate-50/40 border-transparent text-slate-300',
+                bucket && !isSelected && 'cursor-pointer',
+                !bucket && !inMonth && 'cursor-default',
+              )}
+            >
+              <span className={cn('text-xs sm:text-sm font-semibold', isSelected && 'text-white')}>
+                {date.getDate()}
+              </span>
+              {bucket && (
+                <div className="mt-1 flex flex-wrap gap-0.5">
+                  {bucket.active > 0 && (
+                    <span
+                      className={cn(
+                        'inline-flex items-center justify-center text-[10px] font-bold rounded px-1 min-w-[16px] h-4',
+                        isSelected ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-700',
+                      )}
+                      title={`${bucket.active} active`}
+                    >
+                      {bucket.active}
+                    </span>
+                  )}
+                  {bucket.done > 0 && (
+                    <span
+                      className={cn(
+                        'inline-flex items-center justify-center text-[10px] font-bold rounded px-1 min-w-[16px] h-4',
+                        isSelected ? 'bg-white/25 text-white' : 'bg-sky-100 text-sky-700',
+                      )}
+                      title={`${bucket.done} completed`}
+                    >
+                      {bucket.done}
+                    </span>
+                  )}
+                  {bucket.cancelled > 0 && (
+                    <span
+                      className={cn(
+                        'inline-flex items-center justify-center text-[10px] font-bold rounded px-1 min-w-[16px] h-4',
+                        isSelected ? 'bg-white/25 text-white' : 'bg-rose-100 text-rose-700',
+                      )}
+                      title={`${bucket.cancelled} cancelled`}
+                    >
+                      {bucket.cancelled}
+                    </span>
+                  )}
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Legend + selected-date summary */}
+      <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded bg-amber-500" /> Active
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded bg-sky-500" /> Completed
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded bg-rose-500" /> Cancelled
+          </span>
+        </div>
+        {selectedDate && (
+          <button
+            type="button"
+            onClick={() => onSelectDate(selectedDate)}
+            className="text-emerald-600 font-semibold hover:text-emerald-700"
+          >
+            Clear date filter
+          </button>
+        )}
+      </div>
     </div>
   );
 }
