@@ -302,14 +302,17 @@ export async function POST(req: NextRequest) {
       owned_by_third_party: partnerUserId,
       partner_company_id: partner.company_id,
       partner_brand: partnerBrand,
-      // Canonical 3-letter source code from partner_brand. Was hardcoded
-      // 'ID' regardless of brand which mis-tagged every Agents/TCC booking.
+      // Canonical 3-letter source code. events_source_valid check constraint
+      // only accepts DIR/WEB/SITE/INS/FCB/AGT/EXI/REF/CAR/ID/FLY/IDP/UC/R1 —
+      // 'TCC' is NOT a valid source, so TCC-branded bookings fall back to
+      // 'ID' (they're still ID-flow bookings under the hood). The TCC-vs-
+      // DoctorClean distinction is preserved in the partner_brand column
+      // ('tcc' | 'doctor_clean_id' | 'agents'), so no info is lost.
       // company_code is free-form partner ID (e.g. "YI133", "UC-123") — do
       // NOT put it here, it would break the enum-style source taxonomy.
       source:
         partnerBrand === 'agents' ? 'AGT' :
-        partnerBrand === 'tcc'    ? 'TCC' :
-                                    'ID',
+                                    'ID',   // tcc + doctor_clean_id
       // NULL when either the client didn't send one OR the migration
       // hasn't run yet (INSERT of a NULL to a non-existent column throws
       // — see catch below).
