@@ -3,7 +3,6 @@ import { getServiceDisplayName } from '@/lib/utils';
 import type { Job } from '@/types';
 import {
   Blinds,
-  Brush,
   Building2,
   Calendar,
   ChevronRight,
@@ -12,13 +11,13 @@ import {
   Hammer,
   Home,
   Layers,
-  Leaf,
   PaintRoller,
   ShieldCheck,
   Sofa,
   Sparkles,
+  SprayCan,
   User,
-  Waves,
+  WashingMachine,
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -38,12 +37,12 @@ const SERVICE_STYLES: Record<string, ServiceStyle> = {
   office:               { icon: Building2,  bg: 'bg-violet-50',  text: 'text-violet-600'  },
   upholstery:           { icon: Sofa,       bg: 'bg-amber-50',   text: 'text-amber-600'   },
   curtain:              { icon: Blinds,     bg: 'bg-indigo-50',  text: 'text-indigo-600'  },
-  scrubbing_machine:    { icon: Brush,      bg: 'bg-teal-50',    text: 'text-teal-600'    },
-  scrubbing:            { icon: Brush,      bg: 'bg-teal-50',    text: 'text-teal-600'    },
-  coating:              { icon: PaintRoller,bg: 'bg-slate-50',   text: 'text-slate-600'   },
-  carpet:               { icon: Layers,     bg: 'bg-orange-50',  text: 'text-orange-600'  },
-  formaldehyde_removal: { icon: Leaf,       bg: 'bg-violet-50',  text: 'text-violet-600'  },
-  formaldehyde:         { icon: Leaf,       bg: 'bg-violet-50',  text: 'text-violet-600'  },
+  scrubbing_machine:    { icon: WashingMachine, bg: 'bg-teal-50',    text: 'text-teal-600'    },
+  scrubbing:            { icon: WashingMachine, bg: 'bg-teal-50',    text: 'text-teal-600'    },
+  coating:              { icon: PaintRoller,    bg: 'bg-slate-50',   text: 'text-slate-600'   },
+  carpet:               { icon: Layers,         bg: 'bg-orange-50',  text: 'text-orange-600'  },
+  formaldehyde_removal: { icon: SprayCan,       bg: 'bg-violet-50',  text: 'text-violet-600'  },
+  formaldehyde:         { icon: SprayCan,       bg: 'bg-violet-50',  text: 'text-violet-600'  },
   disinfection:         { icon: Droplets,   bg: 'bg-cyan-50',    text: 'text-cyan-600'    },
   site_visit:           { icon: ShieldCheck,bg: 'bg-slate-50',   text: 'text-slate-600'   },
   touch_up:             { icon: ShieldCheck,bg: 'bg-slate-50',   text: 'text-slate-600'   },

@@ -17,7 +17,7 @@ import {
   Loader2, Clock, Send, Sparkles, X, Plus, Minus,
   Home, Sofa, Wind, Layers, Building2, ShieldCheck,
   MapPin, Calendar as CalendarIcon, Info, Waves, MessageCircle,
-  AlertTriangle, Droplets, Leaf,
+  AlertTriangle, WashingMachine, SprayCan,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -2392,15 +2392,15 @@ export default function BookingNewPage() {
                               },
                               {
                                 key: 'scrubbing', label: `${tierBase} + Deep floor scrubbing`, price: scrubPrice,
-                                Icon: Droplets,
-                                iconBg: 'bg-emerald-100',
-                                iconColor: 'text-emerald-600',
-                                underline: 'bg-emerald-500',
-                                curve: 'from-emerald-100/80',
+                                Icon: WashingMachine,
+                                iconBg: 'bg-teal-100',
+                                iconColor: 'text-teal-600',
+                                underline: 'bg-teal-500',
+                                curve: 'from-teal-100/80',
                               },
                               {
                                 key: 'scrubbing_formaldehyde', label: `${tierBase} + Deep floor scrubbing + Formaldehyde`, price: formalPrice,
-                                Icon: Leaf,
+                                Icon: SprayCan,
                                 iconBg: 'bg-violet-100',
                                 iconColor: 'text-violet-600',
                                 underline: 'bg-violet-500',
