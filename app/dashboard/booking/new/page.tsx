@@ -275,6 +275,12 @@ export default function BookingNewPage() {
   const [calendarId, setCalendarId]                     = useState<string | null>(null);
   const [loadingPricing, setLoadingPricing]             = useState(false);
   const [expandedAddonGroup, setExpandedAddonGroup]     = useState<string | null>(null);
+  // Show-all toggle for the TCC/ID size list — HDB has 8 unit types and
+  // Condo has 4+ sqft brackets, cramming the whole ladder into view
+  // means partners scroll past most of it to find the tier buttons for
+  // the size they actually want. Default to 5 visible; the rest slide
+  // down when clicked.
+  const [showAllTccIdRows, setShowAllTccIdRows] = useState(false);
 
   // ── Contact / address ──
   const [name, setName]               = useState('');
@@ -2312,7 +2318,23 @@ export default function BookingNewPage() {
                             Pick a unit type, then choose one of the three cleaning tiers.
                             {partnerBrand === 'doctor_clean_id' && ' Doctor Clean ID pricing includes the 10% ID rebate.'}
                           </p>
-                          {tccIdUnitTypeRows.map((row) => {
+                          {/* Show only the first 5 rows by default so the tier
+                              buttons don't disappear off-screen. If the row the
+                              partner already picked is beyond the 5th, we still
+                              include it so they can see their current choice
+                              without expanding. */}
+                          {(() => {
+                            const VISIBLE_LIMIT = 5;
+                            const hasSelectedBeyond =
+                              selectedTccIdRowId != null &&
+                              tccIdUnitTypeRows.findIndex((r) => r.id === selectedTccIdRowId) >= VISIBLE_LIMIT;
+                            const visibleRows = showAllTccIdRows || hasSelectedBeyond
+                              ? tccIdUnitTypeRows
+                              : tccIdUnitTypeRows.slice(0, VISIBLE_LIMIT);
+                            const hiddenCount = tccIdUnitTypeRows.length - visibleRows.length;
+                            return (
+                              <>
+                                {visibleRows.map((row) => {
                             const isSelectedRow = selectedTccIdRowId === row.id;
                             const alaPrice = row.ala_carte_price == null ? null : Number(row.ala_carte_price);
                             const scrubPrice = row.scrubbing_price == null ? null : Number(row.scrubbing_price);
@@ -2393,6 +2415,32 @@ export default function BookingNewPage() {
                               </div>
                             );
                           })}
+                                {/* Show more / show less toggle. Hidden if
+                                    every row is already showing (small
+                                    property types). Not rendered when a
+                                    selection beyond the visible limit
+                                    forced the full list open. */}
+                                {hiddenCount > 0 && !hasSelectedBeyond && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowAllTccIdRows(true)}
+                                    className="w-full py-3 rounded-2xl border-2 border-dashed border-slate-200 bg-white text-xs font-black uppercase tracking-widest text-slate-500 hover:border-emerald-300 hover:text-emerald-600 transition-colors"
+                                  >
+                                    Show {hiddenCount} more {hiddenCount === 1 ? 'unit type' : 'unit types'}
+                                  </button>
+                                )}
+                                {showAllTccIdRows && tccIdUnitTypeRows.length > VISIBLE_LIMIT && !hasSelectedBeyond && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowAllTccIdRows(false)}
+                                    className="w-full py-2 text-[11px] font-semibold text-slate-400 hover:text-slate-600 transition-colors"
+                                  >
+                                    Show less
+                                  </button>
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
                       )
                     ) : service === 'blinds' ? (

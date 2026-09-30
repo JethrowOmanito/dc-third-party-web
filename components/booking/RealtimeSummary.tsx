@@ -3,7 +3,7 @@ import {
   Info,
   ChevronRight,
   Loader2,
-  Eraser,
+  Trash2,
   Clock,
   Calendar as CalendarIcon,
   Pencil,
@@ -147,11 +147,11 @@ export default function RealtimeSummary({
             {onClear && (
               <button
                 onClick={onClear}
-                className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors group"
+                className="p-1.5 hover:bg-red-50 rounded-lg transition-colors group"
                 title="Clear Selection"
                 aria-label="Clear selection"
               >
-                <Eraser className="w-4 h-4 text-slate-400 group-hover:text-red-500 transition-colors" />
+                <Trash2 className="w-4 h-4 text-red-500 group-hover:text-red-600 transition-colors" />
               </button>
             )}
             <button
