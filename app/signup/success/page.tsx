@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuthStore } from '@/store/authStore';
+import { cn } from '@/lib/utils';
 import { ArrowRight, CheckCircle2, Clock, MessageCircle, Shield } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -31,12 +32,45 @@ export default function SignupSuccessPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [_hasHydrated]);
 
+  // Aggressive poll while the partner is on this page — refreshes every
+  // 10s so if Zoe approves or sets payment_terms in the next few minutes,
+  // the copy updates live without a hard refresh. Pauses when the tab
+  // isn't visible so we don't hammer the API on backgrounded windows.
+  useEffect(() => {
+    if (!_hasHydrated || !user || !refresh) return;
+    const tick = () => {
+      if (document.visibilityState !== 'visible') return;
+      refresh().catch(() => { /* silent — next tick will retry */ });
+    };
+    const interval = setInterval(tick, 10_000);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [_hasHydrated, user, refresh]);
+
   const name = user?.name ?? user?.username ?? 'there';
 
-  // ID self-signup lands as approval_status='pending' so Zoe can review.
-  // Non-ID auto-approves — different copy per case so we don't mislead the
-  // partner about whether they can log in immediately.
-  const isPendingReview = user?.approval_status === 'pending';
+  // Three-state copy branching driven by the two independent gates:
+  //   1. approval_status ('pending' → Zoe hasn't reviewed yet; ID case)
+  //   2. company_payment_terms (null/undefined → Zoe hasn't activated
+  //      booking yet; blocks the submit route regardless of approval)
+  //
+  // 'application' → not yet approved (ID pending Zoe's review)
+  // 'awaiting_terms' → approved but no payment terms set — auto-approved
+  //                    non-ID that hasn't been fully activated yet
+  // 'activated' → approved + payment terms set — can create bookings
+  //
+  // Previously only checked approval_status, so non-ID auto-approved
+  // partners saw "Booking activation pending" forever, never updating
+  // after Zoe set the payment terms.
+  const stage: 'application' | 'awaiting_terms' | 'activated' =
+    user?.approval_status === 'pending'
+      ? 'application'
+      : user?.company_payment_terms === 'upfront' || user?.company_payment_terms === 'end_of_month'
+      ? 'activated'
+      : 'awaiting_terms';
 
   return (
     <>
@@ -53,62 +87,102 @@ export default function SignupSuccessPage() {
             </div>
 
             <h1 className="ss-title">
-              {isPendingReview ? 'Application submitted!' : "You're in!"}
+              {stage === 'application'
+                ? 'Application submitted!'
+                : stage === 'awaiting_terms'
+                ? "You're in!"
+                : "You're fully activated!"}
             </h1>
             <p className="ss-lead">
-              {isPendingReview
-                ? <>Thanks {name} — your Doctor Clean Partner application has been received.</>
-                : <>Thanks {name} — your Doctor Clean Partner account is ready.</>}
+              {stage === 'application' && <>Thanks {name} — your Doctor Clean Partner application has been received.</>}
+              {stage === 'awaiting_terms' && <>Thanks {name} — your Doctor Clean Partner account is ready.</>}
+              {stage === 'activated' && <>Thanks {name} — booking is now enabled on your account. Head to your dashboard to create your first job.</>}
             </p>
 
             <div className="ss-steps">
+              {/* Step 1 — Account created (always green) */}
               <div className="ss-step">
                 <div className="ss-step-icon ss-step-icon--done"><CheckCircle2 size={18} /></div>
                 <div>
                   <p className="ss-step-title">Account created</p>
                   <p className="ss-step-desc">
-                    {isPendingReview
+                    {stage === 'application'
                       ? 'Your details are saved and awaiting admin review.'
                       : 'You can log in and explore the dashboard right now.'}
                   </p>
                 </div>
               </div>
+
+              {/* Step 2 — Under review OR Booking activation. Turns green
+                  once we're past 'awaiting_terms' into 'activated'. */}
               <div className="ss-step">
-                <div className="ss-step-icon"><Clock size={18} /></div>
+                <div className={cn('ss-step-icon', stage === 'activated' && 'ss-step-icon--done')}>
+                  {stage === 'activated' ? <CheckCircle2 size={18} /> : <Clock size={18} />}
+                </div>
                 <div>
                   <p className="ss-step-title">
-                    {isPendingReview ? 'Under review' : 'Booking activation pending'}
+                    {stage === 'application'
+                      ? 'Under review'
+                      : stage === 'awaiting_terms'
+                      ? 'Booking activation pending'
+                      : 'Booking activated'}
                   </p>
                   <p className="ss-step-desc">
-                    {isPendingReview
+                    {stage === 'application'
                       ? 'Admin usually reviews within 24 hours (Mon–Sat, business hours).'
-                      : 'Our admin will set your payment terms — usually within 24 hours (Mon–Sat, business hours). Booking creation unlocks once that’s done.'}
+                      : stage === 'awaiting_terms'
+                      ? 'Our admin will set your payment terms — usually within 24 hours (Mon–Sat, business hours). Booking creation unlocks once that’s done.'
+                      : (
+                        <>Payment terms set: <strong>{user?.company_payment_terms === 'end_of_month' ? 'End-of-month invoice' : 'Upfront (per booking)'}</strong>. You can create bookings now.</>
+                      )}
                   </p>
                 </div>
               </div>
-              <div className="ss-step">
-                <div className="ss-step-icon"><MessageCircle size={18} /></div>
-                <div>
-                  <p className="ss-step-title">You&apos;ll get a WhatsApp</p>
-                  <p className="ss-step-desc">
-                    We&apos;ll message <strong>{user?.whatsapp_phone ?? 'your WhatsApp'}</strong>
-                    {isPendingReview
-                      ? ' when your account is approved (or if we need more info).'
-                      : ' when booking is enabled (or if we need any extra info).'}
-                  </p>
+
+              {/* Step 3 — WhatsApp confirmation. Only shown while we're
+                  waiting on something; once activated the WhatsApp has
+                  already gone out, so we swap it for a "start booking"
+                  CTA hint. */}
+              {stage !== 'activated' ? (
+                <div className="ss-step">
+                  <div className="ss-step-icon"><MessageCircle size={18} /></div>
+                  <div>
+                    <p className="ss-step-title">You&apos;ll get a WhatsApp</p>
+                    <p className="ss-step-desc">
+                      We&apos;ll message <strong>{user?.whatsapp_phone ?? 'your WhatsApp'}</strong>
+                      {stage === 'application'
+                        ? ' when your account is approved (or if we need more info).'
+                        : ' when booking is enabled (or if we need any extra info).'}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="ss-step">
+                  <div className="ss-step-icon ss-step-icon--done"><CheckCircle2 size={18} /></div>
+                  <div>
+                    <p className="ss-step-title">Notification sent</p>
+                    <p className="ss-step-desc">
+                      We&apos;ve messaged <strong>{user?.whatsapp_phone ?? 'your WhatsApp'}</strong> with your activation details.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="ss-cta">
-              <Link href="/dashboard" className="ss-btn-primary">
-                Go to dashboard
+              <Link
+                href={stage === 'activated' ? '/dashboard/booking/new' : '/dashboard'}
+                className="ss-btn-primary"
+              >
+                {stage === 'activated' ? 'Create your first booking' : 'Go to dashboard'}
                 <ArrowRight size={16} />
               </Link>
               <p className="ss-help">
-                {isPendingReview
+                {stage === 'application'
                   ? 'Booking is unlocked as soon as admin approves your account.'
-                  : 'Explore now, book once admin sets your payment terms.'}
+                  : stage === 'awaiting_terms'
+                  ? 'Explore now, book once admin sets your payment terms.'
+                  : "You're all set — click above to create a booking."}
               </p>
             </div>
 
