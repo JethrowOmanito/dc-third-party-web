@@ -333,12 +333,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (insErr || !event) {
-      // Also log to stderr — Sentry DSN isn't wired on this project,
-      // so captureException goes nowhere. Log the raw code + message
-      // so we can grep pm2 logs when a booking dies.
+      const errCode = (insErr as { code?: string } | null)?.code;
+      const errMsg = (insErr as { message?: string } | null)?.message ?? '';
+
+      // Sentry DSN isn't wired here — log to stderr too so we can grep.
       console.error('[bookings/submit] events insert failed', {
-        code: (insErr as { code?: string } | null)?.code,
-        message: (insErr as { message?: string } | null)?.message,
+        code: errCode,
+        message: errMsg,
         details: (insErr as { details?: string } | null)?.details,
         hint: (insErr as { hint?: string } | null)?.hint,
         partnerUserId,
@@ -347,7 +348,19 @@ export async function POST(req: NextRequest) {
         tags: { route: 'bookings/submit', op: 'events.insert' },
         extra: { partnerUserId },
       });
-      return NextResponse.json({ error: 'Failed to create booking', debug: (insErr as { message?: string } | null)?.message ?? null }, { status: 500 });
+
+      // Postgres P0001 = trigger-raised business rule violation
+      // (capacity exceeded, blackout date, missing calendar, etc.).
+      // These are meant to be user-visible — pass the message through
+      // as-is with a 409 so the wizard can show why the booking was
+      // refused instead of a generic "Failed to create booking" 500.
+      if (errCode === 'P0001') {
+        return NextResponse.json(
+          { error: errMsg || 'Booking rejected by scheduling rule.', errorCode: 'scheduling_rule' },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json({ error: 'Failed to create booking' }, { status: 500 });
     }
 
     await admin.from('event_logs').insert({
