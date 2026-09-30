@@ -298,16 +298,7 @@ export async function POST(req: NextRequest) {
       status: isInvoiced ? 'confirmed' : 'pending',
       payment_status: isInvoiced ? 'pending' : 'unpaid',
       payment_method: isInvoiced ? 'invoice' : null,
-      // Upfront partners: hide the booking from every dashboard/cleaner
-      // surface until Stripe payment confirms. All existing consumers
-      // filter on lifecycle_state='active' (schedule, calendar, cleaner-app,
-      // WhatsApp trigger, admin notification with the new gate). Capacity
-      // is still reserved atomically because the INSERT itself fires
-      // trigger_capacity_on_event_change regardless of lifecycle_state.
-      // On Stripe webhook success we flip to 'active'; on 30-min expiry
-      // the cron sweeps to 'cancelled' and releases capacity.
-      // End-of-month partners skip the payment gate entirely.
-      lifecycle_state: isInvoiced ? 'active' : 'pending_payment',
+      lifecycle_state: 'active',
       owned_by_third_party: partnerUserId,
       partner_company_id: partner.company_id,
       partner_brand: partnerBrand,

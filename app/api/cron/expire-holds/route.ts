@@ -60,22 +60,16 @@ async function run(req: NextRequest) {
     const admin = createAdminClient();
     const nowIso = new Date().toISOString();
 
-    // Find candidates: partner bookings, still holding a slot, unpaid, and
+    // Find candidates: partner bookings, still active, unpaid, and
     // past their hold expiry. We only touch rows that were explicitly
     // created with an expiry — never sweep admin-created bookings.
-    //
-    // Match BOTH lifecycle states:
-    //   'pending_payment' → upfront partner rows (new gated flow — invisible
-    //                       to dashboards but capacity is reserved)
-    //   'active'          → legacy rows created before the gate was added
-    //                       (still floating around as unpaid+pending)
     const { data: stale, error: selErr } = await admin
       .from('events')
       .select('id, Ref_ID, booking_expires_at, owned_by_third_party')
       .not('owned_by_third_party', 'is', null)
       .eq('payment_status', 'unpaid')
       .eq('status', 'pending')
-      .in('lifecycle_state', ['active', 'pending_payment'])
+      .eq('lifecycle_state', 'active')
       .not('booking_expires_at', 'is', null)
       .lt('booking_expires_at', nowIso)
       .limit(MAX_BATCH);
