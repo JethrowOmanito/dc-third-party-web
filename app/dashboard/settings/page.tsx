@@ -82,7 +82,7 @@ export default function SettingsPage() {
       <SectionCard title="Account Details">
         <InfoRow icon={User} label="Username" value={user?.username || '—'} />
         <InfoRow icon={Building2} label="Company" value={user?.company_name || '—'} />
-        <InfoRow icon={Shield} label="Role" value="Partner (Third Party)" />
+        <InfoRow icon={Shield} label="Role" value="Partner" />
       </SectionCard>
 
       {/* Team management — admin only. Phase 5 entry point. */}

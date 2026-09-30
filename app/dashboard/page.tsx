@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -30,13 +30,30 @@ interface Stats {
   todayCount: number;
   incomingCount: number;
   totalCount: number;
-  // MTD = current calendar month, LM = previous calendar month.
-  // The dashboard cards show the MTD value and the % delta vs LM.
-  commissionMTD: number;
-  commissionLM: number;
-  rebateMTD: number;
-  rebateLM: number;
+  // Curr = the currently-selected range (this_month by default).
+  // Prev = the previous same-length window for the delta comparison.
+  // Renamed from MTD/LM when the This Month pill became a real selector.
+  commissionCurr: number;
+  commissionPrev: number;
+  rebateCurr: number;
+  rebatePrev: number;
 }
+
+type RangeKey = 'this_month' | 'last_month' | 'this_year' | 'last_year';
+
+const RANGE_LABELS: Record<RangeKey, string> = {
+  this_month: 'This Month',
+  last_month: 'Last Month',
+  this_year:  'This Year',
+  last_year:  'Last Year',
+};
+
+const DELTA_LABELS: Record<RangeKey, string> = {
+  this_month: 'vs last month',
+  last_month: 'vs prior month',
+  this_year:  'vs last year',
+  last_year:  'vs prior year',
+};
 
 interface UpcomingJob {
   id: string;
@@ -57,18 +74,19 @@ const MONTH_ABBR = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP
 // Format a month-over-month delta for the commission / rebate cards.
 // When the previous month was $0 we can't compute a %, so fall back
 // to a plain "+$X vs last month" so the card still shows movement.
-function formatDelta(mtd: number, lm: number): string {
-  if (lm === 0) {
-    if (mtd === 0) return '0% vs last month';
-    return `+$${mtd.toFixed(0)} vs last month`;
+function formatDelta(curr: number, prev: number, rangeKey: RangeKey): string {
+  const suffix = DELTA_LABELS[rangeKey];
+  if (prev === 0) {
+    if (curr === 0) return `0% ${suffix}`;
+    return `+$${curr.toFixed(0)} ${suffix}`;
   }
-  const pct = ((mtd - lm) / lm) * 100;
+  const pct = ((curr - prev) / prev) * 100;
   const sign = pct > 0 ? '+' : '';
-  return `${sign}${pct.toFixed(0)}% vs last month`;
+  return `${sign}${pct.toFixed(0)}% ${suffix}`;
 }
-function deltaTone(mtd: number, lm: number): 'positive' | 'negative' | 'neutral' {
-  if (mtd === lm) return 'neutral';
-  return mtd > lm ? 'positive' : 'negative';
+function deltaTone(curr: number, prev: number): 'positive' | 'negative' | 'neutral' {
+  if (curr === prev) return 'neutral';
+  return curr > prev ? 'positive' : 'negative';
 }
 
 export default function DashboardPage() {
@@ -78,15 +96,16 @@ export default function DashboardPage() {
     todayCount: 0,
     incomingCount: 0,
     totalCount: 0,
-    commissionMTD: 0,
-    commissionLM: 0,
-    rebateMTD: 0,
-    rebateLM: 0,
+    commissionCurr: 0,
+    commissionPrev: 0,
+    rebateCurr: 0,
+    rebatePrev: 0,
   });
   const [upcoming, setUpcoming] = useState<UpcomingJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [firstLoadDone, setFirstLoadDone] = useState(false);
   const [benefitsOpen, setBenefitsOpen] = useState(false);
+  const [rangeKey, setRangeKey] = useState<RangeKey>('this_month');
   const supabase = getSupabaseClient();
 
   // Only depend on the fields we actually query with, so the /api/auth/me
@@ -101,64 +120,30 @@ export default function DashboardPage() {
     // and refresh silently.
     if (!firstLoadDone) setLoading(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
-
-      const companyFilter = user.company_id
-        ? { column: 'partner_company_id' as const, value: user.company_id }
-        : { column: 'owned_by_third_party' as const, value: user.id };
-
-      const [allResult, upcomingResult] = await Promise.all([
-        supabase
-          .from('events')
-          .select('id, Start_Date, commission_percentage, rebate_amount')
-          .eq(companyFilter.column, companyFilter.value),
-        supabase
-          .from('events')
-          .select('id, Start_Date, Start_Time, Start_Time_Display, End_Time_Display, Service_Type, service_subtype, Name, Title, status, Assign_Cleaner')
-          .eq(companyFilter.column, companyFilter.value)
-          .gte('Start_Date', today)
-          .order('Start_Date', { ascending: true })
-          .order('Start_Time', { ascending: true })
-          .limit(3),
-      ]);
-
-      const jobs = allResult.data || [];
-      const todayCount = jobs.filter((j) => j.Start_Date?.startsWith(today)).length;
-      const incomingCount = jobs.filter((j) => j.Start_Date && j.Start_Date > today).length;
-
-      // Month buckets. commission_percentage on events is currently stored
-      // as an already-computed $ amount (all 0.00 in DB as of 2026-09-06 —
-      // Zoe / trigger will populate). Sum is safe either way.
-      const now = new Date();
-      const mtdStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-      const lmStart  = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
-      const lmEnd    = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
-
-      let commissionMTD = 0, commissionLM = 0, rebateMTD = 0, rebateLM = 0;
-      for (const j of jobs) {
-        const d = j.Start_Date ?? '';
-        const c = Number(j.commission_percentage ?? 0);
-        const r = Number(j.rebate_amount ?? 0);
-        if (d >= mtdStart) {
-          commissionMTD += c;
-          rebateMTD += r;
-        } else if (d >= lmStart && d <= lmEnd) {
-          commissionLM += c;
-          rebateLM += r;
-        }
-      }
-
-      setStats({
-        todayCount, incomingCount, totalCount: jobs.length,
-        commissionMTD, commissionLM, rebateMTD, rebateLM,
+      // Server route because events.Name is PII (anon SELECT revoked on
+      // prod). Previously the Upcoming Jobs query silently returned []
+      // when it tried to SELECT Name via the anon client — stats worked,
+      // list didn't. Now both come from one authenticated endpoint that
+      // uses the admin client. The endpoint also handles range math for
+      // the This Month / Last Month / This Year / Last Year selector so
+      // we don't need duplicate date logic on the client.
+      const res = await fetch(`/api/dashboard/overview?range=${rangeKey}`, {
+        credentials: 'include',
       });
-      setUpcoming((upcomingResult.data as UpcomingJob[]) || []);
+      if (!res.ok) {
+        // Fail quietly — dashboard keeps its last-known state rather
+        // than blanking out on a transient 500.
+        return;
+      }
+      const data = await res.json() as { stats: Stats; upcoming: UpcomingJob[] };
+      setStats(data.stats);
+      setUpcoming(data.upcoming ?? []);
     } finally {
       setLoading(false);
       setFirstLoadDone(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterId]);
+  }, [filterId, rangeKey]);
 
   useEffect(() => {
     loadData();
@@ -328,10 +313,10 @@ export default function DashboardPage() {
           iconBg="bg-emerald-100"
           iconColor="text-emerald-600"
           label="Total Commission"
-          value={`$ ${stats.commissionMTD.toFixed(2)}`}
-          hint="Month to date"
-          delta={formatDelta(stats.commissionMTD, stats.commissionLM)}
-          deltaTone={deltaTone(stats.commissionMTD, stats.commissionLM)}
+          value={`$ ${stats.commissionCurr.toFixed(2)}`}
+          hint={RANGE_LABELS[rangeKey]}
+          delta={formatDelta(stats.commissionCurr, stats.commissionPrev, rangeKey)}
+          deltaTone={deltaTone(stats.commissionCurr, stats.commissionPrev)}
           trailingIcon={<TrendingUp className="w-4 h-4 text-emerald-500/60" />}
         />
         <StatCard
@@ -339,10 +324,10 @@ export default function DashboardPage() {
           iconBg="bg-violet-100"
           iconColor="text-violet-600"
           label="Total Rebate"
-          value={`$ ${stats.rebateMTD.toFixed(2)}`}
-          hint="Month to date"
-          delta={formatDelta(stats.rebateMTD, stats.rebateLM)}
-          deltaTone={deltaTone(stats.rebateMTD, stats.rebateLM)}
+          value={`$ ${stats.rebateCurr.toFixed(2)}`}
+          hint={RANGE_LABELS[rangeKey]}
+          delta={formatDelta(stats.rebateCurr, stats.rebatePrev, rangeKey)}
+          deltaTone={deltaTone(stats.rebateCurr, stats.rebatePrev)}
         />
         <div className="rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm p-6 flex flex-col justify-between">
           <div className="flex items-start gap-4">
@@ -384,7 +369,7 @@ export default function DashboardPage() {
           <div className="rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-base font-bold text-slate-900">Overview</h2>
-              <PeriodPill label="This Month" />
+              <PeriodSelector value={rangeKey} onChange={setRangeKey} />
             </div>
             <div className="grid grid-cols-3 gap-3">
               <OverviewStat
@@ -421,7 +406,7 @@ export default function DashboardPage() {
           <div className="rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-base font-bold text-slate-900">Performance</h2>
-              <PeriodPill label="This Month" />
+              <PeriodSelector value={rangeKey} onChange={setRangeKey} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <PerformanceStat
@@ -745,14 +730,61 @@ function PerformanceStat({
   );
 }
 
-function PeriodPill({ label }: { label: string }) {
-  // Static badge — no action attached. Was previously a button-with-chevron
-  // that looked like a dropdown but did nothing, so users clicked and got
-  // no feedback. Rendered as span so it doesn't invite clicks.
+function PeriodSelector({
+  value,
+  onChange,
+}: {
+  value: RangeKey;
+  onChange: (r: RangeKey) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click / escape — small popover UX, no library.
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
   return (
-    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 bg-slate-50 ring-1 ring-slate-200 rounded-lg">
-      {label}
-    </span>
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 ring-1 ring-slate-200 rounded-lg hover:bg-slate-100 hover:ring-slate-300 transition-colors"
+      >
+        {RANGE_LABELS[value]}
+        <ChevronDown className={cn('w-3 h-3 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-1 min-w-[140px] bg-white ring-1 ring-slate-200 rounded-lg shadow-lg z-20 py-1">
+          {(Object.keys(RANGE_LABELS) as RangeKey[]).map(k => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => { onChange(k); setOpen(false); }}
+              className={cn(
+                'w-full text-left px-3 py-1.5 text-xs font-medium transition-colors',
+                k === value
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : 'text-slate-600 hover:bg-slate-50',
+              )}
+            >
+              {RANGE_LABELS[k]}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
