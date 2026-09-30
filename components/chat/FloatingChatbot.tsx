@@ -1,11 +1,11 @@
 'use client';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { usePathname } from 'next/navigation';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import {
-  MessageCircle, X, Send, Sparkles,
-  Bot, Calendar, CreditCard, ShieldCheck,
+  X, Send, Sparkles,
+  Calendar, CreditCard, ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -33,6 +33,21 @@ function textOf(m: UIMessage): string {
     .filter(p => p?.type === 'text' && typeof p.text === 'string')
     .map(p => p.text as string)
     .join('');
+}
+
+// Tiny inline markdown renderer — handles what Clara actually emits
+// (**bold**) without pulling in react-markdown. Splits on the **…**
+// pattern, wraps every OTHER segment in <strong>. Newlines + bullets
+// pass through as-is because the message bubble uses whitespace-pre-wrap.
+// No dangerouslySetInnerHTML → no XSS surface even if the model tries.
+function renderMarkdown(text: string): React.ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((p, i) => {
+    if (p.startsWith('**') && p.endsWith('**')) {
+      return <strong key={i}>{p.slice(2, -2)}</strong>;
+    }
+    return <Fragment key={i}>{p}</Fragment>;
+  });
 }
 
 export function FloatingChatbot() {
@@ -63,7 +78,7 @@ export function FloatingChatbot() {
       {
         id: 'greeting',
         role: 'assistant',
-        parts: [{ type: 'text', text: 'Hi, I am your Doctor Clean AI Assistant. How can I help?' }],
+        parts: [{ type: 'text', text: 'Hi! I am Clara, your Virtual Assistant. How can I help?' }],
       },
     ],
   }) as {
@@ -134,12 +149,12 @@ export function FloatingChatbot() {
               </button>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center border border-white/30 backdrop-blur-md">
-                <Bot className="w-6 h-6 text-white" />
+              <div className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-white/40 bg-white flex items-center justify-center flex-shrink-0">
+                <img src="/agent-avatar.png" alt="Clara" className="w-full h-full object-cover" />
               </div>
               <div>
-                <p className="text-sm font-black tracking-tight leading-none uppercase">Doctor Clean AI</p>
-                <p className="text-[10px] text-emerald-100 font-medium mt-1">Powered by Claude</p>
+                <p className="text-sm font-black tracking-tight leading-none">Clara</p>
+                <p className="text-[10px] text-emerald-100 font-medium mt-1">Virtual Assistant</p>
               </div>
             </div>
             <div className="absolute bottom-0 right-0 p-4 opacity-10">
@@ -154,16 +169,21 @@ export function FloatingChatbot() {
               if (!text) return null;
               const isUser = m.role === 'user';
               return (
-                <div key={m.id} className={cn('flex w-full', isUser ? 'justify-end' : 'justify-start')}>
+                <div key={m.id} className={cn('flex w-full items-start gap-2', isUser ? 'justify-end' : 'justify-start')}>
+                  {!isUser && (
+                    <div className="w-6 h-6 rounded-full overflow-hidden bg-white ring-1 ring-slate-200 flex-shrink-0 mt-0.5">
+                      <img src="/agent-avatar.png" alt="Clara" className="w-full h-full object-cover" />
+                    </div>
+                  )}
                   <div
                     className={cn(
-                      'max-w-[80%] p-3 rounded-2xl text-xs font-medium shadow-sm whitespace-pre-wrap',
+                      'max-w-[80%] p-3 rounded-2xl text-xs font-medium shadow-sm whitespace-pre-wrap break-words',
                       isUser
                         ? 'bg-emerald-600 text-white rounded-tr-none'
                         : 'bg-white border border-slate-100 text-slate-700 rounded-tl-none',
                     )}
                   >
-                    {text}
+                    {isUser ? text : renderMarkdown(text)}
                   </div>
                 </div>
               );
@@ -238,26 +258,32 @@ export function FloatingChatbot() {
         </div>
       )}
 
-      {/* Floating Button */}
+      {/* Floating Button — shows Clara's avatar so partners recognise
+          the same face they'd see on booking-web. Under the hood the
+          system prompt is partner-context (Clara knows partner-specific
+          pricing rules etc. — see app/api/chat/ai/route.ts), but the
+          identity/branding is unified. */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        aria-label={isOpen ? 'Close chat' : 'Open chat'}
+        aria-label={isOpen ? 'Close chat' : 'Open chat with Clara'}
         className={cn(
-          'pointer-events-auto w-14 h-14 bg-emerald-600 rounded-2xl shadow-xl hover:shadow-emerald-500/20 hover:-translate-y-1 active:scale-95 transition-all flex items-center justify-center group border-2 border-white/20',
+          'pointer-events-auto w-14 h-14 rounded-full shadow-xl hover:shadow-emerald-500/30 hover:-translate-y-1 active:scale-95 transition-all flex items-center justify-center group ring-2 ring-white overflow-hidden',
+          isOpen ? 'bg-emerald-600' : 'bg-white',
           hideFabOnMobile && 'hidden lg:flex',
         )}
       >
-        <div className="relative">
-          {isOpen ? <X className="w-6 h-6 text-white" /> : <MessageCircle className="w-6 h-6 text-white" />}
-          {!isOpen && (
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 border-2 border-white rounded-full animate-pulse" />
-          )}
-        </div>
-
+        {isOpen ? (
+          <X className="w-6 h-6 text-white" />
+        ) : (
+          <img src="/agent-avatar.png" alt="Clara" className="w-full h-full object-cover" />
+        )}
         {!isOpen && (
-          <div className="absolute right-full mr-4 px-3 py-2 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap hidden sm:block">
-            Doctor Clean Help
-          </div>
+          <>
+            <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full animate-pulse" />
+            <div className="absolute right-full mr-4 px-3 py-2 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap hidden sm:block">
+              Ask Clara
+            </div>
+          </>
         )}
       </button>
     </div>

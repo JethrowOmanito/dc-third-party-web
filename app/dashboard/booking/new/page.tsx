@@ -1569,8 +1569,11 @@ export default function BookingNewPage() {
   if (isInteriorDesignPartner && !partnerBrand) {
     return (
       <div className="min-h-screen bg-[#f8fafc] -mt-4 sm:-mt-6 pb-16">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-16 lg:pt-24">
-          <div className="bg-white rounded-3xl ring-1 ring-slate-100 shadow-sm p-6 sm:p-10 lg:p-14">
+        {/* Widened from max-w-5xl to max-w-7xl on lg so the card stops
+            floating in a sea of grey on desktop. Cards inside get
+            comfortable min-h + p-12 at the largest breakpoint. */}
+        <div className="max-w-4xl md:max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 pt-8 sm:pt-12 lg:pt-16">
+          <div className="bg-white rounded-3xl ring-1 ring-slate-100 shadow-sm p-6 sm:p-10 lg:p-14 xl:p-16">
             <BrandSelector
               selected={partnerBrand}
               onSelect={(brand) => bookingStore.setPartnerBrand(brand)}

@@ -76,7 +76,7 @@ export default function BrandSelector({ selected, onSelect }: BrandSelectorProps
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 xl:gap-10">
         {BRAND_CARDS.map((card) => {
           const { accent } = card;
           const isSelected = selected === card.key;
@@ -86,7 +86,7 @@ export default function BrandSelector({ selected, onSelect }: BrandSelectorProps
               type="button"
               onClick={() => onSelect(card.key)}
               className={cn(
-                'group relative flex flex-col items-start gap-3 p-6 sm:p-7 lg:p-8 bg-white rounded-2xl ring-1 shadow-sm transition-all text-left hover:-translate-y-0.5 hover:shadow-md active:scale-[0.99] overflow-hidden min-h-[200px] sm:min-h-[240px]',
+                'group relative flex flex-col items-start gap-3 p-6 sm:p-7 lg:p-10 xl:p-12 bg-white rounded-2xl ring-1 shadow-sm transition-all text-left hover:-translate-y-0.5 hover:shadow-md active:scale-[0.99] overflow-hidden min-h-[200px] sm:min-h-[260px] lg:min-h-[320px]',
                 isSelected ? accent.ringActive : accent.ring,
                 isSelected && 'shadow-lg'
               )}
