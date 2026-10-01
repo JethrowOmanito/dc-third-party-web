@@ -179,14 +179,18 @@ export default function CheckAvailabilityPage() {
                   disabled={disabled || !inMonth}
                   className={cn(
                     'relative aspect-square rounded-2xl border transition-all flex flex-col items-center justify-center text-base font-bold',
-                    !inMonth && 'border-slate-100 bg-transparent cursor-default',
+                    // Previous / next month dates are rendered muted so
+                    // the user sees a complete 6-row grid instead of
+                    // empty blocks. Non-interactive — nav via arrows.
+                    !inMonth && 'border-slate-100 bg-slate-50/40 cursor-not-allowed',
+                    !inMonth && (isSun ? 'text-red-200' : 'text-slate-300'),
                     inMonth && isSelected && 'bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-400/30',
                     inMonth && !isSelected && disabled && 'border-slate-100 text-slate-300 cursor-not-allowed',
                     inMonth && !isSelected && !disabled && isSun && 'border-slate-100 text-red-500 hover:bg-red-50 active:scale-[0.97]',
                     inMonth && !isSelected && !disabled && !isSun && 'border-slate-100 text-slate-800 hover:bg-slate-50 hover:border-slate-200 active:scale-[0.97]',
                   )}
                 >
-                  {inMonth ? day.getDate() : ''}
+                  {day.getDate()}
                   {inMonth && isToday && !disabled && (
                     <div className={cn(
                       'absolute bottom-1.5 w-1.5 h-1.5 rounded-full',
