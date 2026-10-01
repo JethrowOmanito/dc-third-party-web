@@ -102,41 +102,26 @@ export default function CheckAvailabilityPage() {
     // slot panel grows with its list. Previous h-[calc(100vh-6rem)]
     // forced the grid to stretch vertically which blew the date-row
     // gaps out to hundreds of pixels on desktop.
-    <div className="max-w-6xl mx-auto">
-      {/* Page preamble — matches the mock's compact title row. The
-          calendar + slot panel cards each carry their own icon header
-          below (sky-blue for the right card, emerald for the left),
-          mirroring the design. */}
-      <div className="flex items-center gap-3 mb-5">
-        <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0">
-          <CalendarDays className="w-6 h-6" />
-        </div>
-        <div className="min-w-0">
-          <h1 className="text-xl font-extrabold text-slate-900 leading-tight">Check Availability</h1>
-          <p className="text-sm text-slate-500 leading-tight mt-0.5">Pick a date to see Deep Cleaning slots.</p>
-        </div>
-      </div>
-
-      {/* 2-column grid — side-by-side on lg+, stacked on mobile. Both
-          columns size to their content; the slot panel can scroll if a
-          date returns many slots. */}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(380px,460px)] gap-5 items-start">
+    // Edge-to-edge white surface, mirroring the booking-wizard fix.
+    // The outer DashboardLayout wraps <main> in p-4/p-6 which previously
+    // leaked slate-50 gutters on both sides. -m cancels all four so the
+    // calendar + slot cards fill the viewport width. No max-w cap: on
+    // ultra-wide screens the 2-col grid naturally caps the slot panel
+    // at 460px and the calendar flexes.
+    //
+    // The DashboardLayout TopBar already renders a "Check Availability"
+    // title + subtitle from its route-title map. We no longer repeat it
+    // here (previous code had 2 extra copies, 3 total on-screen).
+    <div className="min-h-screen bg-white -m-4 sm:-m-6 pb-16">
+      <div className="px-4 sm:px-6 lg:px-10 xl:px-14 pt-5">
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(380px,460px)] gap-5 items-start">
         {/* Calendar card — matches design mock: header strip with
             calendar icon badge, month nav as circular arrow buttons,
             square outlined date cells, legend row at the bottom. */}
         <div className="rounded-3xl bg-white ring-1 ring-slate-100 shadow-sm p-5 lg:p-6">
-          {/* Card title row (mirrors the slot panel's structure) */}
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0">
-              <CalendarDays className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-base font-extrabold text-slate-900 leading-tight">Check Availability</h2>
-              <p className="text-xs text-slate-500 mt-0.5 leading-tight">Deep Cleaning — tap a date to see slots</p>
-            </div>
-          </div>
-
-          {/* Month nav — circular buttons flanking the month label */}
+          {/* Month nav — circular buttons flanking the month label.
+              No duplicate "Check Availability" header here; the TopBar
+              already carries the page title. */}
           <div className="flex items-center justify-between mb-4">
             <button
               type="button"
@@ -252,6 +237,7 @@ export default function CheckAvailabilityPage() {
             <SlotList loading={loading} slots={slots} error={error} unconfigured={unconfigured} />
           </div>
         </div>
+      </div>
       </div>
 
       {/* Mobile bottom sheet — sits ABOVE the mobile bottom nav + iOS
