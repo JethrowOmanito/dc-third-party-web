@@ -11,7 +11,7 @@ import {
   addMonths,
   differenceInCalendarMonths,
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, Loader2, CalendarDays, Clock, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, CalendarDays, Clock, MessageCircle, X } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
@@ -138,34 +138,58 @@ export default function CheckAvailabilityPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex-shrink-0">
-            {DAY_LABELS.map(d => <div key={d}>{d}</div>)}
+          {/* Day-of-week labels — matches booking-web styling (small
+              uppercased tracked, Sunday in red to signal weekend). */}
+          <div className="grid grid-cols-7 mb-2 flex-shrink-0">
+            {DAY_LABELS.map(d => (
+              <div key={d} className="flex items-center justify-center py-1">
+                <span className={cn(
+                  'text-[10px] font-bold uppercase tracking-widest',
+                  d === 'Sun' ? 'text-red-400' : 'text-slate-400',
+                )}>
+                  {d}
+                </span>
+              </div>
+            ))}
           </div>
 
-          <div className="grid grid-cols-7 grid-rows-6 gap-1 flex-1 min-h-0">
+          {/* Date grid — round date cells matching booking-web's wizard
+              calendar for visual consistency across both surfaces. */}
+          <div className="grid grid-cols-7 gap-y-1 flex-1 min-h-0 content-start">
             {gridDays.map((day, idx) => {
               const inMonth = day.getMonth() === monthStart.getMonth();
               const disabled = day < today || day > maxDate;
               const isSelected = isSameDay(day, date);
               const isToday = isSameDay(day, today);
+              const isSun = day.getDay() === 0;
 
               return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => !disabled && inMonth && handleDateSelect(day, true)}
-                  disabled={disabled || !inMonth}
-                  className={cn(
-                    'rounded-lg text-sm font-semibold transition-all flex items-center justify-center min-h-0',
-                    !inMonth && 'opacity-0 pointer-events-none',
-                    isSelected && 'bg-emerald-600 text-white shadow shadow-emerald-500/30',
-                    !isSelected && isToday && 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
-                    !isSelected && !isToday && !disabled && inMonth && 'text-slate-700 hover:bg-slate-100',
-                    disabled && inMonth && 'text-slate-300 cursor-not-allowed'
-                  )}
-                >
-                  {day.getDate()}
-                </button>
+                <div key={idx} className="flex items-center justify-center py-0.5">
+                  <button
+                    type="button"
+                    onClick={() => !disabled && inMonth && handleDateSelect(day, true)}
+                    disabled={disabled || !inMonth}
+                    className={cn(
+                      'relative w-9 h-9 sm:w-11 sm:h-11 rounded-full flex flex-col items-center justify-center transition-all text-sm font-bold leading-none',
+                      !inMonth && 'opacity-0 pointer-events-none',
+                      isSelected
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-400/30'
+                        : disabled
+                        ? 'text-slate-200 cursor-not-allowed'
+                        : isSun
+                        ? 'text-red-400 hover:bg-red-50 active:scale-95'
+                        : 'text-slate-800 hover:bg-slate-100 hover:text-slate-900 active:scale-95',
+                    )}
+                  >
+                    {day.getDate()}
+                    {isToday && !disabled && (
+                      <div className={cn(
+                        'absolute bottom-1 w-1 h-1 rounded-full',
+                        isSelected ? 'bg-white/70' : 'bg-emerald-600',
+                      )} />
+                    )}
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -187,12 +211,23 @@ export default function CheckAvailabilityPage() {
         </div>
       </div>
 
-      {/* Mobile bottom sheet */}
+      {/* Mobile bottom sheet — sits ABOVE the mobile bottom nav + iOS
+          safe area. Previously max-h-[85vh] + fixed-inset-0-items-end
+          put the sheet underneath the bottom nav + the Clara FAB, which
+          clipped the last slot ("Evening Arrival" invisible). Now the
+          sheet reserves 6rem at the bottom for the nav + FAB and the
+          scrollable area carries its own safe-area padding. */}
       {showSheet && (
-        <div className="lg:hidden fixed inset-0 z-50 flex items-end">
+        <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowSheet(false)} />
-          <div className="relative bg-white w-full max-h-[85vh] rounded-t-3xl p-5 overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
+          <div
+            className="relative bg-white w-full rounded-t-3xl flex flex-col shadow-2xl"
+            style={{
+              maxHeight: 'calc(100vh - 6rem - env(safe-area-inset-bottom, 0px))',
+              marginBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))',
+            }}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
               <div>
                 <h2 className="text-base font-bold text-slate-900">
                   {format(date, 'EEEE, MMM d')}
@@ -209,7 +244,9 @@ export default function CheckAvailabilityPage() {
                 <X className="w-4 h-4 text-slate-500" />
               </button>
             </div>
-            <SlotList loading={loading} slots={slots} error={error} unconfigured={unconfigured} />
+            <div className="overflow-y-auto flex-1 p-4" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px))' }}>
+              <SlotList loading={loading} slots={slots} error={error} unconfigured={unconfigured} />
+            </div>
           </div>
         </div>
       )}
@@ -343,6 +380,32 @@ function SlotList({
           </div>
         );
       })}
+
+      {/* WhatsApp admin CTA — anchored at the bottom of the slot list so
+          partners always have an escape hatch when a date is full / too
+          soon / unconfigured. Opens a prefilled chat so Ganesh sees the
+          intent immediately. */}
+      <a
+        href="https://wa.me/6588656751?text=Hi%20Doctor%20Clean%2C%20I%27d%20like%20to%20check%20availability%20or%20book%20outside%20the%20listed%20slots."
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-2 flex items-center justify-between gap-3 p-3 rounded-lg border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100 transition-colors"
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center flex-shrink-0">
+            <MessageCircle className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-slate-900 leading-tight">Chat admin via WhatsApp</p>
+            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+              All slots full or need a custom window? We&apos;ll sort it on WA.
+            </p>
+          </div>
+        </div>
+        <span className="text-[11px] font-bold text-emerald-700 bg-white px-2 py-1 rounded-md flex-shrink-0 border border-emerald-200">
+          Chat
+        </span>
+      </a>
     </div>
   );
 }
