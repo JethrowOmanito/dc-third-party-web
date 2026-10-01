@@ -98,9 +98,11 @@ export default function CheckAvailabilityPage() {
   };
 
   return (
-    // Lock the page to viewport height so nothing scrolls the layout itself.
-    // Calendar cells auto-size to fill available space via CSS grid + minmax.
-    <div className="max-w-6xl mx-auto flex flex-col h-[calc(100vh-6rem)] min-h-[520px]">
+    // Natural height — the calendar sizes to its 6-row content and the
+    // slot panel grows with its list. Previous h-[calc(100vh-6rem)]
+    // forced the grid to stretch vertically which blew the date-row
+    // gaps out to hundreds of pixels on desktop.
+    <div className="max-w-6xl mx-auto">
       {/* Inline header */}
       <div className="flex items-center gap-3 mb-4">
         <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600">
@@ -112,11 +114,13 @@ export default function CheckAvailabilityPage() {
         </div>
       </div>
 
-      {/* 2-column grid that fills remaining vertical space */}
-      <div className="flex-1 min-h-0 grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] gap-4">
-        {/* Calendar — auto-fills its column */}
-        <div className="rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm p-4 flex flex-col min-h-0">
-          <div className="flex items-center justify-between mb-3 flex-shrink-0">
+      {/* 2-column grid — side-by-side on lg+, stacked on mobile. Both
+          columns size to their content; the slot panel can scroll if a
+          date returns many slots. */}
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] gap-4 items-start">
+        {/* Calendar */}
+        <div className="rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm p-4">
+          <div className="flex items-center justify-between mb-3">
             <button
               type="button"
               onClick={() => setMonthOffset(o => Math.max(0, o - 1))}
@@ -140,7 +144,7 @@ export default function CheckAvailabilityPage() {
 
           {/* Day-of-week labels — matches booking-web styling (small
               uppercased tracked, Sunday in red to signal weekend). */}
-          <div className="grid grid-cols-7 mb-2 flex-shrink-0">
+          <div className="grid grid-cols-7 mb-2">
             {DAY_LABELS.map(d => (
               <div key={d} className="flex items-center justify-center py-1">
                 <span className={cn(
@@ -153,9 +157,10 @@ export default function CheckAvailabilityPage() {
             ))}
           </div>
 
-          {/* Date grid — round date cells matching booking-web's wizard
-              calendar for visual consistency across both surfaces. */}
-          <div className="grid grid-cols-7 gap-y-1 flex-1 min-h-0 content-start">
+          {/* Date grid — round cells matching booking-web's wizard. No
+              forced grid-rows / flex-1 so rows size to the date buttons
+              (46-48px with py-0.5 padding), not the viewport. */}
+          <div className="grid grid-cols-7 gap-y-1">
             {gridDays.map((day, idx) => {
               const inMonth = day.getMonth() === monthStart.getMonth();
               const disabled = day < today || day > maxDate;
@@ -195,9 +200,12 @@ export default function CheckAvailabilityPage() {
           </div>
         </div>
 
-        {/* Slots panel — inline on desktop, sheet on mobile */}
-        <div className="hidden lg:flex flex-col rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm min-h-0">
-          <div className="px-4 py-3 border-b border-slate-100 flex-shrink-0">
+        {/* Slots panel — inline on desktop, sheet on mobile. Natural
+            height; the list scrolls if a date returns many slots but
+            short lists sit at content height (not a stretched viewport
+            box). */}
+        <div className="hidden lg:flex flex-col rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm max-h-[calc(100vh-10rem)]">
+          <div className="px-4 py-3 border-b border-slate-100">
             <h2 className="text-sm font-bold text-slate-900 leading-tight">
               {format(date, 'EEEE, MMM d')}
             </h2>
@@ -205,7 +213,7 @@ export default function CheckAvailabilityPage() {
               {loading ? 'Loading slots…' : unconfigured ? 'Not yet configured' : `${availableCount} slot${availableCount !== 1 ? 's' : ''} available`}
             </p>
           </div>
-          <div className="p-3 flex-1 overflow-y-auto min-h-0">
+          <div className="p-3 overflow-y-auto">
             <SlotList loading={loading} slots={slots} error={error} unconfigured={unconfigured} />
           </div>
         </div>
