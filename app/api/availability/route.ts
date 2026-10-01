@@ -87,19 +87,29 @@ export async function GET(req: NextRequest) {
   }
 
   type CapacityRow = { Start_Time: string | null; End_Time: string | null; capacity: number | null; booked_count: number | null };
+  const { isSlotTooSoon } = await import('@/lib/utils');
   const slots = (rows as unknown as CapacityRow[]).map((row) => {
     const meta = slotMeta[row.Start_Time ?? ''];
     // Fail closed on null capacity — a misconfigured slot must NOT accept
     // unlimited bookings. Ops should see the slot as unavailable and fix it.
-    const available = (row.booked_count ?? 0) < (row.capacity ?? 0);
+    const hasCapacity = (row.booked_count ?? 0) < (row.capacity ?? 0);
     const rawStart = row.Start_Time ?? '';
     const rawEnd = row.End_Time ?? '';
+    const start = meta?.start ?? (rawStart ? fmtTime(rawStart) : rawStart);
+    const end = meta?.end ?? (rawEnd ? fmtTime(rawEnd) : rawEnd);
+    // Same-day 2 h lead-time gate — mirrors booking-web + the booking
+    // wizard. tooSoon surfaces as its own flag so the UI can show a
+    // distinct label ("Pick later") instead of mislabeling as "Full".
+    const tooSoon = isSlotTooSoon(date, start);
+    const available = hasCapacity && !tooSoon;
     return {
-      start: meta?.start ?? (rawStart ? fmtTime(rawStart) : rawStart),
-      end: meta?.end ?? (rawEnd ? fmtTime(rawEnd) : rawEnd),
+      start,
+      end,
       label: meta?.label ?? (rawStart ? fmtTime(rawStart) : rawStart),
       fee: meta?.fee ?? 0,
       available,
+      tooSoon,
+      full: !hasCapacity,
     };
   });
 

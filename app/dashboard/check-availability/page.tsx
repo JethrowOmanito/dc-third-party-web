@@ -21,6 +21,11 @@ type Slot = {
   label: string;
   fee: number;
   available: boolean;
+  // Server flags added for the 2 h same-day lead-time gate. Lets the UI
+  // distinguish 'Full' (capacity exhausted) from 'Too soon' (within the
+  // 2 h window on today) instead of lumping both as "Full".
+  tooSoon?: boolean;
+  full?: boolean;
 };
 
 type ApiResponse = {
@@ -254,50 +259,90 @@ function SlotList({
   }
 
   return (
-    <div className="space-y-1.5">
-      {slots.map((s, i) => (
-        <div
-          key={i}
-          className={cn(
-            'flex items-center justify-between p-2.5 rounded-lg border transition',
-            s.available
-              ? 'border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50'
-              : 'border-slate-200 bg-slate-50 opacity-60'
-          )}
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <div
-              className={cn(
-                'w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0',
-                s.available ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-400'
-              )}
-            >
-              <Clock className="w-3.5 h-3.5" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-slate-900 truncate leading-tight">{s.label}</p>
-              <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
-                {s.start} — {s.end}
-                {s.fee > 0 && <span className="text-orange-500 font-medium"> · +S${s.fee}</span>}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            {s.available ? (
-              <Link
-                href="/dashboard/booking/new"
-                className="text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-2 py-1 rounded-md transition"
-              >
-                Book
-              </Link>
-            ) : (
-              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
-                Full
-              </span>
-            )}
-          </div>
+    <div className="space-y-2.5">
+      {/* Legend — explains the three slot states so partners don't have to
+          guess what "greyed out" means. */}
+      <div className="flex flex-wrap gap-x-3 gap-y-1.5 items-center px-2 py-2 rounded-lg bg-slate-50 border border-slate-100">
+        <div className="inline-flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+          <span className="text-[11px] font-semibold text-slate-600">Available</span>
         </div>
-      ))}
+        <div className="inline-flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-orange-400" />
+          <span className="text-[11px] font-semibold text-slate-600">Full</span>
+        </div>
+        <div className="inline-flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-slate-300" />
+          <span className="text-[11px] font-semibold text-slate-600">Too soon (≥ 2 h lead)</span>
+        </div>
+      </div>
+
+      {slots.map((s, i) => {
+        // Three-state styling. Server now flags tooSoon separately from
+        // full so we can show distinct copy/colour instead of lumping
+        // both under one grey "Full" chip.
+        const state: 'available' | 'full' | 'too_soon' =
+          s.tooSoon ? 'too_soon' : s.full ? 'full' : s.available ? 'available' : 'full';
+        return (
+          <div
+            key={i}
+            className={cn(
+              'flex items-center justify-between p-3 rounded-lg border transition',
+              state === 'available' && 'border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50',
+              state === 'full'      && 'border-orange-100 bg-orange-50/40',
+              state === 'too_soon'  && 'border-slate-200 bg-slate-50 opacity-70',
+            )}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={cn(
+                  'w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0',
+                  state === 'available' && 'bg-emerald-100 text-emerald-600',
+                  state === 'full'      && 'bg-orange-100 text-orange-600',
+                  state === 'too_soon'  && 'bg-slate-200 text-slate-400',
+                )}
+              >
+                <Clock className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900 truncate leading-tight">{s.label}</p>
+                <p className="text-xs text-slate-500 mt-1 leading-snug">
+                  {s.start} — {s.end}
+                  {s.fee > 0 && <span className="text-orange-600 font-semibold"> · +S${s.fee}</span>}
+                </p>
+                {state === 'too_soon' && (
+                  <p className="text-[11px] text-slate-500 font-semibold mt-1 leading-snug">
+                    Too soon — needs ≥ 2 h lead time. Pick a later slot or tomorrow.
+                  </p>
+                )}
+                {state === 'full' && (
+                  <p className="text-[11px] text-orange-700 font-semibold mt-1 leading-snug">
+                    Fully booked — try another slot or waitlist via admin.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {state === 'available' ? (
+                <Link
+                  href="/dashboard/booking/new"
+                  className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-md transition"
+                >
+                  Book
+                </Link>
+              ) : state === 'full' ? (
+                <span className="text-[11px] font-bold text-orange-700 bg-orange-100 px-2.5 py-1 rounded-md">
+                  Full
+                </span>
+              ) : (
+                <span className="text-[11px] font-bold text-slate-500 bg-slate-200 px-2.5 py-1 rounded-md">
+                  Too soon
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
