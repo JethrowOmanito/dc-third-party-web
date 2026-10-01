@@ -103,53 +103,71 @@ export default function CheckAvailabilityPage() {
     // forced the grid to stretch vertically which blew the date-row
     // gaps out to hundreds of pixels on desktop.
     <div className="max-w-6xl mx-auto">
-      {/* Inline header */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600">
-          <CalendarDays className="w-5 h-5" />
+      {/* Page preamble — matches the mock's compact title row. The
+          calendar + slot panel cards each carry their own icon header
+          below (sky-blue for the right card, emerald for the left),
+          mirroring the design. */}
+      <div className="flex items-center gap-3 mb-5">
+        <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0">
+          <CalendarDays className="w-6 h-6" />
         </div>
         <div className="min-w-0">
-          <h1 className="text-lg font-bold text-slate-900 leading-tight">Check Availability</h1>
-          <p className="text-xs text-slate-500 leading-tight">Deep Cleaning — tap a date to see slots</p>
+          <h1 className="text-xl font-extrabold text-slate-900 leading-tight">Check Availability</h1>
+          <p className="text-sm text-slate-500 leading-tight mt-0.5">Pick a date to see Deep Cleaning slots.</p>
         </div>
       </div>
 
       {/* 2-column grid — side-by-side on lg+, stacked on mobile. Both
           columns size to their content; the slot panel can scroll if a
           date returns many slots. */}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] gap-4 items-start">
-        {/* Calendar */}
-        <div className="rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm p-4">
-          <div className="flex items-center justify-between mb-3">
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(380px,460px)] gap-5 items-start">
+        {/* Calendar card — matches design mock: header strip with
+            calendar icon badge, month nav as circular arrow buttons,
+            square outlined date cells, legend row at the bottom. */}
+        <div className="rounded-3xl bg-white ring-1 ring-slate-100 shadow-sm p-5 lg:p-6">
+          {/* Card title row (mirrors the slot panel's structure) */}
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0">
+              <CalendarDays className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-base font-extrabold text-slate-900 leading-tight">Check Availability</h2>
+              <p className="text-xs text-slate-500 mt-0.5 leading-tight">Deep Cleaning — tap a date to see slots</p>
+            </div>
+          </div>
+
+          {/* Month nav — circular buttons flanking the month label */}
+          <div className="flex items-center justify-between mb-4">
             <button
               type="button"
               onClick={() => setMonthOffset(o => Math.max(0, o - 1))}
               disabled={monthOffset === 0}
-              className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+              aria-label="Previous month"
+              className="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition flex items-center justify-center"
             >
               <ChevronLeft className="w-4 h-4 text-slate-600" />
             </button>
-            <div className="text-base font-bold text-slate-800">
+            <div className="text-lg font-extrabold text-slate-900">
               {format(monthStart, 'MMMM yyyy')}
             </div>
             <button
               type="button"
               onClick={() => setMonthOffset(o => Math.min(maxMonthOffset, o + 1))}
               disabled={monthOffset === maxMonthOffset}
-              className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+              aria-label="Next month"
+              className="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition flex items-center justify-center"
             >
               <ChevronRight className="w-4 h-4 text-slate-600" />
             </button>
           </div>
 
-          {/* Day-of-week labels — matches booking-web styling (small
-              uppercased tracked, Sunday in red to signal weekend). */}
-          <div className="grid grid-cols-7 mb-2">
+          {/* Day-of-week labels */}
+          <div className="grid grid-cols-7 gap-1.5 mb-2">
             {DAY_LABELS.map(d => (
               <div key={d} className="flex items-center justify-center py-1">
                 <span className={cn(
                   'text-[10px] font-bold uppercase tracking-widest',
-                  d === 'Sun' ? 'text-red-400' : 'text-slate-400',
+                  d === 'Sun' ? 'text-red-500' : 'text-slate-400',
                 )}>
                   {d}
                 </span>
@@ -157,10 +175,10 @@ export default function CheckAvailabilityPage() {
             ))}
           </div>
 
-          {/* Date grid — round cells matching booking-web's wizard. No
-              forced grid-rows / flex-1 so rows size to the date buttons
-              (46-48px with py-0.5 padding), not the viewport. */}
-          <div className="grid grid-cols-7 gap-y-1">
+          {/* Date grid — square outlined cells per the mock. Empty cells
+              in the leading/trailing week rows still render with the
+              light border so the grid reads as a cohesive block. */}
+          <div className="grid grid-cols-7 gap-1.5">
             {gridDays.map((day, idx) => {
               const inMonth = day.getMonth() === monthStart.getMonth();
               const disabled = day < today || day > maxDate;
@@ -169,51 +187,68 @@ export default function CheckAvailabilityPage() {
               const isSun = day.getDay() === 0;
 
               return (
-                <div key={idx} className="flex items-center justify-center py-0.5">
-                  <button
-                    type="button"
-                    onClick={() => !disabled && inMonth && handleDateSelect(day, true)}
-                    disabled={disabled || !inMonth}
-                    className={cn(
-                      'relative w-9 h-9 sm:w-11 sm:h-11 rounded-full flex flex-col items-center justify-center transition-all text-sm font-bold leading-none',
-                      !inMonth && 'opacity-0 pointer-events-none',
-                      isSelected
-                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-400/30'
-                        : disabled
-                        ? 'text-slate-200 cursor-not-allowed'
-                        : isSun
-                        ? 'text-red-400 hover:bg-red-50 active:scale-95'
-                        : 'text-slate-800 hover:bg-slate-100 hover:text-slate-900 active:scale-95',
-                    )}
-                  >
-                    {day.getDate()}
-                    {isToday && !disabled && (
-                      <div className={cn(
-                        'absolute bottom-1 w-1 h-1 rounded-full',
-                        isSelected ? 'bg-white/70' : 'bg-emerald-600',
-                      )} />
-                    )}
-                  </button>
-                </div>
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => !disabled && inMonth && handleDateSelect(day, true)}
+                  disabled={disabled || !inMonth}
+                  className={cn(
+                    'relative aspect-square rounded-2xl border transition-all flex flex-col items-center justify-center text-base font-bold',
+                    !inMonth && 'border-slate-100 bg-transparent cursor-default',
+                    inMonth && isSelected && 'bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-400/30',
+                    inMonth && !isSelected && disabled && 'border-slate-100 text-slate-300 cursor-not-allowed',
+                    inMonth && !isSelected && !disabled && isSun && 'border-slate-100 text-red-500 hover:bg-red-50 active:scale-[0.97]',
+                    inMonth && !isSelected && !disabled && !isSun && 'border-slate-100 text-slate-800 hover:bg-slate-50 hover:border-slate-200 active:scale-[0.97]',
+                  )}
+                >
+                  {inMonth ? day.getDate() : ''}
+                  {inMonth && isToday && !disabled && (
+                    <div className={cn(
+                      'absolute bottom-1.5 w-1.5 h-1.5 rounded-full',
+                      isSelected ? 'bg-white' : 'bg-emerald-500',
+                    )} />
+                  )}
+                </button>
               );
             })}
           </div>
+
+          {/* Legend row — matches the slot panel's legend so partners
+              see the same key next to the date they pick. */}
+          <div className="mt-5 px-4 py-3 rounded-2xl bg-slate-50/70 flex flex-wrap gap-x-5 gap-y-2 items-center">
+            <div className="inline-flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              <span className="text-xs font-semibold text-slate-600">Available</span>
+            </div>
+            <div className="inline-flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-orange-400" />
+              <span className="text-xs font-semibold text-slate-600">Full</span>
+            </div>
+            <div className="inline-flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-slate-300" />
+              <span className="text-xs font-semibold text-slate-600">Too soon (≥ 2 h lead)</span>
+            </div>
+          </div>
         </div>
 
-        {/* Slots panel — inline on desktop, sheet on mobile. Natural
-            height; the list scrolls if a date returns many slots but
-            short lists sit at content height (not a stretched viewport
-            box). */}
-        <div className="hidden lg:flex flex-col rounded-2xl bg-white ring-1 ring-slate-100 shadow-sm max-h-[calc(100vh-10rem)]">
-          <div className="px-4 py-3 border-b border-slate-100">
-            <h2 className="text-sm font-bold text-slate-900 leading-tight">
-              {format(date, 'EEEE, MMM d')}
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5 leading-tight">
-              {loading ? 'Loading slots…' : unconfigured ? 'Not yet configured' : `${availableCount} slot${availableCount !== 1 ? 's' : ''} available`}
-            </p>
+        {/* Slots panel — matches the design mock: light-blue calendar
+            icon badge in the header, inline legend pills, slot cards
+            with coloured clock badges + chevron. */}
+        <div className="hidden lg:flex flex-col rounded-3xl bg-white ring-1 ring-slate-100 shadow-sm max-h-[calc(100vh-10rem)] p-5">
+          <div className="flex items-center gap-3 pb-4 border-b border-slate-100 flex-shrink-0">
+            <div className="w-11 h-11 rounded-xl bg-sky-100 flex items-center justify-center text-sky-600 flex-shrink-0">
+              <CalendarDays className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-base font-extrabold text-slate-900 leading-tight">
+                {format(date, 'EEEE, MMM d')}
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5 leading-tight">
+                {loading ? 'Loading slots…' : unconfigured ? 'Not yet configured' : `${availableCount} slot${availableCount !== 1 ? 's' : ''} available`}
+              </p>
+            </div>
           </div>
-          <div className="p-3 overflow-y-auto">
+          <div className="pt-4 overflow-y-auto flex-1">
             <SlotList loading={loading} slots={slots} error={error} unconfigured={unconfigured} />
           </div>
         </div>
@@ -304,115 +339,122 @@ function SlotList({
   }
 
   return (
-    <div className="space-y-2.5">
-      {/* Legend — explains the three slot states so partners don't have to
-          guess what "greyed out" means. */}
-      <div className="flex flex-wrap gap-x-3 gap-y-1.5 items-center px-2 py-2 rounded-lg bg-slate-50 border border-slate-100">
-        <div className="inline-flex items-center gap-1.5">
+    <div className="space-y-3">
+      {/* Legend — pill style matching the mock. Each state gets its own
+          soft-tinted pill so it reads at a glance. */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-100">
           <span className="w-2 h-2 rounded-full bg-emerald-500" />
-          <span className="text-[11px] font-semibold text-slate-600">Available</span>
-        </div>
-        <div className="inline-flex items-center gap-1.5">
+          <span className="text-xs font-semibold text-emerald-700">Available</span>
+        </span>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-50 border border-orange-100">
           <span className="w-2 h-2 rounded-full bg-orange-400" />
-          <span className="text-[11px] font-semibold text-slate-600">Full</span>
-        </div>
-        <div className="inline-flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-slate-300" />
-          <span className="text-[11px] font-semibold text-slate-600">Too soon (≥ 2 h lead)</span>
-        </div>
+          <span className="text-xs font-semibold text-orange-700">Full</span>
+        </span>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200">
+          <span className="w-2 h-2 rounded-full bg-slate-400" />
+          <span className="text-xs font-semibold text-slate-600">Too soon (≥ 2 h lead)</span>
+        </span>
       </div>
 
       {slots.map((s, i) => {
-        // Three-state styling. Server now flags tooSoon separately from
-        // full so we can show distinct copy/colour instead of lumping
-        // both under one grey "Full" chip.
         const state: 'available' | 'full' | 'too_soon' =
           s.tooSoon ? 'too_soon' : s.full ? 'full' : s.available ? 'available' : 'full';
-        return (
-          <div
-            key={i}
-            className={cn(
-              'flex items-center justify-between p-3 rounded-lg border transition',
-              state === 'available' && 'border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50',
-              state === 'full'      && 'border-orange-100 bg-orange-50/40',
-              state === 'too_soon'  && 'border-slate-200 bg-slate-50 opacity-70',
-            )}
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div
-                className={cn(
-                  'w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0',
-                  state === 'available' && 'bg-emerald-100 text-emerald-600',
-                  state === 'full'      && 'bg-orange-100 text-orange-600',
-                  state === 'too_soon'  && 'bg-slate-200 text-slate-400',
-                )}
-              >
-                <Clock className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900 truncate leading-tight">{s.label}</p>
-                <p className="text-xs text-slate-500 mt-1 leading-snug">
-                  {s.start} — {s.end}
-                  {s.fee > 0 && <span className="text-orange-600 font-semibold"> · +S${s.fee}</span>}
-                </p>
-                {state === 'too_soon' && (
-                  <p className="text-[11px] text-slate-500 font-semibold mt-1 leading-snug">
-                    Too soon — needs ≥ 2 h lead time. Pick a later slot or tomorrow.
-                  </p>
-                )}
-                {state === 'full' && (
-                  <p className="text-[11px] text-orange-700 font-semibold mt-1 leading-snug">
-                    Fully booked — try another slot or waitlist via admin.
-                  </p>
-                )}
-              </div>
+        const isClickable = state === 'available';
+        const content = (
+          <>
+            {/* Clock badge — colour reflects state */}
+            <div
+              className={cn(
+                'w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0',
+                state === 'available' && 'bg-emerald-100 text-emerald-600',
+                state === 'full'      && 'bg-orange-100 text-orange-500',
+                state === 'too_soon'  && 'bg-slate-200 text-slate-400',
+              )}
+            >
+              <Clock className="w-5 h-5" />
             </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-extrabold text-slate-900 leading-tight">{s.label}</p>
+              <p className="inline-flex items-center gap-1.5 text-xs text-slate-500 mt-1 leading-snug">
+                <Clock className="w-3 h-3 text-slate-400" />
+                {s.start} — {s.end}
+                {s.fee > 0 && <span className="text-orange-600 font-bold ml-1">+S${s.fee}</span>}
+              </p>
+              {state === 'too_soon' && (
+                <p className="text-xs text-slate-500 font-semibold mt-1.5 leading-snug">
+                  Too soon — needs ≥ 2 h lead time. Pick a later slot or tomorrow.
+                </p>
+              )}
+              {state === 'full' && (
+                <p className="text-xs text-orange-700 font-semibold mt-1.5 leading-snug">
+                  Fully booked — try another slot or waitlist via admin.
+                </p>
+              )}
+            </div>
+            {/* Right-side action: chip or button + chevron */}
+            <div className="flex items-center gap-2 flex-shrink-0">
               {state === 'available' ? (
-                <Link
-                  href="/dashboard/booking/new"
-                  className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-md transition"
-                >
+                <span className="text-xs font-black text-white bg-emerald-600 group-hover:bg-emerald-700 px-3 py-1.5 rounded-lg transition">
                   Book
-                </Link>
+                </span>
               ) : state === 'full' ? (
-                <span className="text-[11px] font-bold text-orange-700 bg-orange-100 px-2.5 py-1 rounded-md">
+                <span className="text-xs font-bold text-orange-700 bg-orange-100 px-3 py-1.5 rounded-lg">
                   Full
                 </span>
               ) : (
-                <span className="text-[11px] font-bold text-slate-500 bg-slate-200 px-2.5 py-1 rounded-md">
+                <span className="text-xs font-bold text-slate-500 bg-slate-200 px-3 py-1.5 rounded-lg">
                   Too soon
                 </span>
               )}
+              <ChevronRight className={cn(
+                'w-4 h-4',
+                state === 'available' ? 'text-emerald-500' : 'text-slate-300',
+              )} />
             </div>
+          </>
+        );
+        const className = cn(
+          'group flex items-center gap-3 p-4 rounded-2xl border transition',
+          state === 'available' && 'border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 hover:border-emerald-300',
+          state === 'full'      && 'border-orange-100 bg-orange-50/50',
+          state === 'too_soon'  && 'border-slate-200 bg-slate-50',
+          !isClickable && 'cursor-default',
+        );
+        return isClickable ? (
+          <Link key={i} href="/dashboard/booking/new" className={className}>
+            {content}
+          </Link>
+        ) : (
+          <div key={i} className={className}>
+            {content}
           </div>
         );
       })}
 
-      {/* WhatsApp admin CTA — anchored at the bottom of the slot list so
-          partners always have an escape hatch when a date is full / too
-          soon / unconfigured. Opens a prefilled chat so Ganesh sees the
-          intent immediately. */}
+      {/* WhatsApp admin CTA — matches the mock: solid green circle with
+          WhatsApp-style icon, outlined 'Chat' pill on the right. */}
       <a
         href="https://wa.me/6588656751?text=Hi%20Doctor%20Clean%2C%20I%27d%20like%20to%20check%20availability%20or%20book%20outside%20the%20listed%20slots."
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-2 flex items-center justify-between gap-3 p-3 rounded-lg border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100 transition-colors"
+        className="group flex items-center gap-3 p-4 rounded-2xl border border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 hover:border-emerald-300 transition"
       >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center flex-shrink-0">
-            <MessageCircle className="w-4 h-4" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-slate-900 leading-tight">Chat admin via WhatsApp</p>
-            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-              All slots full or need a custom window? We&apos;ll sort it on WA.
-            </p>
-          </div>
+        <div className="w-11 h-11 rounded-full bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+          <MessageCircle className="w-5 h-5" />
         </div>
-        <span className="text-[11px] font-bold text-emerald-700 bg-white px-2 py-1 rounded-md flex-shrink-0 border border-emerald-200">
-          Chat
-        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-extrabold text-slate-900 leading-tight">Chat admin via WhatsApp</p>
+          <p className="text-xs text-slate-500 mt-1 leading-snug">
+            All slots full or need a custom window? We&apos;ll sort it on WA.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-xs font-black text-emerald-700 bg-white px-3 py-1.5 rounded-lg border border-emerald-300 group-hover:bg-emerald-100 transition">
+            Chat
+          </span>
+          <ChevronRight className="w-4 h-4 text-emerald-500" />
+        </div>
       </a>
     </div>
   );
