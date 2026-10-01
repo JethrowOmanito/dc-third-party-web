@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   const [{ data: rows, error }, { data: slotConfigs }] = await Promise.all([
     admin
       .from('Capacity')
-      .select('"Start_Time", "End_Time", capacity, booked_count')
+      .select('"Start_Time", "End_Time", capacity, booked_count, manual_reserved')
       .eq('date_capacity', date)
       .eq('service', 'Float')
       .order('"Start_Time"')
@@ -86,13 +86,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ unconfigured: true, slots: [] });
   }
 
-  type CapacityRow = { Start_Time: string | null; End_Time: string | null; capacity: number | null; booked_count: number | null };
+  type CapacityRow = { Start_Time: string | null; End_Time: string | null; capacity: number | null; booked_count: number | null; manual_reserved: number | null };
   const { isSlotTooSoon } = await import('@/lib/utils');
   const slots = (rows as unknown as CapacityRow[]).map((row) => {
     const meta = slotMeta[row.Start_Time ?? ''];
     // Fail closed on null capacity — a misconfigured slot must NOT accept
     // unlimited bookings. Ops should see the slot as unavailable and fix it.
-    const hasCapacity = (row.booked_count ?? 0) < (row.capacity ?? 0);
+    // Honor admin override via manual_reserved (can be negative since
+    // 2026-10-01). Partners must not bypass what ops set here.
+    const effectiveBooked = (row.booked_count ?? 0) + (row.manual_reserved ?? 0);
+    const hasCapacity = effectiveBooked < (row.capacity ?? 0);
     const rawStart = row.Start_Time ?? '';
     const rawEnd = row.End_Time ?? '';
     const start = meta?.start ?? (rawStart ? fmtTime(rawStart) : rawStart);

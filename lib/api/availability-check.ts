@@ -117,7 +117,7 @@ export async function validateBookingAvailability(
   // 2. Check Capacity Table (Fixed daily slot limits)
   const { data: capRecords, error: capError } = await supabase
     .from('Capacity')
-    .select('id, capacity, booked_count, Start_Time, End_Time')
+    .select('id, capacity, booked_count, manual_reserved, Start_Time, End_Time')
     .eq('date_capacity', date)
     .eq('service', dbService);
 
@@ -147,7 +147,9 @@ export async function validateBookingAvailability(
     });
 
     if (slotRecord) {
-      const booked = slotRecord.booked_count || 0;
+      // Honor admin override via manual_reserved (can be negative since
+      // 2026-10-01). Partners must not bypass what ops set here.
+      const effectiveBooked = (slotRecord.booked_count || 0) + (slotRecord.manual_reserved || 0);
       const limit = slotRecord.capacity || 0;
       // For Float, use the shared sqft-aware helper (same one booking-web
       // uses on create/slots) so partner-portal + retail reserve the same
@@ -156,10 +158,11 @@ export async function validateBookingAvailability(
       const slotsNeeded = dbService === 'Float'
         ? getFloatSlotWeight(propertyType, unitSubType).primary
         : 1;
-      if (booked + slotsNeeded > limit) {
+      if (effectiveBooked + slotsNeeded > limit) {
+        const displayBooked = Math.max(0, effectiveBooked);
         return {
           available: false,
-          reason: `The ${startTimeDisplay} slot is fully booked for ${dbService} (${booked}/${limit}).`,
+          reason: `The ${startTimeDisplay} slot is fully booked for ${dbService} (${displayBooked}/${limit}).`,
           errorCode: 'CAPACITY_FULL'
         };
       }
