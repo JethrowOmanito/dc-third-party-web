@@ -36,7 +36,7 @@ const BRAND_CARDS: {
     key: 'tcc',
     title: 'The Cleaning Crew',
     subtitle: 'powered by Doctor Clean',
-    tagline: 'Standard cleaning',
+    tagline: 'General clean for floors, bathrooms, kitchens, and surfaces — standard equipment, standard rates.',
     logo: null,
     accent: {
       ring: 'ring-slate-100',
@@ -49,7 +49,7 @@ const BRAND_CARDS: {
     key: 'doctor_clean_id',
     title: 'Doctor Clean',
     subtitle: 'Interior Designer',
-    tagline: 'Deep cleaning + renovation, 10% ID rebate',
+    tagline: 'Specialised post-renovation clean for construction dust and cement haze — equipment provided, with a 10% ID rebate.',
     logo: '/doctor-clean-logo.png',
     accent: {
       ring: 'ring-slate-100',

@@ -57,7 +57,7 @@ const LOGO_URL =
 const MERLION_URL =
   'https://agyzvknaqnamaoczxgsb.supabase.co/storage/v1/object/public/doctor-clean-files/uploads/DC_merlion_login.png';
 const TEAM_URL =
-  'https://agyzvknaqnamaoczxgsb.supabase.co/storage/v1/object/public/doctor-clean-files/uploads/DC_Team.png';
+  'https://agyzvknaqnamaoczxgsb.supabase.co/storage/v1/object/public/doctor-clean-files/uploads/DC_Team.png?v=20260928-3';
 
 const FEATURES = [
   { Icon: Calendar,    title: 'Manage Bookings',    desc: 'Track and manage all cleaning jobs in one place.' },
