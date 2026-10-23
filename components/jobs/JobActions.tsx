@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CalendarClock, XCircle, Loader2, AlertTriangle, Info } from 'lucide-react';
 
 type JobLite = {
@@ -113,6 +113,10 @@ function CancelModal({
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const doneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (doneTimer.current) clearTimeout(doneTimer.current);
+  }, []);
 
   const loadPreview = useCallback(() => {
     setPreviewErr(null);
@@ -145,7 +149,15 @@ function CancelModal({
       });
       const body = await res.json();
       if (!res.ok) {
-        setSubmitErr(body?.error ?? 'Cancel failed.');
+        // Server rejected a stale fee token (10-min TTL expired while the
+        // modal was open). Auto-reload the preview so the user sees the
+        // fresh amount instead of having to close + reopen.
+        if (body?.errorCode === 'fee_token_expired') {
+          setSubmitErr('The fee quote expired. Please review the updated amount and confirm again.');
+          loadPreview();
+        } else {
+          setSubmitErr(body?.error ?? 'Cancel failed.');
+        }
       } else {
         const refund = body.refund ? ` Refund S$${Number(body.refund).toFixed(2)} will arrive in 5-10 business days.` : '';
         const feeNote =
@@ -153,7 +165,7 @@ function CancelModal({
             ? ` A fee of S$${Number(body.fee_amount).toFixed(2)} (incl. GST) has been added to your end-of-month invoice.`
             : '';
         setSuccess(`Booking cancelled.${refund}${feeNote}`);
-        setTimeout(onDone, 2200);
+        doneTimer.current = setTimeout(onDone, 2200);
       }
     } catch {
       setSubmitErr('Network error. Please try again.');
@@ -257,6 +269,10 @@ function RescheduleModal({
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const doneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (doneTimer.current) clearTimeout(doneTimer.current);
+  }, []);
 
   const loadPreview = useCallback(() => {
     setPreviewErr(null);
@@ -298,14 +314,19 @@ function RescheduleModal({
       });
       const body = await res.json();
       if (!res.ok) {
-        setSubmitErr(body?.error ?? 'Reschedule failed.');
+        if (body?.errorCode === 'fee_token_expired') {
+          setSubmitErr('The fee quote expired. Please review the updated amount and confirm again.');
+          loadPreview();
+        } else {
+          setSubmitErr(body?.error ?? 'Reschedule failed.');
+        }
       } else {
         const feeNote =
           body.fee_amount > 0
             ? ` A fee of S$${Number(body.fee_amount).toFixed(2)} (incl. GST)${body.billing === 'eom_invoice' ? ' will be added to your end-of-month invoice.' : ' will be collected.'}`
             : '';
         setSuccess(`Rescheduled to ${newDate} ${newTime}.${feeNote}`);
-        setTimeout(onDone, 2500);
+        doneTimer.current = setTimeout(onDone, 2500);
       }
     } catch {
       setSubmitErr('Network error. Please try again.');
@@ -352,6 +373,13 @@ function RescheduleModal({
           {preview && (
             <>
               <FeeBlock fee={fee!} paymentTerms={preview.payment_terms} kind="reschedule" />
+              <div className="rounded-xl bg-gray-50 px-3 py-2 text-[11px] text-gray-600">
+                Currently scheduled for{' '}
+                <span className="font-semibold text-gray-800">
+                  {job.Start_Date}
+                  {job.Start_Time_Display ? ` at ${job.Start_Time_Display}` : ''}
+                </span>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
                   <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">

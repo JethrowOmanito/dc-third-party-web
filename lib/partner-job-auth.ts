@@ -2,6 +2,13 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 
+// Columns the cancel + reschedule flow needs to read from `events`.
+// Extracted to a const so typos (easy in a 90-char quoted-column soup)
+// surface as a type mismatch on PartnerJob rather than a silent null at
+// runtime.
+const PARTNER_JOB_SELECT =
+  'id, "Ref_ID", "Title", "Service_Type", service_subtype, "Name", "Email", "Start_Date", "End_Date", "Start_Time", "Start_Time_Display", "End_Time", "End_Time_Display", "Price", final_price, amount_cents, payment_status, lifecycle_state, stripe_payment_intent_id, series_id, housekeeping_session_type, cancellation_fee_paid, cancellation_fee_waived, reschedule_fee_waived, partner_company_id, "Note"';
+
 export type PartnerAuthed = {
   partnerUserId: string;
   companyId: string;
@@ -105,9 +112,7 @@ export async function authPartnerForJob(jobId: string): Promise<
 
   const { data: event } = await admin
     .from('events')
-    .select(
-      'id, "Ref_ID", "Title", "Service_Type", service_subtype, "Name", "Email", "Start_Date", "End_Date", "Start_Time", "Start_Time_Display", "End_Time", "End_Time_Display", "Price", final_price, amount_cents, payment_status, lifecycle_state, stripe_payment_intent_id, series_id, housekeeping_session_type, cancellation_fee_paid, cancellation_fee_waived, reschedule_fee_waived, partner_company_id, "Note"',
-    )
+    .select(PARTNER_JOB_SELECT)
     .eq('id', jobId)
     .maybeSingle();
 

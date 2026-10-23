@@ -10,7 +10,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const STALE_LOCK_MS = 5 * 60 * 1000;
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2026-03-25.dahlia' as unknown as Stripe.LatestApiVersion,
+  // Env override lets us pin the API version without a redeploy. Keeps
+  // parity with webhooks/stripe which reads from the same env.
+  apiVersion: (process.env.STRIPE_API_VERSION || '2026-03-25.dahlia') as unknown as Stripe.LatestApiVersion,
 });
 
 const STATUS_MESSAGES: Record<string, string> = {
