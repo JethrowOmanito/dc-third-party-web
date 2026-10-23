@@ -26,6 +26,8 @@ type FeePreview = {
 type PreviewResp = {
   fee: FeePreview;
   payment_terms: 'upfront' | 'end_of_month';
+  fee_token?: string;
+  fee_token_ttl_seconds?: number;
 };
 
 type ActionKind = 'reschedule' | 'cancel' | null;
@@ -130,7 +132,11 @@ function CancelModal({
     setSubmitting(true);
     setSubmitErr(null);
     try {
-      const res = await fetch(`/api/jobs/${job.id}/cancel`, { method: 'POST' });
+      const res = await fetch(`/api/jobs/${job.id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fee_token: preview?.fee_token ?? null }),
+      });
       const body = await res.json();
       if (!res.ok) {
         setSubmitErr(body?.error ?? 'Cancel failed.');
@@ -257,6 +263,7 @@ function RescheduleModal({
           new_start_date: newDate,
           new_start_time: newTime,
           reason: reason || null,
+          fee_token: preview?.fee_token ?? null,
         }),
       });
       const body = await res.json();

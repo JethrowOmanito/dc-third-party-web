@@ -4,8 +4,58 @@
 // customer would be charged on the same booking.
 
 import { createAdminClient } from '@/lib/supabase/admin';
+import { SignJWT, jwtVerify } from 'jose';
 
 export type FeeKind = 'reschedule' | 'cancel';
+
+// Locked-fee token — HMAC-signs the computed fee for an event so the
+// amount the UI shows in cancel-info/reschedule-info is the same amount
+// cancel/reschedule actually applies. Fixes a dispute magnet where the
+// customer sees "$0" at 48:01h and gets charged "$60" at 47:59h on confirm.
+export type FeeTokenPayload = {
+  event_id: string;
+  kind: FeeKind;
+  base_amount: number;
+  gst_amount: number;
+  amount_with_gst: number;
+  tier_hit: number | null;
+  reason: FeeResult['reason'];
+};
+
+export const FEE_TOKEN_TTL_SECONDS = 10 * 60; // 10-minute lock window
+
+export async function signFeeToken(payload: FeeTokenPayload): Promise<string> {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET missing — cannot sign fee token');
+  }
+  const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+  return await new SignJWT({ ...payload, purpose: 'fee_lock' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime(`${FEE_TOKEN_TTL_SECONDS}s`)
+    .sign(secret);
+}
+
+export async function verifyFeeToken(
+  token: string,
+  expected: { event_id: string; kind: FeeKind },
+): Promise<FeeTokenPayload | null> {
+  if (!process.env.JWT_SECRET) return null;
+  try {
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+    if (
+      (payload as { purpose?: string }).purpose !== 'fee_lock' ||
+      (payload as { event_id?: string }).event_id !== expected.event_id ||
+      (payload as { kind?: string }).kind !== expected.kind
+    ) {
+      return null;
+    }
+    return payload as unknown as FeeTokenPayload;
+  } catch {
+    return null;
+  }
+}
 
 export type FeeResult = {
   amount: number;

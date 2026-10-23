@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authPartnerForJob } from '@/lib/partner-job-auth';
-import { computeFee, feeWithGst, ruleFromTier } from '@/lib/fees';
+import { computeFee, feeWithGst, ruleFromTier, verifyFeeToken } from '@/lib/fees';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/utils';
 import { z } from 'zod';
@@ -20,6 +20,7 @@ const bodySchema = z.object({
     .regex(/^\d{2}:\d{2}(:\d{2})?$/)
     .nullish(),
   reason: z.string().max(500).nullish(),
+  fee_token: z.string().max(2048).nullish(),
 });
 
 const STATUS_MESSAGES: Record<string, string> = {
@@ -127,18 +128,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     );
   }
 
-  // Fee is computed BEFORE the move (against original Start_Date/Time).
-  let computed;
-  try {
-    computed = await computeFee(job.id, 'reschedule');
-  } catch (feeErr) {
-    console.error('[partner reschedule] computeFee failed', feeErr);
-    await admin.from('events').update({ lifecycle_state: job.lifecycle_state }).eq('id', job.id);
-    return NextResponse.json({ error: 'Could not calculate reschedule fee.' }, { status: 500 });
+  // Lock the fee amount to whatever reschedule-info showed the partner.
+  // If no valid token, fall back to live compute (so curl / admin tools
+  // still work), but reject expired tokens to stop stale previews from
+  // being replayed.
+  let feeGstIncl: number;
+  let feeTier: number | null;
+  if (body.fee_token) {
+    const locked = await verifyFeeToken(body.fee_token, { event_id: job.id, kind: 'reschedule' });
+    if (!locked) {
+      await admin.from('events').update({ lifecycle_state: job.lifecycle_state }).eq('id', job.id);
+      return NextResponse.json(
+        { error: 'Fee preview expired. Please reopen the reschedule dialog.', errorCode: 'fee_token_expired' },
+        { status: 409 },
+      );
+    }
+    feeGstIncl = locked.amount_with_gst;
+    feeTier = locked.tier_hit;
+  } else {
+    let computed;
+    try {
+      computed = await computeFee(job.id, 'reschedule');
+    } catch (feeErr) {
+      console.error('[partner reschedule] computeFee failed', feeErr);
+      await admin.from('events').update({ lifecycle_state: job.lifecycle_state }).eq('id', job.id);
+      return NextResponse.json({ error: 'Could not calculate reschedule fee.' }, { status: 500 });
+    }
+    feeGstIncl = feeWithGst(computed.amount).total;
+    feeTier = computed.tier_hit;
   }
 
-  const feeGstIncl = feeWithGst(computed.amount).total;
-  const rule = ruleFromTier(computed.tier_hit);
+  const rule = ruleFromTier(feeTier);
 
   // Normalize new time
   const newStart24 = body.new_start_time.length === 5 ? `${body.new_start_time}:00` : body.new_start_time;
@@ -158,12 +178,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const reasonLine = body.reason ? `\nReason: ${body.reason}` : '';
   const mergedNote = [`${noteTag}${reasonLine}`, job.Note ?? ''].filter(Boolean).join('\n\n');
 
+  // Preserve original multi-day span: if the event had an End_Date different
+  // from Start_Date (overnight / multi-session), shift it by the same delta
+  // so a 2-day job stays 2 days after rescheduling.
+  const origStart = job.Start_Date ? new Date(job.Start_Date + 'T00:00:00+08:00') : null;
+  const origEnd = job.End_Date ? new Date(job.End_Date + 'T00:00:00+08:00') : null;
+  const spanDays =
+    origStart && origEnd
+      ? Math.max(0, Math.round((origEnd.getTime() - origStart.getTime()) / 86_400_000))
+      : 0;
+  const newStartParsed = new Date(body.new_start_date + 'T00:00:00+08:00');
+  const newEndDate =
+    spanDays > 0
+      ? new Date(newStartParsed.getTime() + spanDays * 86_400_000)
+          .toISOString()
+          .split('T')[0]
+      : body.new_start_date;
+
   const { error: updateErr } = await admin
     .from('events')
     .update({
-      lifecycle_state: 'active',
+      // Restore to the pre-lock lifecycle_state (usually 'active' for a
+      // confirmed booking, but could be 'pending' for an unpaid upfront
+      // booking — don't silently promote it to active without payment).
+      lifecycle_state: job.lifecycle_state,
       Start_Date: body.new_start_date,
-      End_Date: body.new_start_date,
+      End_Date: newEndDate,
       Start_Time: newStart24,
       Start_Time_Display: newStartDisplay,
       ...(newEnd24

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authPartnerForJob } from '@/lib/partner-job-auth';
-import { computeFee, feeWithGst, ruleFromTier } from '@/lib/fees';
+import { computeFee, feeWithGst, ruleFromTier, verifyFeeToken } from '@/lib/fees';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/utils';
 import Stripe from 'stripe';
@@ -86,17 +86,43 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     );
   }
 
-  let computed;
-  try {
-    computed = await computeFee(job.id, 'cancel');
-  } catch (feeErr) {
-    console.error('[partner cancel] computeFee failed', feeErr);
-    await admin.from('events').update({ lifecycle_state: job.lifecycle_state }).eq('id', job.id);
-    return NextResponse.json({ error: 'Could not calculate cancellation fee.' }, { status: 500 });
+  // Prefer the HMAC-signed fee token from cancel-info — locks the amount
+  // the UI showed so a partner can't be shown $0 at 48:01h and charged
+  // $60 at 47:59h after they click confirm. If no valid token, fall back
+  // to live computeFee (keeps the API usable from curl / admin tooling).
+  const bodyJson: { fee_token?: string } = await req.json().catch(() => ({}));
+  const feeToken = bodyJson.fee_token;
+  let feeGstIncl: number;
+  let feeBase: number;
+  let feeTier: number | null;
+  if (feeToken) {
+    const locked = await verifyFeeToken(feeToken, { event_id: job.id, kind: 'cancel' });
+    if (!locked) {
+      await admin.from('events').update({ lifecycle_state: job.lifecycle_state }).eq('id', job.id);
+      return NextResponse.json(
+        { error: 'Fee preview expired. Please reopen the cancel dialog.', errorCode: 'fee_token_expired' },
+        { status: 409 },
+      );
+    }
+    feeGstIncl = locked.amount_with_gst;
+    feeBase = locked.base_amount;
+    feeTier = locked.tier_hit;
+  } else {
+    let computed;
+    try {
+      computed = await computeFee(job.id, 'cancel');
+    } catch (feeErr) {
+      console.error('[partner cancel] computeFee failed', feeErr);
+      await admin.from('events').update({ lifecycle_state: job.lifecycle_state }).eq('id', job.id);
+      return NextResponse.json({ error: 'Could not calculate cancellation fee.' }, { status: 500 });
+    }
+    feeGstIncl = feeWithGst(computed.amount).total;
+    feeBase = feeWithGst(computed.amount).base;
+    feeTier = computed.tier_hit;
   }
 
-  const feeGstIncl = feeWithGst(computed.amount).total;
-  const rule = ruleFromTier(computed.tier_hit);
+  const rule = ruleFromTier(feeTier);
+  void feeBase;
   const price =
     job.amount_cents != null
       ? job.amount_cents / 100
@@ -206,6 +232,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     );
   }
 
+  // Write an "intent" audit row BEFORE calling Stripe so a successful
+  // refund with a crashed Node process (or failed events.update downstream)
+  // still has a durable DB trail. We'll UPDATE this row with the final
+  // refund_amount + stripe_refund_id after Stripe returns. If the pre-insert
+  // itself fails we still proceed — the Stripe idempotency key means a retry
+  // won't double-refund.
+  const { data: intentTx } = await admin
+    .from('job_transactions')
+    .insert({
+      event_id: job.id,
+      transaction_type: 'partner_cancellation',
+      fee_rule: rule,
+      fee_amount: feeGstIncl,
+      refund_amount: 0,
+      original_price: price,
+      original_date: job.Start_Date,
+      reason: 'Partner self-cancelled online — Stripe refund-net (intent)',
+      created_by: `partner:${auth.partnerUserId}`,
+    })
+    .select('id')
+    .single();
+
   let stripeRefundId: string | null = null;
   if (refundAmount > 0) {
     try {
@@ -259,11 +307,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     })
     .eq('id', job.id);
 
+  // Patch the intent row with real numbers regardless of whether the
+  // events.update succeeded — the Stripe refund already happened, so the
+  // audit MUST reflect it even if the booking row couldn't be flipped.
+  if (intentTx?.id) {
+    await admin
+      .from('job_transactions')
+      .update({
+        refund_amount: refundAmount,
+        stripe_refund_id: stripeRefundId,
+        reason: updateErr
+          ? 'Partner self-cancelled — refund issued, DB update failed (manual remediation required)'
+          : 'Partner self-cancelled online — Stripe refund-net',
+      })
+      .eq('id', intentTx.id);
+  }
+
   if (updateErr) {
     console.error('[partner cancel] CRITICAL: refund issued but event update failed', {
       stripe_refund_id: stripeRefundId,
       event_id: job.id,
       updateErr,
+    });
+    await admin.from('event_logs').insert({
+      event_id: job.id,
+      message: `[Partner] CRITICAL — refund S$${refundAmount.toFixed(2)} issued via Stripe (${stripeRefundId}) but events.update failed. Row stuck in '${(job.lifecycle_state ?? '').toString()}' / 'cancelling'. Manual remediation required.`,
+      created_by: `partner:${auth.partnerUserId}`,
     });
     return NextResponse.json({
       cancelled: true,
@@ -273,18 +342,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         'Booking cancelled and refund issued, but status update failed. Admin has been alerted.',
     });
   }
-
-  await admin.from('job_transactions').insert({
-    event_id: job.id,
-    transaction_type: 'partner_cancellation',
-    fee_rule: rule,
-    fee_amount: feeGstIncl,
-    refund_amount: refundAmount,
-    original_price: price,
-    original_date: job.Start_Date,
-    reason: 'Partner self-cancelled online — Stripe refund-net',
-    created_by: `partner:${auth.partnerUserId}`,
-  });
 
   await admin.from('event_logs').insert({
     event_id: job.id,

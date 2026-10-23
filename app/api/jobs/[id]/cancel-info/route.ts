@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authPartnerForJob } from '@/lib/partner-job-auth';
-import { computeFee, feeWithGst, type FeeResult } from '@/lib/fees';
+import { computeFee, feeWithGst, signFeeToken, FEE_TOKEN_TTL_SECONDS, type FeeResult } from '@/lib/fees';
 import { checkRateLimit } from '@/lib/utils';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -28,7 +28,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     console.error('[partner cancel-info] computeFee failed:', e);
   }
 
-  const { gst, total } = feeWithGst(fee.amount);
+  const { base, gst, total } = feeWithGst(fee.amount);
+  const feeToken = await signFeeToken({
+    event_id: r.job.id,
+    kind: 'cancel',
+    base_amount: base,
+    gst_amount: gst,
+    amount_with_gst: total,
+    tier_hit: fee.tier_hit,
+    reason: fee.reason,
+  });
 
   return NextResponse.json({
     job: {
@@ -53,5 +62,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       waived: Boolean(r.job.cancellation_fee_waived),
     },
     payment_terms: r.auth.paymentTerms,
+    fee_token: feeToken,
+    fee_token_ttl_seconds: FEE_TOKEN_TTL_SECONDS,
   });
 }

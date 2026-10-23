@@ -17,6 +17,7 @@ export type PartnerJob = {
   Name: string | null;
   Email: string | null;
   Start_Date: string | null;
+  End_Date: string | null;
   Start_Time: string | null;
   Start_Time_Display: string | null;
   End_Time: string | null;
@@ -80,11 +81,18 @@ export async function authPartnerForJob(jobId: string): Promise<
 
   const { data: company } = await admin
     .from('partner_companies')
-    .select('id, payment_terms, is_active')
+    .select('id, payment_terms, is_active, company_status')
     .eq('id', partner.company_id)
     .single();
   if (!company || company.is_active === false) {
     return { ok: false, status: 403, error: 'Your company is inactive.' };
+  }
+  if (company.company_status !== 'approved') {
+    return {
+      ok: false,
+      status: 403,
+      error: 'Your company account is not approved. Please contact admin before making changes to a booking.',
+    };
   }
   if (company.payment_terms !== 'upfront' && company.payment_terms !== 'end_of_month') {
     return {
@@ -98,7 +106,7 @@ export async function authPartnerForJob(jobId: string): Promise<
   const { data: event } = await admin
     .from('events')
     .select(
-      'id, "Ref_ID", "Title", "Service_Type", service_subtype, "Name", "Email", "Start_Date", "Start_Time", "Start_Time_Display", "End_Time", "End_Time_Display", "Price", final_price, amount_cents, payment_status, lifecycle_state, stripe_payment_intent_id, series_id, housekeeping_session_type, cancellation_fee_paid, cancellation_fee_waived, reschedule_fee_waived, partner_company_id, "Note"',
+      'id, "Ref_ID", "Title", "Service_Type", service_subtype, "Name", "Email", "Start_Date", "End_Date", "Start_Time", "Start_Time_Display", "End_Time", "End_Time_Display", "Price", final_price, amount_cents, payment_status, lifecycle_state, stripe_payment_intent_id, series_id, housekeeping_session_type, cancellation_fee_paid, cancellation_fee_waived, reschedule_fee_waived, partner_company_id, "Note"',
     )
     .eq('id', jobId)
     .maybeSingle();
