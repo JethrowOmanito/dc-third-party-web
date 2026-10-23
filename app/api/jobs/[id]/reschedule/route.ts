@@ -276,8 +276,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       End_Date: newEndDate,
       Start_Time: newStart24,
       Start_Time_Display: newStartDisplay,
-      ...(newEnd24
-        ? { End_Time: newEnd24, End_Time_Display: newEndDisplay }
+      ...(derivedEnd24
+        ? { End_Time: derivedEnd24, End_Time_Display: newEndDisplay }
         : {}),
       reschedule_fee: feeGstIncl > 0 ? feeGstIncl : null,
       fee_type: feeGstIncl > 0 ? `reschedule_${rule}` : null,
@@ -301,20 +301,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Failed to reschedule booking.' }, { status: 500 });
   }
 
-  await admin.from('job_transactions').insert({
+  const { error: txErr } = await admin.from('job_transactions').insert({
     event_id: job.id,
-    transaction_type: 'partner_reschedule',
+    transaction_type: 'reschedule',
     fee_rule: rule,
     fee_amount: feeGstIncl,
     refund_amount: 0,
     original_price: Number(job.final_price) || Number(job.Price) || 0,
     original_date: job.Start_Date,
+    new_date: body.new_start_date,
+    new_start_time: newStart24,
+    new_end_time: derivedEnd24 ?? null,
     reason:
       auth.paymentTerms === 'end_of_month'
         ? 'Partner self-rescheduled online — fee added to EOM invoice'
         : 'Partner self-rescheduled online — fee pending collection',
     created_by: `partner:${auth.partnerUserId}`,
   });
+  if (txErr) console.error('[partner reschedule] job_transactions insert failed', txErr);
 
   await admin.from('event_logs').insert({
     event_id: job.id,

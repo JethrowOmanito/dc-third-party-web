@@ -193,11 +193,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       );
     }
 
-    await admin
+    const { error: txInsErr } = await admin
       .from('job_transactions')
       .insert({
         event_id: job.id,
-        transaction_type: 'partner_cancellation',
+        transaction_type: 'online_cancellation',
         fee_rule: rule,
         fee_amount: feeGstIncl,
         refund_amount: 0,
@@ -205,10 +205,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         original_date: job.Start_Date,
         reason: 'Partner self-cancelled online — fee added to EOM invoice',
         created_by: `partner:${auth.partnerUserId}`,
-      })
-      .then(({ error }) => {
-        if (error) console.error('[partner cancel] job_transactions insert failed', error);
       });
+    if (txInsErr) console.error('[partner cancel] job_transactions insert failed (eom)', txInsErr);
 
     await admin
       .from('event_logs')
@@ -264,11 +262,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // refund_amount + stripe_refund_id after Stripe returns. If the pre-insert
   // itself fails we still proceed — the Stripe idempotency key means a retry
   // won't double-refund.
-  const { data: intentTx } = await admin
+  const { data: intentTx, error: intentErr } = await admin
     .from('job_transactions')
     .insert({
       event_id: job.id,
-      transaction_type: 'partner_cancellation',
+      transaction_type: 'online_cancellation',
       fee_rule: rule,
       fee_amount: feeGstIncl,
       refund_amount: 0,
@@ -279,6 +277,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     })
     .select('id')
     .single();
+  if (intentErr) console.error('[partner cancel] intent job_transactions insert failed', intentErr);
 
   let stripeRefundId: string | null = null;
   if (refundAmount > 0) {
