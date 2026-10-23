@@ -107,7 +107,14 @@ export async function computeFee(
   const now = nowMs ?? Date.now();
   const hoursToAppt = Math.max(0, (startTs - now) / (1000 * 60 * 60));
 
-  const svc = (event as { Service_Type?: string | null }).Service_Type ?? null;
+  // Sanitize Service_Type before embedding in the PostgREST .or() filter
+  // string — stray commas, parens, dots, or quotes would either break the
+  // parser (DoS the fee calc) or widen the filter. Service_Type is admin-
+  // editable via main-web, so defense-in-depth matters even though partner
+  // UIs only write canonical values.
+  const rawSvc = (event as { Service_Type?: string | null }).Service_Type ?? null;
+  const SAFE_SVC_RE = /^[A-Za-z0-9 _&-]+$/;
+  const svc = rawSvc && SAFE_SVC_RE.test(rawSvc) ? rawSvc : null;
   const { data: tiers, error: tiersErr } = await supabase
     .from('fee_tiers')
     .select('hours_before_appointment, amount, service')

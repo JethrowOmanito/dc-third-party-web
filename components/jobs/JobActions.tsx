@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CalendarClock, XCircle, Loader2, AlertTriangle, Info } from 'lucide-react';
 
 type JobLite = {
@@ -109,11 +109,14 @@ function CancelModal({
 }) {
   const [preview, setPreview] = useState<PreviewResp | null>(null);
   const [previewErr, setPreviewErr] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadPreview = useCallback(() => {
+    setPreviewErr(null);
+    setPreviewLoading(true);
     let alive = true;
     fetch(`/api/jobs/${job.id}/cancel-info`)
       .then((r) => r.json().then((d) => ({ ok: r.ok, body: d })))
@@ -122,11 +125,14 @@ function CancelModal({
         if (!res.ok) setPreviewErr(res.body?.error ?? 'Could not load fee preview.');
         else setPreview(res.body as PreviewResp);
       })
-      .catch(() => alive && setPreviewErr('Could not load fee preview.'));
+      .catch(() => alive && setPreviewErr('Could not load fee preview.'))
+      .finally(() => alive && setPreviewLoading(false));
     return () => {
       alive = false;
     };
   }, [job.id]);
+
+  useEffect(() => loadPreview(), [loadPreview]);
 
   const confirm = async () => {
     setSubmitting(true);
@@ -172,7 +178,17 @@ function CancelModal({
         <>
           <JobSummary job={job} />
           {previewErr && (
-            <ErrorBlock message={previewErr} />
+            <>
+              <ErrorBlock message={previewErr} />
+              <button
+                type="button"
+                onClick={loadPreview}
+                disabled={previewLoading}
+                className="w-full h-9 rounded-xl bg-gray-100 text-sm font-semibold text-gray-700 hover:bg-gray-200 disabled:opacity-50 transition-colors"
+              >
+                {previewLoading ? 'Retrying…' : 'Try again'}
+              </button>
+            </>
           )}
           {!preview && !previewErr && (
             <div className="flex items-center justify-center py-6">
@@ -181,6 +197,14 @@ function CancelModal({
           )}
           {preview && (
             <>
+              {job.Price != null && (
+                <p className="text-[11px] text-gray-500 px-1">
+                  Original booking price:{' '}
+                  <span className="font-semibold text-gray-700">
+                    S${Number(job.Price).toFixed(2)}
+                  </span>
+                </p>
+              )}
               <FeeBlock fee={fee!} paymentTerms={preview.payment_terms} kind="cancel" />
               {submitErr && <ErrorBlock message={submitErr} />}
               <div className="flex gap-2 pt-1">
@@ -226,6 +250,7 @@ function RescheduleModal({
 }) {
   const [preview, setPreview] = useState<PreviewResp | null>(null);
   const [previewErr, setPreviewErr] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [newDate, setNewDate] = useState('');
   const [newTime, setNewTime] = useState('');
   const [reason, setReason] = useState('');
@@ -233,7 +258,9 @@ function RescheduleModal({
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadPreview = useCallback(() => {
+    setPreviewErr(null);
+    setPreviewLoading(true);
     let alive = true;
     fetch(`/api/jobs/${job.id}/reschedule-info`)
       .then((r) => r.json().then((d) => ({ ok: r.ok, body: d })))
@@ -242,11 +269,14 @@ function RescheduleModal({
         if (!res.ok) setPreviewErr(res.body?.error ?? 'Could not load fee preview.');
         else setPreview(res.body as PreviewResp);
       })
-      .catch(() => alive && setPreviewErr('Could not load fee preview.'));
+      .catch(() => alive && setPreviewErr('Could not load fee preview.'))
+      .finally(() => alive && setPreviewLoading(false));
     return () => {
       alive = false;
     };
   }, [job.id]);
+
+  useEffect(() => loadPreview(), [loadPreview]);
 
   const confirm = async () => {
     setSubmitErr(null);
@@ -285,6 +315,8 @@ function RescheduleModal({
   };
 
   const fee = preview?.fee;
+  // Server enforces a 2h lead-time (parity with booking wizard TOO_SOON).
+  // Nudge the date picker to tomorrow once we're within that window today.
   const minDate = new Date(Date.now() + 2 * 60 * 60_000).toISOString().split('T')[0];
 
   return (
@@ -299,7 +331,19 @@ function RescheduleModal({
       ) : (
         <>
           <JobSummary job={job} />
-          {previewErr && <ErrorBlock message={previewErr} />}
+          {previewErr && (
+            <>
+              <ErrorBlock message={previewErr} />
+              <button
+                type="button"
+                onClick={loadPreview}
+                disabled={previewLoading}
+                className="w-full h-9 rounded-xl bg-gray-100 text-sm font-semibold text-gray-700 hover:bg-gray-200 disabled:opacity-50 transition-colors"
+              >
+                {previewLoading ? 'Retrying…' : 'Try again'}
+              </button>
+            </>
+          )}
           {!preview && !previewErr && (
             <div className="flex items-center justify-center py-6">
               <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />

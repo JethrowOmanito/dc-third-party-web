@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/utils';
 import { validateBookingAvailability } from '@/lib/api/availability-check';
 import { z } from 'zod';
+import * as Sentry from '@sentry/nextjs';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STALE_LOCK_MS = 5 * 60 * 1000;
@@ -102,9 +103,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!Number.isFinite(newStartMs)) {
     return NextResponse.json({ error: 'Invalid new date/time' }, { status: 400 });
   }
-  if (newStartMs < Date.now() + 60 * 60_000) {
+  // Match the booking wizard's TOO_SOON gate (2 hours) so the server
+  // doesn't reject a slot the client thinks is valid.
+  if (newStartMs < Date.now() + 2 * 60 * 60_000) {
     return NextResponse.json(
-      { error: 'New appointment must be at least 1 hour in the future.' },
+      { error: 'New appointment must be at least 2 hours in the future.' },
       { status: 400 },
     );
   }
@@ -158,6 +161,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       computed = await computeFee(job.id, 'reschedule');
     } catch (feeErr) {
       console.error('[partner reschedule] computeFee failed', feeErr);
+      Sentry.captureException(feeErr, {
+        tags: { route: 'partner/reschedule', event_id: job.id },
+      });
       await admin.from('events').update({ lifecycle_state: job.lifecycle_state }).eq('id', job.id);
       return NextResponse.json({ error: 'Could not calculate reschedule fee.' }, { status: 500 });
     }

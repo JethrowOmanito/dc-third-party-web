@@ -4,6 +4,7 @@ import { computeFee, feeWithGst, ruleFromTier, verifyFeeToken } from '@/lib/fees
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/utils';
 import Stripe from 'stripe';
+import * as Sentry from '@sentry/nextjs';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STALE_LOCK_MS = 5 * 60 * 1000;
@@ -126,6 +127,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       computed = await computeFee(job.id, 'cancel');
     } catch (feeErr) {
       console.error('[partner cancel] computeFee failed', feeErr);
+      Sentry.captureException(feeErr, {
+        tags: { route: 'partner/cancel', event_id: job.id },
+      });
       await admin.from('events').update({ lifecycle_state: job.lifecycle_state }).eq('id', job.id);
       return NextResponse.json({ error: 'Could not calculate cancellation fee.' }, { status: 500 });
     }
