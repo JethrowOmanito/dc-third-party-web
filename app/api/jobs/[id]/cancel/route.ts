@@ -6,7 +6,7 @@ import { checkRateLimit } from '@/lib/utils';
 import Stripe from 'stripe';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const SGT_OFFSET_MS = 8 * 60 * 60 * 1000;
+const STALE_LOCK_MS = 5 * 60 * 1000;
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2026-03-25.dahlia' as unknown as Stripe.LatestApiVersion,
@@ -46,30 +46,43 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: msg }, { status: 409 });
   }
 
-  // Past-date guard
+  // Past-start guard — compare against the actual start timestamp, not
+  // just the date. Day-granular checks let a partner cancel a job that
+  // started 23 hours ago.
   if (job.Start_Date) {
-    const todaySGT = new Date(
-      Math.floor((Date.now() + SGT_OFFSET_MS) / 86_400_000) * 86_400_000 - SGT_OFFSET_MS,
-    );
-    const target = new Date(job.Start_Date + 'T00:00:00+08:00');
-    const daysDelta = Math.floor((target.getTime() - todaySGT.getTime()) / 86_400_000);
-    if (daysDelta < 0) {
+    const hhmm = (job.Start_Time ?? '00:00').slice(0, 5);
+    const startMs = Date.parse(`${job.Start_Date}T${hhmm}:00+08:00`);
+    if (Number.isFinite(startMs) && startMs < Date.now()) {
       return NextResponse.json(
-        { error: 'This booking has already passed. Contact admin on WhatsApp if cancellation is still needed.' },
+        { error: 'This booking has already started. Contact admin on WhatsApp if cancellation is still needed.' },
         { status: 400 },
       );
     }
   }
 
-  // Series bookings
-  if (job.series_id && job.housekeeping_session_type === 'online_4x') {
+  // Series bookings — any series_id goes to admin, not just online_4x.
+  // Admin-created HK series with other session types were leaking through
+  // and getting partially-cancelled (one row cancelled, siblings still fire).
+  if (job.series_id) {
     return NextResponse.json(
-      { error: 'Series bookings require admin assistance. Please contact Zoe.' },
+      { error: 'This is part of a recurring/series booking. Please contact admin to cancel.' },
       { status: 422 },
     );
   }
 
   const admin = createAdminClient();
+
+  // Stale-lock reaper — if a previous attempt crashed between the
+  // optimistic lock and the final update, the row is stuck in
+  // 'cancelling' forever. If the stuck state is older than STALE_LOCK_MS
+  // we release it back to 'active' before trying our fresh lock.
+  const staleCutoff = new Date(Date.now() - STALE_LOCK_MS).toISOString();
+  await admin
+    .from('events')
+    .update({ lifecycle_state: 'active' })
+    .eq('id', job.id)
+    .eq('lifecycle_state', 'cancelling')
+    .lt('updated_at', staleCutoff);
 
   // Optimistic lock
   const { data: locked } = await admin
@@ -134,11 +147,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (auth.paymentTerms === 'end_of_month') {
     // End-of-month: fee lands on the invoice; no Stripe. Record on the
     // event + prepend a note so Zoe sees it during monthly reconciliation.
+    const todayTag = `[AUTO ${new Date().toISOString().split('T')[0]}] Partner-cancelled online.`;
     const feeNote =
       feeGstIncl > 0
-        ? `[AUTO ${new Date().toISOString().split('T')[0]}] Partner-cancelled online. Cancellation fee S$${feeGstIncl.toFixed(2)} (incl. 9% GST, rule: ${rule}) — add to this partner's EOM invoice.`
-        : `[AUTO ${new Date().toISOString().split('T')[0]}] Partner-cancelled online. No fee (rule: ${rule}).`;
-    const mergedNote = [feeNote, job.Note ?? ''].filter(Boolean).join('\n\n');
+        ? `${todayTag} Cancellation fee S$${feeGstIncl.toFixed(2)} (incl. 9% GST, rule: ${rule}) — add to this partner's EOM invoice.`
+        : `${todayTag} No fee (rule: ${rule}).`;
+    // Idempotency: if the existing Note already starts with today's
+    // partner-cancellation tag, don't prepend again. Handles manual
+    // retries + background job replays.
+    const alreadyLogged = (job.Note ?? '').trimStart().startsWith(todayTag);
+    const mergedNote = alreadyLogged
+      ? (job.Note ?? '')
+      : [feeNote, job.Note ?? ''].filter(Boolean).join('\n\n');
 
     const nowIso = new Date().toISOString();
     const { error: updateErr } = await admin

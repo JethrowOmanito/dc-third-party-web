@@ -3,10 +3,11 @@ import { authPartnerForJob } from '@/lib/partner-job-auth';
 import { computeFee, feeWithGst, ruleFromTier, verifyFeeToken } from '@/lib/fees';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/utils';
+import { validateBookingAvailability } from '@/lib/api/availability-check';
 import { z } from 'zod';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const SGT_OFFSET_MS = 8 * 60 * 60 * 1000;
+const STALE_LOCK_MS = 5 * 60 * 1000;
 
 const bodySchema = z.object({
   new_start_date: z
@@ -69,22 +70,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   if (job.Start_Date) {
-    const todaySGT = new Date(
-      Math.floor((Date.now() + SGT_OFFSET_MS) / 86_400_000) * 86_400_000 - SGT_OFFSET_MS,
-    );
-    const target = new Date(job.Start_Date + 'T00:00:00+08:00');
-    const daysDelta = Math.floor((target.getTime() - todaySGT.getTime()) / 86_400_000);
-    if (daysDelta < 0) {
+    const hhmm = (job.Start_Time ?? '00:00').slice(0, 5);
+    const startMs = Date.parse(`${job.Start_Date}T${hhmm}:00+08:00`);
+    if (Number.isFinite(startMs) && startMs < Date.now()) {
       return NextResponse.json(
-        { error: 'This booking has already passed. Contact admin on WhatsApp if a change is still needed.' },
+        { error: 'This booking has already started. Contact admin on WhatsApp if a change is still needed.' },
         { status: 400 },
       );
     }
   }
 
-  if (job.series_id && job.housekeeping_session_type === 'online_4x') {
+  if (job.series_id) {
     return NextResponse.json(
-      { error: 'Series bookings require admin assistance. Please contact Zoe.' },
+      { error: 'This is part of a recurring/series booking. Please contact admin to reschedule.' },
       { status: 422 },
     );
   }
@@ -112,6 +110,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const admin = createAdminClient();
+
+  // Stale-lock reaper — see cancel/route.ts for context.
+  const staleCutoff = new Date(Date.now() - STALE_LOCK_MS).toISOString();
+  await admin
+    .from('events')
+    .update({ lifecycle_state: 'active' })
+    .eq('id', job.id)
+    .eq('lifecycle_state', 'cancelling')
+    .lt('updated_at', staleCutoff);
 
   // Optimistic lock
   const { data: locked } = await admin
@@ -168,15 +175,72 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       : body.new_end_time
     : null;
   const newStartDisplay = toDisplay(newStart24.slice(0, 5));
-  const newEndDisplay = newEnd24 ? toDisplay(newEnd24.slice(0, 5)) : null;
+  // Preserve the original job duration if the client didn't send a new
+  // End_Time — same arrival-window length as before.
+  const toMinutes = (hhmm: string): number => {
+    const [h, m] = hhmm.split(':').map((n) => parseInt(n, 10));
+    return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+  };
+  let derivedEnd24 = newEnd24;
+  if (!derivedEnd24 && job.Start_Time && job.End_Time) {
+    const durationMins = toMinutes(job.End_Time.slice(0, 5)) - toMinutes(job.Start_Time.slice(0, 5));
+    if (durationMins > 0) {
+      const newStartMins = toMinutes(newStart24.slice(0, 5));
+      const newEndMins = newStartMins + durationMins;
+      const eh = Math.floor(newEndMins / 60) % 24;
+      const em = newEndMins % 60;
+      derivedEnd24 = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}:00`;
+    }
+  }
+  const newEndDisplay = derivedEnd24 ? toDisplay(derivedEnd24.slice(0, 5)) : null;
+
+  // Availability guard — runs the same checks the booking wizard uses
+  // (lead-time, capacity, cleaner leave, housekeeping SOP). Prevents a
+  // partner from rescheduling into a fully-booked / blackout slot.
+  if (newEndDisplay && job.Service_Type) {
+    try {
+      const avail = await validateBookingAvailability(
+        job.Service_Type,
+        body.new_start_date,
+        newStartDisplay,
+        newEndDisplay,
+        undefined,
+        undefined,
+        undefined,
+      );
+      if (!avail.available) {
+        await admin.from('events').update({ lifecycle_state: job.lifecycle_state }).eq('id', job.id);
+        return NextResponse.json(
+          { error: avail.reason ?? 'Slot not available.', errorCode: avail.errorCode ?? 'UNAVAILABLE' },
+          { status: 409 },
+        );
+      }
+    } catch (availErr) {
+      console.error('[partner reschedule] availability check failed', availErr);
+      // Fail OPEN — don't block legit reschedules on a transient DB blip.
+      // The subsequent events.update will still fire capacity triggers.
+    }
+  }
 
   const nowIso = new Date().toISOString();
+  const todayPrefix = `[AUTO ${nowIso.split('T')[0]}] Partner rescheduled online:`;
   const noteTag =
     feeGstIncl > 0
-      ? `[AUTO ${nowIso.split('T')[0]}] Partner rescheduled online: ${job.Start_Date} ${job.Start_Time_Display} → ${body.new_start_date} ${newStartDisplay}. Fee S$${feeGstIncl.toFixed(2)} (incl. 9% GST, rule: ${rule})${auth.paymentTerms === 'end_of_month' ? ' — add to EOM invoice.' : ' — collect from partner.'}`
-      : `[AUTO ${nowIso.split('T')[0]}] Partner rescheduled online: ${job.Start_Date} ${job.Start_Time_Display} → ${body.new_start_date} ${newStartDisplay}. No fee (rule: ${rule}).`;
+      ? `${todayPrefix} ${job.Start_Date} ${job.Start_Time_Display} → ${body.new_start_date} ${newStartDisplay}. Fee S$${feeGstIncl.toFixed(2)} (incl. 9% GST, rule: ${rule})${auth.paymentTerms === 'end_of_month' ? ' — add to EOM invoice.' : ' — collect from partner.'}`
+      : `${todayPrefix} ${job.Start_Date} ${job.Start_Time_Display} → ${body.new_start_date} ${newStartDisplay}. No fee (rule: ${rule}).`;
   const reasonLine = body.reason ? `\nReason: ${body.reason}` : '';
-  const mergedNote = [`${noteTag}${reasonLine}`, job.Note ?? ''].filter(Boolean).join('\n\n');
+  // Idempotency: avoid double-prepend on retry. Also re-read Note under
+  // the lock in case admin edited it between our auth-time fetch and now.
+  const { data: freshNote } = await admin
+    .from('events')
+    .select('"Note"')
+    .eq('id', job.id)
+    .single();
+  const currentNote = (freshNote as { Note?: string | null } | null)?.Note ?? job.Note ?? '';
+  const alreadyLogged = currentNote.trimStart().startsWith(todayPrefix);
+  const mergedNote = alreadyLogged
+    ? currentNote
+    : [`${noteTag}${reasonLine}`, currentNote].filter(Boolean).join('\n\n');
 
   // Preserve original multi-day span: if the event had an End_Date different
   // from Start_Date (overnight / multi-session), shift it by the same delta
@@ -221,6 +285,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (updateErr) {
     console.error('[partner reschedule] update failed', updateErr);
     await admin.from('events').update({ lifecycle_state: job.lifecycle_state }).eq('id', job.id);
+    // Surface P0001 trigger messages (capacity, blackout, SOP) directly
+    // so the partner sees the real reason instead of a generic 500.
+    const pgCode = (updateErr as { code?: string } | null)?.code;
+    const pgMsg = (updateErr as { message?: string } | null)?.message ?? '';
+    if (pgCode === 'P0001' || /capacity|blackout|SOP|overlap/i.test(pgMsg)) {
+      return NextResponse.json({ error: pgMsg || 'Slot not available.' }, { status: 409 });
+    }
     return NextResponse.json({ error: 'Failed to reschedule booking.' }, { status: 500 });
   }
 
