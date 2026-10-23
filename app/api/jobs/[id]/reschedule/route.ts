@@ -30,7 +30,7 @@ const STATUS_MESSAGES: Record<string, string> = {
   completed: 'This booking is already completed.',
   deleted: 'This booking is no longer available.',
   rescheduled: 'This booking has already been rescheduled. Please contact admin for further changes.',
-  cancelling: 'This booking is currently being processed. Please wait a moment and try again.',
+  reschedule_pending: 'This booking is currently being processed. Please wait a moment and try again.',
 };
 
 // Format HH:mm → "9:30 AM" display string (matches booking-web convention).
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
   const { job, auth } = r;
 
-  const TERMINAL = new Set(['cancelled', 'completed', 'deleted', 'rescheduled', 'cancelling']);
+  const TERMINAL = new Set(['cancelled', 'completed', 'deleted', 'rescheduled', 'reschedule_pending']);
   if (job.lifecycle_state && TERMINAL.has(job.lifecycle_state)) {
     const msg = STATUS_MESSAGES[job.lifecycle_state] ?? 'This booking cannot be rescheduled.';
     return NextResponse.json({ error: msg }, { status: 409 });
@@ -120,13 +120,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .from('events')
     .update({ lifecycle_state: 'active' })
     .eq('id', job.id)
-    .eq('lifecycle_state', 'cancelling')
+    .eq('lifecycle_state', 'reschedule_pending')
     .lt('updated_at', staleCutoff);
 
   // Optimistic lock
   const { data: locked } = await admin
     .from('events')
-    .update({ lifecycle_state: 'cancelling' }) // transient; flipped back below
+    .update({ lifecycle_state: 'reschedule_pending' }) // transient; flipped back below
     .eq('id', job.id)
     .not('lifecycle_state', 'in', '("cancelled","completed","deleted","rescheduled","cancelling")')
     .select('id')

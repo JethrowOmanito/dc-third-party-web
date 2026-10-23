@@ -20,7 +20,7 @@ const STATUS_MESSAGES: Record<string, string> = {
   completed: 'This booking has already been completed.',
   deleted: 'This booking is no longer available.',
   rescheduled: 'This booking has been rescheduled. Please contact admin to cancel.',
-  cancelling: 'This booking is currently being processed. Please wait a moment and try again.',
+  reschedule_pending: 'This booking is currently being processed. Please wait a moment and try again.',
 };
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
   const { job, auth } = r;
 
-  const TERMINAL = new Set(['cancelled', 'completed', 'deleted', 'rescheduled', 'cancelling']);
+  const TERMINAL = new Set(['cancelled', 'completed', 'deleted', 'rescheduled', 'reschedule_pending']);
   if (job.lifecycle_state && TERMINAL.has(job.lifecycle_state)) {
     const msg = STATUS_MESSAGES[job.lifecycle_state] ?? 'This booking cannot be cancelled.';
     return NextResponse.json({ error: msg }, { status: 409 });
@@ -77,20 +77,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // Stale-lock reaper — if a previous attempt crashed between the
   // optimistic lock and the final update, the row is stuck in
-  // 'cancelling' forever. If the stuck state is older than STALE_LOCK_MS
+  // 'reschedule_pending' forever. If the stuck state is older than STALE_LOCK_MS
   // we release it back to 'active' before trying our fresh lock.
   const staleCutoff = new Date(Date.now() - STALE_LOCK_MS).toISOString();
   await admin
     .from('events')
     .update({ lifecycle_state: 'active' })
     .eq('id', job.id)
-    .eq('lifecycle_state', 'cancelling')
+    .eq('lifecycle_state', 'reschedule_pending')
     .lt('updated_at', staleCutoff);
 
   // Optimistic lock
   const { data: locked } = await admin
     .from('events')
-    .update({ lifecycle_state: 'cancelling' })
+    .update({ lifecycle_state: 'reschedule_pending' })
     .eq('id', job.id)
     .not('lifecycle_state', 'in', '("cancelled","completed","deleted","rescheduled","cancelling")')
     .select('id')
@@ -357,7 +357,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
     await admin.from('event_logs').insert({
       event_id: job.id,
-      message: `[Partner] CRITICAL — refund S$${refundAmount.toFixed(2)} issued via Stripe (${stripeRefundId}) but events.update failed. Row stuck in '${(job.lifecycle_state ?? '').toString()}' / 'cancelling'. Manual remediation required.`,
+      message: `[Partner] CRITICAL — refund S$${refundAmount.toFixed(2)} issued via Stripe (${stripeRefundId}) but events.update failed. Row stuck in '${(job.lifecycle_state ?? '').toString()}' / 'reschedule_pending'. Manual remediation required.`,
       created_by: `partner:${auth.partnerUserId}`,
     });
     return NextResponse.json({
