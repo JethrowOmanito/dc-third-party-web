@@ -7,7 +7,8 @@ import { getSupabaseClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import type { ChecklistItem, ChecklistResponse, Job } from '@/types';
-import { Camera, CheckCircle2, FileDown, Loader2, MinusCircle, Save, Star, Trash2, XCircle } from 'lucide-react';
+import { ArrowLeft, Camera, CheckCircle2, FileDown, Loader2, MinusCircle, Save, Star, Trash2, XCircle } from 'lucide-react';
+import Link from 'next/link';
 import { use, useEffect, useRef, useState } from 'react';
 import SignaturePad from 'react-signature-canvas';
 
@@ -196,6 +197,14 @@ export default function ServiceReportPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="max-w-2xl mx-auto space-y-5 pb-6">
+      {/* Back nav */}
+      <Link
+        href={`/dashboard/jobs/${jobId}`}
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:text-emerald-800"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Back to Job
+      </Link>
       {/* PDF export wrapper */}
       <div id="report-pdf-content" className="space-y-5">
         {/* Header */}

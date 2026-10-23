@@ -116,7 +116,7 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
             <ArrowLeft style={{ width: 18, height: 18 }} />
             <span>{backLabel}</span>
           </a>
-          <a href="/" className="dc-nav__brand">
+          <a href={backHref} className="dc-nav__brand">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={LOGO_URL} alt="Doctor Clean" className="dc-nav__logo" />
             <div>
@@ -125,7 +125,7 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
             </div>
           </a>
           <div className="dc-nav__links">
-            <a href="/dashboard" className="dc-nav__link">Home</a>
+            <a href={backHref} className="dc-nav__link">Home</a>
             <a href="/signup" className="dc-nav__link">Sign Up</a>
             <a href="/pricing" className="dc-nav__link dc-nav__link--active">Pricing</a>
           </div>

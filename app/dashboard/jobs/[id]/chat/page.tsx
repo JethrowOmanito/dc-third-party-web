@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useRef, use, useCallback } from 'react';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Loader2, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/store/authStore';
 import { getSupabaseClient } from '@/lib/supabase/client';
@@ -140,9 +141,16 @@ export default function JobChatPage({ params }: { params: Promise<{ id: string }
       {/* Header Info */}
       <div className="px-3 py-2 border-b border-gray-100 bg-white flex items-center justify-between">
         <div className="flex items-center gap-2">
+          <Link
+            href={`/dashboard/jobs/${jobId}`}
+            className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors"
+            aria-label="Back to job details"
+          >
+            <ArrowLeft className="w-4 h-4 text-gray-600" />
+          </Link>
           <div className={cn(
             "w-2 h-2 rounded-full",
-            realtimeStatus === 'connected' ? "bg-emerald-500 animate-pulse" : 
+            realtimeStatus === 'connected' ? "bg-emerald-500 animate-pulse" :
             realtimeStatus === 'connecting' ? "bg-amber-400" : "bg-red-500"
           )} />
           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">

@@ -872,8 +872,11 @@ export default function BookingNewPage() {
       return;
     }
     // At step 0 in branded ID flow → back to BrandSelector, not dashboard.
-    // Property_manager (agents) or first-step retail flow → fall back to
-    // dashboard via browser history.
+    // Property_manager (agents) or first-step retail flow → go back a step
+    // in browser history IF that history exists (i.e. partner opened the
+    // wizard from inside the app). If the wizard was opened directly
+    // (bookmark, external link, fresh tab), fall through to /dashboard so
+    // Back always lands somewhere useful instead of leaving the site.
     if (isBrandedIdFlow) {
       bookingStore.setPartnerBrand(null);
       setSelectedTccIdRowId(null);
@@ -882,7 +885,11 @@ export default function BookingNewPage() {
       setIdFlowMode(null);
       return;
     }
-    router.back();
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/dashboard');
+    }
   };
 
   const stepTitle = (s: Step): string => ({
