@@ -2,6 +2,7 @@
 
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
+import { JobActions } from '@/components/jobs/JobActions';
 import {
     ArrowLeft,
     Banknote,
@@ -492,6 +493,20 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
       {/* ─── Content Cards ────────────────────────────────────────── */}
       <div className="px-4 sm:px-6 py-4 space-y-3 max-w-2xl mx-auto pb-28">
+
+        {/* Reschedule / Cancel actions */}
+        <JobActions
+          job={{
+            id: job.id,
+            Ref_ID: job.Ref_ID,
+            Start_Date: job.Start_Date,
+            Start_Time_Display: job.Start_Time_Display,
+            Price: job.Price,
+            lifecycle_state: job.lifecycle_state,
+            payment_status: job.payment_status,
+          }}
+          onChange={fetchJob}
+        />
 
         {/* Live Progress */}
         <div className="bg-white rounded-2xl p-4 shadow-sm">
