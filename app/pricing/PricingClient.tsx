@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { ArrowLeft } from 'lucide-react';
 
 type Row = {
   section: string;
@@ -91,11 +92,30 @@ export default function PricingClient({ tccRows, idRows }: { tccRows: Row[]; idR
   const popularDc = dcUnits[popularIdx];
   const popularOther = otherUnits[popularIdx];
 
+  // Detect whether we got here from inside the partner dashboard shell so
+  // the back button lands on the right surface (dashboard for logged-in
+  // partners, marketing home for anonymous visitors reaching /pricing).
+  const [backHref, setBackHref] = useState<string>('/');
+  const [backLabel, setBackLabel] = useState<string>('Back to Home');
+  useEffect(() => {
+    const hasPartnerSession = typeof document !== 'undefined' && document.cookie.split('; ').some(c => c.startsWith('dc_partner_session='));
+    const ref = typeof document !== 'undefined' ? document.referrer : '';
+    const refIsDashboard = ref.includes('/dashboard');
+    if (hasPartnerSession || refIsDashboard) {
+      setBackHref('/dashboard');
+      setBackLabel('Back to Dashboard');
+    }
+  }, []);
+
   return (
     <div className="dc-pricing">
       {/* Nav */}
       <nav className="dc-nav">
         <div className="dc-nav__inner">
+          <a href={backHref} className="dc-nav__back" aria-label={backLabel}>
+            <ArrowLeft style={{ width: 18, height: 18 }} />
+            <span>{backLabel}</span>
+          </a>
           <a href="/" className="dc-nav__brand">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={LOGO_URL} alt="Doctor Clean" className="dc-nav__logo" />
@@ -498,6 +518,8 @@ const CSS = `
 /* NAV */
 .dc-nav { background: #fff; border-bottom: 1px solid var(--dc-border); position: sticky; top: 0; z-index: 30; }
 .dc-nav__inner { max-width: 1200px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; gap: 24px; }
+.dc-nav__back { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--dc-text); text-decoration: none; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--dc-border); background: #fff; transition: all 0.15s ease; }
+.dc-nav__back:hover { background: var(--dc-blue-soft); color: var(--dc-blue); border-color: var(--dc-blue); }
 .dc-nav__brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
 .dc-nav__logo { width: 44px; height: 44px; object-fit: contain; }
 .dc-nav__title { margin: 0; font-size: 18px; font-weight: 800; color: var(--dc-blue); letter-spacing: -0.02em; }
