@@ -121,45 +121,47 @@ export default function AnalyticsPage() {
 
   return (
     <div className="max-w-7xl mx-auto pb-12 animate-in fade-in duration-300">
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-            <BarChart3 className="w-7 h-7 text-emerald-600" />
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 sm:gap-4 mb-5 sm:mb-6">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+            <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-600 shrink-0" />
             Analytics
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-[12px] sm:text-sm text-slate-500 mt-1 leading-snug">
             Monthly revenue, job count, and service mix — from your first booking through today.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-xl bg-white ring-1 ring-slate-200 overflow-hidden">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex rounded-xl bg-white ring-1 ring-slate-200 overflow-hidden flex-1 sm:flex-initial">
             {(['3m', '6m', '12m'] as Range[]).map((r) => (
               <button
                 key={r}
                 onClick={() => setRange(r)}
                 className={cn(
-                  'px-3 py-2 text-xs font-semibold transition',
+                  'flex-1 sm:flex-initial px-2.5 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold transition whitespace-nowrap',
                   range === r
                     ? 'bg-emerald-600 text-white'
                     : 'text-slate-700 hover:bg-slate-50',
                 )}
               >
-                {r === '3m' ? '3 months' : r === '6m' ? '6 months' : '12 months'}
+                <span className="sm:hidden">{r === '3m' ? '3M' : r === '6m' ? '6M' : '12M'}</span>
+                <span className="hidden sm:inline">{r === '3m' ? '3 months' : r === '6m' ? '6 months' : '12 months'}</span>
               </button>
             ))}
           </div>
           <button
             onClick={load}
             disabled={loading}
-            className="h-11 px-4 inline-flex items-center gap-2 rounded-xl bg-white ring-1 ring-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
+            aria-label="Refresh"
+            className="h-10 sm:h-11 px-3 sm:px-4 inline-flex items-center gap-1.5 sm:gap-2 rounded-xl bg-white ring-1 ring-slate-200 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
           >
             <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-3 sm:grid-cols-3 gap-2 sm:gap-3 mb-5 sm:mb-6">
         <MetricCard
           icon={<DollarSign className="w-5 h-5" />}
           label={`Revenue (${range})`}
@@ -207,15 +209,15 @@ export default function AnalyticsPage() {
                 {months.map((m) => {
                   const pct = Math.round((m.revenue / maxRevenue) * 100);
                   return (
-                    <div key={m.month} className="flex items-center gap-3">
-                      <div className="w-20 shrink-0 text-xs font-semibold text-slate-600">{m.label}</div>
-                      <div className="flex-1 bg-slate-100 rounded-lg overflow-hidden h-8 relative">
+                    <div key={m.month} className="flex items-center gap-2 sm:gap-3">
+                      <div className="w-12 sm:w-20 shrink-0 text-[11px] sm:text-xs font-semibold text-slate-600">{m.label}</div>
+                      <div className="flex-1 bg-slate-100 rounded-lg overflow-hidden h-8 relative min-w-0">
                         <div
                           className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg transition-all"
                           style={{ width: `${pct}%` }}
                         />
-                        <div className="absolute inset-0 flex items-center px-3 text-xs font-bold text-white mix-blend-difference">
-                          {formatSGDShort(m.revenue)} · {m.jobs} jobs
+                        <div className="absolute inset-0 flex items-center px-2 sm:px-3 text-[11px] sm:text-xs font-bold text-white mix-blend-difference truncate">
+                          <span className="truncate">{formatSGDShort(m.revenue)} · {m.jobs} jobs</span>
                         </div>
                       </div>
                     </div>
@@ -237,17 +239,17 @@ export default function AnalyticsPage() {
                   const maxSvcRevenue = Math.max(1, ...services.map((x) => x.revenue));
                   const pct = Math.round((s.revenue / maxSvcRevenue) * 100);
                   return (
-                    <div key={s.service} className="flex items-center gap-3">
-                      <div className="w-28 shrink-0 text-xs font-semibold text-slate-600 truncate">
+                    <div key={s.service} className="flex items-center gap-2 sm:gap-3">
+                      <div className="w-20 sm:w-28 shrink-0 text-[11px] sm:text-xs font-semibold text-slate-600 truncate">
                         {s.service}
                       </div>
-                      <div className="flex-1 bg-slate-100 rounded-lg overflow-hidden h-6 relative">
+                      <div className="flex-1 bg-slate-100 rounded-lg overflow-hidden h-7 sm:h-6 relative min-w-0">
                         <div
                           className="h-full bg-gradient-to-r from-sky-500 to-sky-600 rounded-lg transition-all"
                           style={{ width: `${pct}%` }}
                         />
-                        <div className="absolute inset-0 flex items-center px-3 text-xs font-bold text-white mix-blend-difference">
-                          {formatSGDShort(s.revenue)} · {s.jobs}
+                        <div className="absolute inset-0 flex items-center px-2 sm:px-3 text-[11px] sm:text-xs font-bold text-white mix-blend-difference truncate">
+                          <span className="truncate">{formatSGDShort(s.revenue)} · {s.jobs}</span>
                         </div>
                       </div>
                     </div>
@@ -266,12 +268,12 @@ function MetricCard({
   icon, label, value, accent,
 }: { icon: React.ReactNode; label: string; value: string; accent: string }) {
   return (
-    <div className="bg-white rounded-2xl ring-1 ring-slate-100 p-4 shadow-sm">
-      <div className={cn('inline-flex w-10 h-10 rounded-xl items-center justify-center mb-2', accent)}>
+    <div className="bg-white rounded-xl sm:rounded-2xl ring-1 ring-slate-100 p-3 sm:p-4 shadow-sm">
+      <div className={cn('inline-flex w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl items-center justify-center mb-1.5 sm:mb-2 [&_svg]:w-4 [&_svg]:h-4 sm:[&_svg]:w-5 sm:[&_svg]:h-5', accent)}>
         {icon}
       </div>
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</p>
-      <p className="text-2xl font-extrabold text-slate-900 mt-0.5 tracking-tight">{value}</p>
+      <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">{label}</p>
+      <p className="text-base sm:text-2xl font-extrabold text-slate-900 mt-0.5 tracking-tight truncate">{value}</p>
     </div>
   );
 }
